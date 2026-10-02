@@ -105,21 +105,6 @@
       links: [{ k: 'code', href: 'https://github.com/IzikStar/izik-star-chess-engine' }],
     },
     {
-      name: { he: 'GoldenToasts', en: 'GoldenToasts' },
-      tag: { he: 'Full-Stack · Backend', en: 'Full-stack · Backend' },
-      text: {
-        he: 'אפליקציה למסורת הרמת הכוסית של צוות: תזמון, הזמנות, אישור מנהל ולוח "עבריינים" למי שמבריז. אימות JWT, הרשאות לפי תפקיד, ומונוריפו Nx עם בדיקות ו־CI.',
-        en: "An app for a team's toast tradition: scheduling, invites, admin approval and a 'criminals' board for whoever skips. JWT auth, role-based guards, and an Nx monorepo with tests and CI.",
-      },
-      stack: ['NestJS', 'React', 'PostgreSQL', 'Sequelize', 'Redux Toolkit', 'Nx', 'Jest'],
-      facts: [
-        { he: 'בדיקות יחידה', en: 'Unit tests', v: '114' },
-        { he: 'בדיקות e2e', en: 'E2E tests', v: '8' },
-        { he: 'CI', en: 'CI', v: 'GitHub Actions' },
-      ],
-      links: [{ k: 'code', href: 'https://github.com/IzikStar/golden-toasts' }],
-    },
-    {
       name: { he: 'סוכן חיפוש עבודה (MCP)', en: 'LinkedIn agent MCP' },
       tag: { he: 'TypeScript · ניסיוני', en: 'TypeScript · Experimental' },
       text: {
@@ -146,6 +131,36 @@
         { he: 'הקוד', en: 'Code', v: { he: 'פרטי', en: 'Private' } },
       ],
       links: [{ k: 'live', href: 'https://collect.accellent.org' }],
+    },
+    {
+      name: { he: 'Accellent', en: 'Accellent' },
+      tag: { he: 'AI · בפיתוח', en: 'AI · In development' },
+      text: {
+        he: 'מאמן הגייה מבוסס AI לדוברי עברית: מקליטים משפט בדפדפן, Azure Speech מנקד את ההגייה ברמת הפונמה, ומודל שפה הופך את הציונים להנחיות מעשיות (לשון, שפתיים, הטעמה). זה המוצר ש־Accellent Collect אוסף בשבילו נתונים.',
+        en: 'An AI pronunciation coach for Hebrew speakers: record a sentence in the browser, Azure Speech scores it phoneme by phoneme, and an LLM turns the scores into practical coaching (tongue, lips, stress). It is the product Accellent Collect gathers data for.',
+      },
+      stack: ['React', 'TypeScript', 'NestJS', 'Nx', 'Azure Speech', 'OpenAI'],
+      facts: [
+        { he: 'סטטוס', en: 'Status', v: { he: 'בפיתוח', en: 'In development' } },
+        { he: 'צינור', en: 'Pipeline', v: { he: 'ניקוד פונמות ← אימון במודל שפה', en: 'Phoneme scoring → LLM coaching' } },
+      ],
+      links: [],
+      note: { he: 'הקוד יפורסם בהמשך', en: 'Code coming later' },
+    },
+    {
+      name: { he: 'GoldenToasts', en: 'GoldenToasts' },
+      tag: { he: 'Full-Stack · Backend', en: 'Full-stack · Backend' },
+      text: {
+        he: 'אפליקציה למסורת הרמת הכוסית של צוות: תזמון, הזמנות, אישור מנהל ולוח "עבריינים" למי שמבריז. אימות JWT, הרשאות לפי תפקיד, ומונוריפו Nx עם בדיקות ו־CI.',
+        en: "An app for a team's toast tradition: scheduling, invites, admin approval and a 'criminals' board for whoever skips. JWT auth, role-based guards, and an Nx monorepo with tests and CI.",
+      },
+      stack: ['NestJS', 'React', 'PostgreSQL', 'Sequelize', 'Redux Toolkit', 'Nx', 'Jest'],
+      facts: [
+        { he: 'בדיקות יחידה', en: 'Unit tests', v: '114' },
+        { he: 'בדיקות e2e', en: 'E2E tests', v: '8' },
+        { he: 'CI', en: 'CI', v: 'GitHub Actions' },
+      ],
+      links: [{ k: 'code', href: 'https://github.com/IzikStar/golden-toasts' }],
     },
     {
       name: { he: 'MasterMind', en: 'MasterMind' },
@@ -226,7 +241,8 @@
     root.replaceChildren(
       ...PROJECTS.map((p) => {
         const links = el('div', { class: 'links' }, ...p.links.map((l) => el('a', { href: l.href, rel: 'noopener', text: `${t(l.k)} ↗` })));
-        if (p.links.every((l) => l.k !== 'code')) links.append(el('span', { text: t('privateCode') }));
+        if (p.note) links.append(el('span', { text: pick(p.note) }));
+        else if (p.links.every((l) => l.k !== 'code')) links.append(el('span', { text: t('privateCode') }));
         const media = p.img
           ? el('img', { src: p.img, alt: `${pick(p.name)} screenshot`, loading: 'lazy' })
           : el('dl', { class: 'facts' }, ...p.facts.map((f) => el('div', {}, el('dt', { text: f[lang] }), el('dd', { text: pick(f.v) }))));
