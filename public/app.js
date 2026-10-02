@@ -94,6 +94,24 @@
 
   const PROJECTS = [
     {
+      name: { he: 'טובים', en: 'Tovim' },
+      tag: { he: 'Full-Stack · באוויר', en: 'Full-stack · Live' },
+      text: {
+        he: 'מערכת עבודה לשדכנים, בעברית ומימין לשמאל: כרטיס מלא לכל מועמד, לוח שעוקב אחרי כל הצעה מהרעיון ועד החתונה, הצעות התאמה אוטומטיות עם ציון והסבר, מצב סיעור מוחות, הקפאת הצעה עד תאריך עם תזכורת, ומאגר משותף בין שדכנים ששומר על פרטיות. סיסמאות מוצפנות ב־scrypt, ו־CI שמריץ בדיקות שרת (מול MongoDB אמיתי) ולקוח על כל push.',
+        en: 'A Hebrew, right-to-left workspace for matchmakers: a full profile for every single, a board that tracks each proposal from first idea to wedding, automatic match suggestions with a score and an explanation, a brainstorm mode, on-hold proposals that come back with a reminder, and a privacy-safe pool shared between matchmakers. scrypt password hashing, and CI that runs server tests (against a real MongoDB) and client tests on every push.',
+      },
+      stack: ['React', 'TypeScript', 'Vite', 'Tailwind', 'shadcn/ui', 'Express', 'Mongoose', 'MongoDB Atlas', 'Vitest', 'Render'],
+      img: 'img/tovim.webp',
+      links: [
+        { k: 'live', href: 'https://tovim.onrender.com' },
+        { k: 'code', href: 'https://github.com/IzikStar/Tovim2-public' },
+      ],
+      note: {
+        he: 'שרת חינמי: הטעינה הראשונה לוקחת כחצי דקה. כניסת דמו עם rachel@demo.tovim.example והסיסמה demo-password',
+        en: 'Free hosting: the first load takes about half a minute. Demo login: rachel@demo.tovim.example, password demo-password',
+      },
+    },
+    {
       name: { he: 'מנוע שחמט', en: 'Chess engine' },
       tag: { he: 'Java · אלגוריתמים', en: 'Java · Algorithms' },
       text: {
