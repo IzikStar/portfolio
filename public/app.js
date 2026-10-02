@@ -97,10 +97,10 @@
       name: { he: 'מנוע שחמט', en: 'Chess engine' },
       tag: { he: 'Java · אלגוריתמים', en: 'Java · Algorithms' },
       text: {
-        he: 'משחק שחמט עם מנוע שכתבתי מאפס: ייצוג לוח ב־bitboards וחיפוש alpha-beta, עם אפשרות לשחק מול Stockfish. הקוד עבר ריפקטור מתועד בשלבים, כשכל שלב מגובה בבדיקות.',
-        en: 'A chess game with an engine written from scratch: bitboard board representation and alpha-beta search, with optional Stockfish play. The code went through a documented, phased refactor, each phase backed by tests.',
+        he: 'משחק שחמט עם מנוע שכתבתי מאפס: ייצוג לוח ב־bitboards, חיפוש alpha-beta ו־10 רמות קושי (העליונות יכולות לעבור ל־Stockfish). משחקים בדפדפן: ה־jar מרים שרת מקומי וממשק React שמדבר איתו ב־WebSocket, עם premoves, רמזים וסקירת מהלכים. הקוד עובר ריפקטור מתועד בשלבים, כשכל שלב מגובה בבדיקות perft, בדיקות אופי ובדיקות דפדפן.',
+        en: 'A chess game with an engine written from scratch: bitboards, alpha-beta search and 10 difficulty levels (the top ones can hand off to Stockfish). You play in the browser: the jar starts a local server and a React UI that talks to it over a WebSocket, with premoves, hints and move review. The code is going through a documented, phased refactor, each phase backed by perft, characterization and browser tests.',
       },
-      stack: ['Java', 'Swing', 'Maven', 'JUnit'],
+      stack: ['Java', 'Maven', 'JUnit', 'React', 'TypeScript', 'WebSocket', 'Playwright'],
       img: 'img/chess.webp',
       links: [{ k: 'code', href: 'https://github.com/IzikStar/izik-star-chess-engine' }],
     },
@@ -165,12 +165,15 @@
       name: { he: 'סוליטר', en: 'Solitaire' },
       tag: { he: 'React · 2024', en: 'React · 2024' },
       text: {
-        he: 'סוליטר קלונדייק עם היסטוריית undo/redo, אנימציות וסאונד. פרויקט לימודי שבניתי עם חבר לכיתה.',
-        en: 'Klondike solitaire with undo/redo history, animations and sound. A learning project built with a classmate.',
+        he: 'סוליטר קלונדייק עם היסטוריית undo/redo, רמזים, גרירה, סיום אוטומטי כשכל הקלפים גלויים, אנימציות וסאונד. פרויקט לימודי שבניתי עם חבר לכיתה ב־2024 ושופץ ב־2026.',
+        en: 'Klondike solitaire with undo/redo history, hints, drag and drop, auto-finish once every card is face up, animations and sound. A learning project built with a classmate in 2024 and polished in 2026.',
       },
-      stack: ['React', 'Vite', 'GSAP', 'Tailwind'],
+      stack: ['React', 'Vite', 'Tailwind', 'react-dnd', 'GSAP'],
       img: 'img/solitaire.webp',
-      links: [{ k: 'code', href: 'https://github.com/IzikStar/solitaire_0.1' }],
+      links: [
+        { k: 'playGame', href: 'https://itschakasafreactproject.netlify.app/' },
+        { k: 'code', href: 'https://github.com/IzikStar/solitaire_0.1' },
+      ],
     },
   ];
 
