@@ -163,20 +163,6 @@
       links: [{ k: 'code', href: 'https://github.com/IzikStar/golden-toasts' }],
     },
     {
-      name: { he: 'MasterMind', en: 'MasterMind' },
-      tag: { he: 'TypeScript · אלגוריתמים', en: 'TypeScript · Algorithms' },
-      text: {
-        he: 'משחק מאסטרמיינד עם פותר מובנה (minimax של Knuth) שמפצח כל קוד ב־5 ניחושים לכל היותר, רמזים, ומצב שבו המחשב מנחש את הקוד שלכם.',
-        en: "Mastermind with a built-in solver (Knuth's minimax) that cracks any code in at most 5 guesses, hints, and a mode where the computer guesses your code.",
-      },
-      stack: ['TypeScript', 'Vite', 'Vitest'],
-      img: 'img/mastermind.webp',
-      links: [
-        { k: 'playGame', href: 'https://izikstar.github.io/MasterMindTS/' },
-        { k: 'code', href: 'https://github.com/IzikStar/MasterMindTS' },
-      ],
-    },
-    {
       name: { he: 'סוליטר', en: 'Solitaire' },
       tag: { he: 'React · 2024', en: 'React · 2024' },
       text: {
@@ -188,6 +174,20 @@
       links: [
         { k: 'playGame', href: 'https://itschakasafreactproject.netlify.app/' },
         { k: 'code', href: 'https://github.com/IzikStar/solitaire_0.1' },
+      ],
+    },
+    {
+      name: { he: 'MasterMind', en: 'MasterMind' },
+      tag: { he: 'TypeScript · אלגוריתמים', en: 'TypeScript · Algorithms' },
+      text: {
+        he: 'משחק מאסטרמיינד עם פותר מובנה (minimax של Knuth) שמפצח כל קוד ב־5 ניחושים לכל היותר, רמזים, ומצב שבו המחשב מנחש את הקוד שלכם.',
+        en: "Mastermind with a built-in solver (Knuth's minimax) that cracks any code in at most 5 guesses, hints, and a mode where the computer guesses your code.",
+      },
+      stack: ['TypeScript', 'Vite', 'Vitest'],
+      img: 'img/mastermind.webp',
+      links: [
+        { k: 'playGame', href: 'https://izikstar.github.io/MasterMindTS/' },
+        { k: 'code', href: 'https://github.com/IzikStar/MasterMindTS' },
       ],
     },
   ];
