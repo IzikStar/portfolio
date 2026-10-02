@@ -262,3 +262,21 @@ describe('file streaming', () => {
     expect((await req('/api/file/does-not-exist')).status).toBe(404);
   });
 });
+
+describe('custom domains', () => {
+  it('redirects the secondary domains to the main address, keeping path and query', async () => {
+    for (const host of ['izikstar.com', 'www.izikstar.com', 'www.itschakshteren.com']) {
+      const res = await worker.fetch(new Request(`https://${host}/admin?x=1`), env);
+      expect(res.status).toBe(301);
+      expect(res.headers.get('location')).toBe('https://itschakshteren.com/admin?x=1');
+    }
+  });
+
+  it('serves the main address and workers.dev without redirecting', async () => {
+    for (const host of ['itschakshteren.com', 'portfolio.itschakme.workers.dev']) {
+      const res = await worker.fetch(new Request(`https://${host}/`), env);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('asset');
+    }
+  });
+});

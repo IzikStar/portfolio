@@ -1,12 +1,23 @@
 name = "portfolio"
 main = "src/worker.js"
 compatibility_date = "2026-09-01"
+workers_dev = true
+
+# Custom domains (both bought on Cloudflare Registrar, so their zones are in this account).
+routes = [
+  { pattern = "itschakshteren.com", custom_domain = true },
+  { pattern = "www.itschakshteren.com", custom_domain = true },
+  { pattern = "izikstar.com", custom_domain = true },
+  { pattern = "www.izikstar.com", custom_domain = true },
+]
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
 html_handling = "drop-trailing-slash"
 not_found_handling = "404-page"
+# Run the worker first so it can redirect the secondary domains on every path.
+run_worker_first = true
 
 [[kv_namespaces]]
 binding = "MEDIA"

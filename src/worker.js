@@ -13,11 +13,19 @@
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
 const SESSION_HOURS = 12;
+
+// The main address. The other custom domains (and www.) redirect here;
+// the workers.dev address keeps working as is.
+const CANONICAL_HOST = 'itschakshteren.com';
+const REDIRECT_HOSTS = ['www.itschakshteren.com', 'izikstar.com', 'www.izikstar.com'];
 const COOKIE = 'admin_session';
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (REDIRECT_HOSTS.includes(url.hostname)) {
+      return Response.redirect(`https://${CANONICAL_HOST}${url.pathname}${url.search}`, 301);
+    }
     try {
       if (url.pathname.startsWith('/api/')) return await api(request, env, url);
     } catch (err) {
