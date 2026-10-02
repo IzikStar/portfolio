@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ניהול מוזיקה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700&family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .admin { max-width: 46rem; padding-block: 2.5rem 4rem; display: grid; gap: 2rem; }
+  .admin h1 { font-family: var(--display); font-size: var(--step-3); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; display: grid; gap: 1rem; }
+  .card h2 { font-family: var(--display); font-size: var(--step-2); }
+  label { display: grid; gap: 0.3rem; font-weight: 500; font-size: var(--step--1); }
+  label small { color: var(--muted); font-weight: 400; }
+  input[type='text'], input[type='password'], textarea {
+    font: inherit; font-size: var(--step-0); color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0.55rem 0.7rem; width: 100%;
+  }
+  input[type='file'] { font: inherit; font-size: var(--step--1); max-width: 100%; }
+  textarea { min-height: 4.5rem; resize: vertical; }
+  .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .check { display: flex; gap: 0.5rem; align-items: center; font-weight: 400; }
+  .msg { font-size: var(--step--1); min-height: 1.4em; }
+  .msg.err { color: var(--signal); }
+  .msg.ok { color: var(--accent); }
+  progress { width: 100%; accent-color: var(--accent); }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .item { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem; display: grid; gap: 0.6rem; background: var(--bg); }
+  .item.is-hidden { opacity: 0.65; }
+  .item .top { display: flex; gap: 0.75rem; align-items: center; }
+  .item .top .meta { margin-inline-start: auto; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); direction: ltr; }
+  .item .badge { font-size: 0.75rem; border: 1px solid var(--line); border-radius: 999px; padding: 0 0.5rem; color: var(--muted); }
+  .item .actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .item .actions .btn { padding: 0.3rem 0.7rem; }
+  .btn.danger { color: var(--signal); }
+  .btn.danger.confirm { background: var(--signal); color: var(--accent-ink); border-color: var(--signal); }
+  .btn[disabled] { opacity: 0.5; cursor: default; }
+  .item audio { width: 100%; height: 36px; }
+</style>
+</head>
+<body>
+<div class="wrap admin">
+  <div class="row">
+    <h1>ניהול מוזיקה</h1>
+    <a href="/" style="margin-inline-start:auto">חזרה לאתר</a>
+    <button class="btn" id="logout" type="button" hidden>יציאה</button>
+  </div>
+
+  <form class="card" id="login-form" hidden>
+    <h2>כניסה</h2>
+    <label for="password">סיסמה
+      <input type="password" id="password" autocomplete="current-password" required>
+    </label>
+    <div class="row"><button class="btn primary" type="submit">כניסה</button></div>
+    <p class="msg" id="login-msg" role="status"></p>
+  </form>
+
+  <div id="panel" hidden>
+    <form class="card" id="upload-form">
+      <h2>העלאת שיר</h2>
+      <label for="title">שם השיר
+        <input type="text" id="title" maxlength="120" required>
+      </label>
+      <label for="note">שורת תיאור <small>(לא חובה: שנה, מי ניגן, על מה השיר)</small>
+        <textarea id="note" maxlength="280"></textarea>
+      </label>
+      <label for="audio">קובץ שמע <small>MP3, M4A, OGG או WAV, עד 25MB</small>
+        <input type="file" id="audio" accept="audio/*" required>
+      </label>
+      <label for="cover">תמונת עטיפה <small>(לא חובה, עד 2MB)</small>
+        <input type="file" id="cover" accept="image/*">
+      </label>
+      <label class="check" for="hidden-upload"><input type="checkbox" id="hidden-upload"> להעלות כמוסתר (לא יופיע באתר עד שתציג אותו)</label>
+      <progress id="progress" max="100" value="0" hidden></progress>
+      <div class="row"><button class="btn primary" type="submit" id="upload-btn">העלאה</button></div>
+      <p class="msg" id="upload-msg" role="status"></p>
+    </form>
+
+    <section class="card" style="margin-top:2rem">
+      <h2>השירים באתר</h2>
+      <p class="msg" id="list-msg" role="status"></p>
+      <ol class="list" id="list"></ol>
+    </section>
+  </div>
+</div>
+<script src="admin.js"></script>
+</body>
+</html>

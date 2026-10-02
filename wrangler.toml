@@ -1,0 +1,16 @@
+name = "izikstar-portfolio"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"
+
+[[kv_namespaces]]
+binding = "MEDIA"
+id = "d30f95f26d0b475c97a2c6171e2ea1a4"
+
+[observability]
+enabled = true
