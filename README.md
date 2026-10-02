@@ -1,15 +1,15 @@
 # Itschak Shteren: portfolio
 
-Personal site of Itschak Shteren: full-stack developer, musician and writer. Hebrew and English, with a password-protected admin page for uploading music.
+Personal site of Itschak Shteren: full-stack developer, musician, writer, voice actor and sketch maker. Hebrew and English, with a password-protected admin page that uploads music, voice reels, sketches and writing, and switches each section of the site on or off.
 
 ## How it works
 
-- `public/` is the static site: plain HTML, CSS and JS, no build step. `index.html` is the portfolio, `admin.html` is the music admin page.
+- `public/` is the static site: plain HTML, CSS and JS, no build step. `index.html` is the portfolio, `admin.html` is the admin page.
 - `src/worker.js` is a Cloudflare Worker. It serves `public/` and a small API:
-  - `GET /api/tracks`: the public track list
-  - `GET /api/audio/:id`, `GET /api/cover/:id`: audio and cover images, with HTTP range support so the player can seek
-  - `/api/admin/*`: login, upload, edit, reorder, hide and delete (session cookie, HMAC-signed, HttpOnly, SameSite=Strict, plus an Origin check on writes)
-- Audio and covers are stored in Workers KV (one value per file, 25 MB max per track), the track list as one JSON value.
+  - `GET /api/site`: which sections are on, their intro lines, and the visible items
+  - `GET /api/file/:id`, `GET /api/cover/:id`: uploaded files and cover images, with HTTP range support so players can seek
+  - `/api/admin/*`: login, section switches, upload (file or link), edit, reorder, hide and delete (session cookie, HMAC-signed, HttpOnly, SameSite=Strict, plus an Origin check on writes)
+- Files and covers are stored in Workers KV (one value per file, 25 MB max; bigger videos go on YouTube and are added as links). The item list and the settings are one JSON value each.
 - The admin password is a Worker secret (`ADMIN_PASSWORD`). Changing it logs out every session.
 
 ## Develop
@@ -23,4 +23,9 @@ npm test         # API tests (Vitest, in-memory KV)
 
 ## Deploy
 
-Every push to `main` runs the tests and deploys with Wrangler. The repo needs three Actions secrets: `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers"), `CLOUDFLARE_ACCOUNT_ID` and `ADMIN_PASSWORD`.
+Cloudflare deploys the site straight from this repo (Workers Builds): every push to `main` goes live. One-time setup in the Cloudflare dashboard:
+
+1. Workers & Pages → Create → Import a repository → pick this repo → Deploy.
+2. The new worker → Settings → Variables and Secrets → Add → type Secret, name `ADMIN_PASSWORD`.
+
+GitHub Actions runs the tests on every push and pull request.

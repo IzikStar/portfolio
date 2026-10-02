@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Itschak Shteren</title>
-<meta name="description" content="Itschak Shteren: full-stack developer (TypeScript, React, NestJS, Java), musician and writer.">
+<meta name="description" content="Itschak Shteren: full-stack developer (TypeScript, React, NestJS, Java), musician, writer and voice actor.">
 <meta property="og:title" content="Itschak Shteren">
-<meta property="og:description" content="Full-stack developer, musician and writer.">
+<meta property="og:description" content="Full-stack developer and creator: music, writing, voice acting and sketches.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6b5f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='serif' font-weight='700'%3EI%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,12 +17,7 @@
 <header class="bar">
   <div class="wrap">
     <a class="mark" href="#top" data-i18n="name">יצחק שטרן</a>
-    <nav>
-      <a href="#code" data-i18n="nav.code">קוד</a>
-      <a href="#music" data-i18n="nav.music">מוזיקה</a>
-      <a href="#about" data-i18n="nav.about">עליי</a>
-      <a href="#contact" data-i18n="nav.contact">יצירת קשר</a>
-    </nav>
+    <nav id="nav"></nav>
     <button class="lang" id="lang-toggle" type="button" aria-label="Switch language">EN</button>
   </div>
 </header>
@@ -31,20 +26,16 @@
   <div class="wrap hero">
     <span class="avail" data-i18n="hero.avail">פנוי לעבודה מדצמבר 2026</span>
     <h1 data-i18n="name">יצחק שטרן</h1>
-    <div class="roles">
-      <span data-i18n="hero.role1">מפתח Full-Stack</span>
-      <span data-i18n="hero.role2">מוזיקאי</span>
-      <span data-i18n="hero.role3">כותב</span>
-    </div>
-    <p class="lede" data-i18n="hero.lede">בשנתיים האחרונות אני בונה מערכות פרודקשן בחיל האוויר: אימות משתמשים בארכיטקטורה של 8 שירותים, תכנון מחדש של אלגוריתמים ותשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים. מחוץ לקוד אני מנגן, כותב ומלחין.</p>
+    <div class="roles" id="roles"></div>
+    <p class="lede" data-i18n="hero.lede">בשנתיים האחרונות אני בונה מערכות פרודקשן בחיל האוויר: אימות משתמשים בארכיטקטורה של 8 שירותים, תכנון מחדש של אלגוריתמים ותשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים.</p>
     <div class="actions">
-      <a class="btn primary" href="#code" data-i18n="hero.cta">לפרויקטים</a>
+      <a class="btn primary" href="#code" data-i18n="hero.cta" id="hero-cta">לפרויקטים</a>
       <a class="btn" href="https://github.com/IzikStar" rel="noopener">GitHub</a>
       <a class="btn" href="https://www.linkedin.com/in/itschak-shteren-0b7a59313" rel="noopener">LinkedIn</a>
     </div>
   </div>
 
-  <section class="block" id="code">
+  <section class="block" id="code" data-section="code">
     <div class="wrap">
       <div class="head">
         <h2 data-i18n="code.title">פרויקטים</h2>
@@ -54,26 +45,45 @@
     </div>
   </section>
 
-  <section class="block" id="music">
+  <section class="block media-section" id="music" data-section="music" data-layout="list" hidden>
     <div class="wrap">
-      <div class="head">
-        <h2 data-i18n="music.title">מוזיקה</h2>
-        <span class="kicker" id="track-count"></span>
-      </div>
-      <p class="music-intro" data-i18n="music.intro">שירים ויצירות שהקלטתי. לחצו על שיר כדי לנגן.</p>
-      <ol class="tracks" id="tracks" aria-live="polite"></ol>
-      <p class="empty" id="tracks-empty" hidden data-i18n="music.empty">השירים הראשונים יעלו לכאן בקרוב.</p>
-      <audio id="player" preload="none"></audio>
+      <div class="head"><h2 data-i18n="music.title">מוזיקה</h2><span class="kicker" data-count></span></div>
+      <p class="intro" data-intro></p>
+      <ol class="rows" data-items></ol>
     </div>
   </section>
 
-  <section class="block" id="about">
+  <section class="block media-section" id="voice" data-section="voice" data-layout="list" hidden>
+    <div class="wrap">
+      <div class="head"><h2 data-i18n="voice.title">דיבוב</h2><span class="kicker" data-count></span></div>
+      <p class="intro" data-intro></p>
+      <ol class="rows" data-items></ol>
+    </div>
+  </section>
+
+  <section class="block media-section" id="sketches" data-section="sketches" data-layout="cards" hidden>
+    <div class="wrap">
+      <div class="head"><h2 data-i18n="sketches.title">מערכונים</h2><span class="kicker" data-count></span></div>
+      <p class="intro" data-intro></p>
+      <div class="cards" data-items></div>
+    </div>
+  </section>
+
+  <section class="block media-section" id="writing" data-section="writing" data-layout="cards" hidden>
+    <div class="wrap">
+      <div class="head"><h2 data-i18n="writing.title">כתיבה</h2><span class="kicker" data-count></span></div>
+      <p class="intro" data-intro></p>
+      <div class="cards" data-items></div>
+    </div>
+  </section>
+
+  <section class="block" id="about" data-section="about">
     <div class="wrap">
       <div class="head"><h2 data-i18n="about.title">עליי</h2></div>
       <div class="about">
         <div>
           <p data-i18n="about.p1">אני מפתח Full-Stack עם ניסיון בפרודקשן ב־TypeScript, React, NestJS, Java ו־PostgreSQL. אני אוהב את החלקים שמתחת למכסה המנוע: אימות והרשאות, אלגוריתמים, ובדיקות שמאפשרות לשנות קוד בלי לפחד.</p>
-          <p data-i18n="about.p2">אני גם מוזיקאי וכותב, וכנראה בגלל זה אכפת לי איך דברים מרגישים לאדם שמשתמש בהם.</p>
+          <p data-i18n="about.p2">אני גם יוצר בעוד תחומים, וכנראה בגלל זה אכפת לי איך דברים מרגישים לאדם שמשתמש בהם.</p>
           <ul class="chips stack" id="stack"></ul>
         </div>
         <ol class="timeline" id="timeline"></ol>
@@ -81,7 +91,7 @@
     </div>
   </section>
 
-  <section class="block" id="contact">
+  <section class="block" id="contact" data-section="contact">
     <div class="wrap">
       <div class="head"><h2 data-i18n="contact.title">יצירת קשר</h2></div>
       <div class="contact">
@@ -98,6 +108,7 @@
   <div class="wrap" data-i18n="footer">נבנה ביד עם HTML, CSS ו־Cloudflare Workers.</div>
 </footer>
 
+<audio id="player" preload="none"></audio>
 <script src="app.js"></script>
 </body>
 </html>

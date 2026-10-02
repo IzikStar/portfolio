@@ -1,72 +1,93 @@
-// Portfolio front end: language switch, project list, music player.
+// Portfolio front end: language switch, sections controlled from the admin page,
+// project list and the media player.
 (() => {
   const STR = {
     he: {
       name: 'יצחק שטרן',
-      'nav.code': 'קוד',
-      'nav.music': 'מוזיקה',
-      'nav.about': 'עליי',
-      'nav.contact': 'יצירת קשר',
       'hero.avail': 'פנוי לעבודה מדצמבר 2026',
-      'hero.role1': 'מפתח Full-Stack',
-      'hero.role2': 'מוזיקאי',
-      'hero.role3': 'כותב',
       'hero.lede':
-        'בשנתיים האחרונות אני בונה מערכות פרודקשן בחיל האוויר: אימות משתמשים בארכיטקטורה של 8 שירותים, תכנון מחדש של אלגוריתמים ותשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים. מחוץ לקוד אני מנגן, כותב ומלחין.',
+        'בשנתיים האחרונות אני בונה מערכות פרודקשן בחיל האוויר: אימות משתמשים בארכיטקטורה של 8 שירותים, תכנון מחדש של אלגוריתמים ותשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים.',
       'hero.cta': 'לפרויקטים',
       'code.title': 'פרויקטים',
       'code.kicker': 'קוד פתוח ב־GitHub, אלא אם צוין אחרת',
       'music.title': 'מוזיקה',
-      'music.intro': 'שירים ויצירות שהקלטתי. לחצו על שיר כדי לנגן.',
-      'music.empty': 'השירים הראשונים יעלו לכאן בקרוב.',
-      'music.count': (n) => (n === 1 ? 'שיר אחד' : `${n} שירים`),
-      'music.play': 'נגן',
-      'music.pause': 'השהה',
+      'voice.title': 'דיבוב',
+      'sketches.title': 'מערכונים',
+      'writing.title': 'כתיבה',
       'about.title': 'עליי',
+      'contact.title': 'יצירת קשר',
+      'nav.code': 'קוד',
+      'nav.music': 'מוזיקה',
+      'nav.voice': 'דיבוב',
+      'nav.sketches': 'מערכונים',
+      'nav.writing': 'כתיבה',
+      'nav.about': 'עליי',
+      'nav.contact': 'יצירת קשר',
+      'role.code': 'מפתח Full-Stack',
+      'role.music': 'מוזיקאי',
+      'role.voice': 'מדבב',
+      'role.sketches': 'יוצר מערכונים',
+      'role.writing': 'כותב',
+      count: (n) => (n === 1 ? 'פריט אחד' : `${n} פריטים`),
+      play: 'נגן',
+      pause: 'השהה',
+      'open.pdf': 'לקריאה',
+      'open.image': 'לתמונה המלאה',
+      'open.video': 'לצפייה',
+      'open.link': 'לפתיחה',
       'about.p1':
         'אני מפתח Full-Stack עם ניסיון בפרודקשן ב־TypeScript, React, NestJS, Java ו־PostgreSQL. אני אוהב את החלקים שמתחת למכסה המנוע: אימות והרשאות, אלגוריתמים, ובדיקות שמאפשרות לשנות קוד בלי לפחד.',
-      'about.p2': 'אני גם מוזיקאי וכותב, וכנראה בגלל זה אכפת לי איך דברים מרגישים לאדם שמשתמש בהם.',
-      'contact.title': 'יצירת קשר',
+      'about.p2': 'אני גם יוצר בעוד תחומים, וכנראה בגלל זה אכפת לי איך דברים מרגישים לאדם שמשתמש בהם.',
       'contact.copy': 'העתקת כתובת',
       'contact.copied': 'הועתק',
       footer: 'נבנה ביד עם HTML, CSS ו־Cloudflare Workers.',
       code: 'קוד',
       live: 'אתר חי',
-      play: 'לשחק',
+      playGame: 'לשחק',
       privateCode: 'הקוד פרטי',
     },
     en: {
       name: 'Itschak Shteren',
-      'nav.code': 'Code',
-      'nav.music': 'Music',
-      'nav.about': 'About',
-      'nav.contact': 'Contact',
       'hero.avail': 'Available from December 2026',
-      'hero.role1': 'Full-stack developer',
-      'hero.role2': 'Musician',
-      'hero.role3': 'Writer',
       'hero.lede':
-        'For the last two years I have built production systems in the Israeli Air Force: authentication across an 8-service architecture, algorithm redesigns, and a regression framework that validates about 120,000 engineering cases. Away from code I play, write and compose.',
+        'For the last two years I have built production systems in the Israeli Air Force: authentication across an 8-service architecture, algorithm redesigns, and a regression framework that validates about 120,000 engineering cases.',
       'hero.cta': 'See projects',
       'code.title': 'Projects',
       'code.kicker': 'Open source on GitHub unless noted',
       'music.title': 'Music',
-      'music.intro': 'Songs and pieces I have recorded. Pick one to play it.',
-      'music.empty': 'The first songs will be up here soon.',
-      'music.count': (n) => (n === 1 ? '1 track' : `${n} tracks`),
-      'music.play': 'Play',
-      'music.pause': 'Pause',
+      'voice.title': 'Voice acting',
+      'sketches.title': 'Sketches',
+      'writing.title': 'Writing',
       'about.title': 'About',
+      'contact.title': 'Contact',
+      'nav.code': 'Code',
+      'nav.music': 'Music',
+      'nav.voice': 'Voice',
+      'nav.sketches': 'Sketches',
+      'nav.writing': 'Writing',
+      'nav.about': 'About',
+      'nav.contact': 'Contact',
+      'role.code': 'Full-stack developer',
+      'role.music': 'Musician',
+      'role.voice': 'Voice actor',
+      'role.sketches': 'Sketch comedy',
+      'role.writing': 'Writer',
+      count: (n) => (n === 1 ? '1 item' : `${n} items`),
+      play: 'Play',
+      pause: 'Pause',
+      'open.pdf': 'Read',
+      'open.image': 'Full image',
+      'open.video': 'Watch',
+      'open.link': 'Open',
       'about.p1':
         'I am a full-stack developer with production experience in TypeScript, React, NestJS, Java and PostgreSQL. I like the parts under the hood: authentication and permissions, algorithms, and tests that let you change code without fear.',
-      'about.p2': 'I am also a musician and a writer, which is probably why I care about how things feel to the person using them.',
-      'contact.title': 'Contact',
+      'about.p2': 'I also make things in other fields, which is probably why I care about how things feel to the person using them.',
       'contact.copy': 'Copy address',
       'contact.copied': 'Copied',
       footer: 'Hand-built with HTML, CSS and Cloudflare Workers.',
       code: 'Code',
       live: 'Live site',
-      play: 'Play it',
+      playGame: 'Play it',
       privateCode: 'Code is private',
     },
   };
@@ -130,13 +151,13 @@
       name: { he: 'MasterMind', en: 'MasterMind' },
       tag: { he: 'TypeScript · אלגוריתמים', en: 'TypeScript · Algorithms' },
       text: {
-        he: 'משחק מאסטרמיינד עם פותר מובנה (minimax של Knuth) שמפצח כל קוד לכל היותר 5 ניחושים, רמזים, ומצב שבו המחשב מנחש את הקוד שלכם.',
+        he: 'משחק מאסטרמיינד עם פותר מובנה (minimax של Knuth) שמפצח כל קוד ב־5 ניחושים לכל היותר, רמזים, ומצב שבו המחשב מנחש את הקוד שלכם.',
         en: "Mastermind with a built-in solver (Knuth's minimax) that cracks any code in at most 5 guesses, hints, and a mode where the computer guesses your code.",
       },
       stack: ['TypeScript', 'Vite', 'Vitest'],
       img: 'img/mastermind.webp',
       links: [
-        { k: 'play', href: 'https://izikstar.github.io/MasterMindTS/' },
+        { k: 'playGame', href: 'https://izikstar.github.io/MasterMindTS/' },
         { k: 'code', href: 'https://github.com/IzikStar/MasterMindTS' },
       ],
     },
@@ -228,6 +249,161 @@
     );
   }
 
+
+  // ---------- sections ----------
+  const ORDER = ['code', 'music', 'voice', 'sketches', 'writing', 'about', 'contact'];
+  const MEDIA = ['music', 'voice', 'sketches', 'writing'];
+  let site = { sections: Object.fromEntries(ORDER.map((s) => [s, true])), intros: {}, items: [] };
+  const itemsOf = (s) => site.items.filter((i) => i.section === s);
+  // A section shows when it is switched on, and (for media) has something in it.
+  const shown = (s) => site.sections[s] !== false && (!MEDIA.includes(s) || itemsOf(s).length > 0);
+
+  function renderLayout() {
+    document.querySelectorAll('[data-section]').forEach((n) => (n.hidden = !shown(n.dataset.section)));
+    document.getElementById('nav').replaceChildren(
+      ...ORDER.filter(shown).map((s) => el('a', { href: `#${s}`, text: t(`nav.${s}`) })),
+    );
+    // Roles follow the sections that are switched on, even before anything is uploaded.
+    document.getElementById('roles').replaceChildren(
+      ...['code', 'music', 'writing', 'voice', 'sketches'].filter((s) => site.sections[s] !== false).map((s) => el('span', { text: t(`role.${s}`) })),
+    );
+    const cta = document.getElementById('hero-cta');
+    const first = ORDER.find(shown);
+    cta.hidden = !first || first === 'about' || first === 'contact';
+    if (first) cta.href = `#${first}`;
+  }
+
+  // ---------- media ----------
+  const player = document.getElementById('player');
+  let current = null;
+  const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
+  const fmt = (s) => (Number.isFinite(s) && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
+  const fileUrl = (i) => `api/file/${i.id}`;
+
+  function playButton(item) {
+    const btn = el('button', { class: 'play', type: 'button', 'data-play': item.id });
+    btn.addEventListener('click', () => toggle(item));
+    return btn;
+  }
+
+  function seekBar(item) {
+    const seek = el('div', { class: 'seek', 'data-seek': item.id, 'aria-hidden': 'true' }, el('i'));
+    seek.addEventListener('click', (e) => {
+      if (current !== item.id || !player.duration) return;
+      const r = seek.getBoundingClientRect();
+      let x = (e.clientX - r.left) / r.width;
+      if (getComputedStyle(seek).direction === 'rtl') x = 1 - x;
+      player.currentTime = x * player.duration;
+    });
+    return seek;
+  }
+
+  function openLinks(item) {
+    const links = el('div', { class: 'links' });
+    if (item.hasFile && item.kind !== 'audio' && item.kind !== 'video') {
+      links.append(el('a', { href: fileUrl(item), target: '_blank', rel: 'noopener', text: `${t(`open.${item.kind}`)} ↗` }));
+    }
+    if (item.link) {
+      let host = '';
+      try { host = new URL(item.link).hostname.replace(/^www\./, ''); } catch { /* shown without host */ }
+      links.append(el('a', { href: item.link, target: '_blank', rel: 'noopener', text: `${t('open.link')} ${host} ↗` }));
+    }
+    return links.childElementCount ? links : null;
+  }
+
+  function row(item) {
+    const audio = item.kind === 'audio';
+    const cover = item.hasCover ? el('img', { class: 'cover', src: `api/cover/${item.id}`, alt: '', loading: 'lazy' }) : null;
+    return el(
+      'li',
+      { class: `row${cover ? '' : ' nocover'}`, 'data-id': item.id },
+      audio ? playButton(item) : el('span', { class: 'play ghost', 'aria-hidden': 'true', text: item.kind === 'video' ? '▶' : '↗' }),
+      cover,
+      el('div', { class: 'info' }, el('span', { class: 'title', dir: 'auto', text: item.title }), item.note ? el('span', { class: 'note', dir: 'auto', text: item.note }) : null, audio ? null : openLinks(item)),
+      el('span', { class: 'time', 'data-time': item.id, text: fmt(item.duration) }),
+      audio ? seekBar(item) : null,
+    );
+  }
+
+  function card(item) {
+    let media = null;
+    if (item.kind === 'video') media = el('video', { src: fileUrl(item), controls: '', preload: 'metadata', playsinline: '', ...(item.hasCover ? { poster: `api/cover/${item.id}` } : {}) });
+    else if (item.hasCover) media = el('img', { src: `api/cover/${item.id}`, alt: '', loading: 'lazy' });
+    else if (item.kind === 'image') media = el('img', { src: fileUrl(item), alt: item.title, loading: 'lazy' });
+    const audio = item.kind === 'audio'
+      ? el('div', { class: 'card-audio' }, playButton(item), el('span', { class: 'time', 'data-time': item.id, text: fmt(item.duration) }), seekBar(item))
+      : null;
+    return el(
+      'article',
+      { class: 'card', 'data-id': item.id },
+      media ? el('div', { class: 'card-media' }, media) : null,
+      el('div', { class: 'card-body' }, el('h3', { dir: 'auto', text: item.title }), item.note ? el('p', { dir: 'auto', text: item.note }) : null, audio, openLinks(item)),
+    );
+  }
+
+  function renderMedia() {
+    document.querySelectorAll('.media-section').forEach((sec) => {
+      const name = sec.dataset.section;
+      const items = itemsOf(name);
+      const intro = sec.querySelector('[data-intro]');
+      intro.textContent = site.intros[name] || '';
+      intro.dir = 'auto';
+      intro.hidden = !intro.textContent;
+      sec.querySelector('[data-count]').textContent = items.length ? t('count')(items.length) : '';
+      sec.querySelector('[data-items]').replaceChildren(...items.map(sec.dataset.layout === 'list' ? row : card));
+    });
+    syncPlayer();
+  }
+
+  function syncPlayer() {
+    document.querySelectorAll('[data-play]').forEach((b) => {
+      const on = b.dataset.play === current && !player.paused;
+      const item = site.items.find((i) => i.id === b.dataset.play);
+      b.innerHTML = on ? ICON_PAUSE : ICON_PLAY;
+      b.setAttribute('aria-label', `${on ? t('pause') : t('play')}: ${item?.title ?? ''}`);
+    });
+    document.querySelectorAll('[data-seek]').forEach((s) => s.classList.toggle('on', s.dataset.seek === current));
+    document.querySelectorAll('.row, .card').forEach((r) => r.classList.toggle('active', r.dataset.id === current));
+  }
+
+  function toggle(item) {
+    if (current === item.id) {
+      player.paused ? player.play().catch(() => {}) : player.pause();
+      return;
+    }
+    if (current) {
+      const prev = site.items.find((i) => i.id === current);
+      const time = document.querySelector(`[data-time="${current}"]`);
+      if (time) time.textContent = fmt(prev?.duration);
+    }
+    current = item.id;
+    player.src = fileUrl(item);
+    player.play().catch(() => {});
+    syncPlayer();
+  }
+
+  ['play', 'pause'].forEach((ev) => player.addEventListener(ev, syncPlayer));
+  player.addEventListener('timeupdate', () => {
+    if (!player.duration) return;
+    const bar = document.querySelector(`[data-seek="${current}"] i`);
+    if (bar) bar.style.width = `${(player.currentTime / player.duration) * 100}%`;
+    const time = document.querySelector(`[data-time="${current}"]`);
+    if (time) time.textContent = `${fmt(player.currentTime) || '0:00'} / ${fmt(player.duration)}`;
+  });
+  player.addEventListener('ended', () => {
+    const playlist = site.items.filter((i) => i.kind === 'audio' && shown(i.section));
+    const i = playlist.findIndex((x) => x.id === current);
+    if (i >= 0 && i < playlist.length - 1) toggle(playlist[i + 1]);
+    else syncPlayer();
+  });
+  // One sound at a time: starting a video pauses the music and vice versa.
+  document.addEventListener('play', (e) => {
+    if (e.target instanceof HTMLVideoElement) player.pause();
+    else if (e.target === player) document.querySelectorAll('video').forEach((v) => v.pause());
+  }, true);
+
+  // ---------- page ----------
   function applyLang() {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
@@ -237,7 +413,8 @@
     document.getElementById('lang-toggle').textContent = lang === 'he' ? 'EN' : 'עב';
     document.title = lang === 'he' ? 'יצחק שטרן' : 'Itschak Shteren';
     renderProjects();
-    renderTracks();
+    renderLayout();
+    renderMedia();
   }
 
   document.getElementById('lang-toggle').addEventListener('click', () => {
@@ -260,82 +437,18 @@
     }
   });
 
-  // ---------- music ----------
-  let tracks = [];
-  let current = null;
-  const player = document.getElementById('player');
-  const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
-  const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
-
-  const fmt = (s) => (Number.isFinite(s) && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
-
-  function renderTracks() {
-    const list = document.getElementById('tracks');
-    document.getElementById('tracks-empty').hidden = tracks.length > 0;
-    document.getElementById('track-count').textContent = tracks.length ? STR[lang]['music.count'](tracks.length) : '';
-    list.replaceChildren(
-      ...tracks.map((tr, i) => {
-        const playing = current === tr.id && !player.paused;
-        const btn = el('button', { class: 'play', type: 'button', 'aria-label': `${playing ? t('music.pause') : t('music.play')}: ${tr.title}` });
-        btn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
-        btn.addEventListener('click', () => toggle(tr));
-        const seek = el('div', { class: 'seek', role: 'slider', 'aria-label': tr.title, tabindex: '-1' }, el('i'));
-        seek.addEventListener('click', (e) => {
-          if (current !== tr.id || !player.duration) return;
-          const r = seek.getBoundingClientRect();
-          let x = (e.clientX - r.left) / r.width;
-          if (getComputedStyle(seek).direction === 'rtl') x = 1 - x;
-          player.currentTime = x * player.duration;
-        });
-        const li = el(
-          'li',
-          { class: `track${current === tr.id ? ' active' : ''}${tr.hasCover ? '' : ' nocover'}`, 'data-id': tr.id },
-          btn,
-          tr.hasCover ? el('img', { class: 'cover', src: `api/cover/${tr.id}`, alt: '', loading: 'lazy' }) : null,
-          el('div', { class: 'info' }, el('span', { class: 'title', dir: 'auto', text: tr.title }), tr.note ? el('span', { class: 'note', dir: 'auto', text: tr.note }) : null),
-          el('span', { class: 'time', text: fmt(tr.duration) }),
-          seek,
-        );
-        li.dataset.n = String(i + 1);
-        return li;
-      }),
-    );
-  }
-
-  function toggle(tr) {
-    if (current === tr.id) {
-      player.paused ? player.play() : player.pause();
-      return;
-    }
-    current = tr.id;
-    player.src = `api/audio/${tr.id}`;
-    player.play().catch(() => {});
-    renderTracks();
-  }
-
-  ['play', 'pause', 'ended'].forEach((ev) => player.addEventListener(ev, renderTracks));
-  player.addEventListener('timeupdate', () => {
-    const bar = document.querySelector(`.track[data-id="${current}"] .seek i`);
-    if (bar && player.duration) bar.style.width = `${(player.currentTime / player.duration) * 100}%`;
-    const time = document.querySelector(`.track[data-id="${current}"] .time`);
-    if (time && player.duration) time.textContent = `${fmt(player.currentTime) || '0:00'} / ${fmt(player.duration)}`;
-  });
-  player.addEventListener('ended', () => {
-    const i = tracks.findIndex((x) => x.id === current);
-    if (i >= 0 && i < tracks.length - 1) toggle(tracks[i + 1]);
-  });
-
-  async function loadTracks() {
+  async function load() {
     try {
-      const res = await fetch('api/tracks', { headers: { Accept: 'application/json' } });
+      const res = await fetch('api/site', { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(String(res.status));
-      tracks = await res.json();
+      site = await res.json();
     } catch {
-      tracks = [];
+      // Without the API the portfolio still shows; creative sections stay hidden.
     }
-    renderTracks();
+    renderLayout();
+    renderMedia();
   }
 
   applyLang();
-  loadTracks();
+  load();
 })();

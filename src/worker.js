@@ -1,12 +1,16 @@
-// Portfolio site worker: serves the static site (ASSETS) and a small API
-// for the music section. Tracks live in KV: one JSON list under "tracks",
-// audio under "audio:<id>", cover images under "cover:<id>".
+// Portfolio site worker: serves the static site (ASSETS) and a small API for
+// the creative sections (music, voice acting, sketches, writing).
+// KV layout:
+//   "items"         JSON list of every uploaded item, in display order
+//   "settings"      JSON { sections: { [name]: boolean }, intros: { [name]: string } }
+//   "file:<id>"     the item's file (audio, video, image or PDF)
+//   "cover:<id>"    optional cover image
 //
 // Required bindings/secrets (see wrangler.toml and README):
 //   MEDIA          KV namespace
 //   ADMIN_PASSWORD secret, the only way into the admin page
 
-import { MAX_AUDIO_BYTES, MAX_COVER_BYTES } from './limits.js';
+import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
 const SESSION_HOURS = 12;
 const COOKIE = 'admin_session';
@@ -36,17 +40,20 @@ async function api(request, env, url) {
   const path = url.pathname;
   const method = request.method;
 
-  if (path === '/api/tracks' && method === 'GET') {
-    const tracks = (await listTracks(env)).filter((t) => !t.hidden).map(publicTrack);
-    return json(tracks, 200, { 'Cache-Control': 'public, max-age=60' });
+  if (path === '/api/site' && method === 'GET') {
+    const [settings, items] = await Promise.all([getSettings(env), listItems(env)]);
+    const visible = items.filter((i) => !i.hidden && settings.sections[i.section]).map(publicItem);
+    return json({ sections: settings.sections, intros: settings.intros, items: visible }, 200, {
+      'Cache-Control': 'public, max-age=60',
+    });
   }
 
-  let m = path.match(/^\/api\/(audio|cover)\/([a-z0-9-]+)$/);
+  let m = path.match(/^\/api\/(file|cover)\/([a-z0-9-]+)$/);
   if (m && (method === 'GET' || method === 'HEAD')) return media(request, env, m[1], m[2]);
 
   if (!path.startsWith('/api/admin/')) throw new HttpError(404, 'Not found.');
 
-  // Everything below changes state or reveals hidden tracks.
+  // Everything below changes state or reveals hidden items.
   if (method !== 'GET') checkOrigin(request, url);
 
   if (path === '/api/admin/login' && method === 'POST') return login(request, env);
@@ -57,116 +64,185 @@ async function api(request, env, url) {
   await requireSession(request, env);
 
   if (path === '/api/admin/session' && method === 'GET') return json({ ok: true });
-  if (path === '/api/admin/tracks' && method === 'GET') return json(await listTracks(env));
-  if (path === '/api/admin/tracks' && method === 'POST') return upload(request, env);
+  if (path === '/api/admin/site' && method === 'GET') {
+    const [settings, items] = await Promise.all([getSettings(env), listItems(env)]);
+    return json({ ...settings, items });
+  }
+  if (path === '/api/admin/settings' && method === 'PUT') return saveSettings(request, env);
+  if (path === '/api/admin/items' && method === 'POST') return upload(request, env);
   if (path === '/api/admin/order' && method === 'PUT') return reorder(request, env);
 
-  m = path.match(/^\/api\/admin\/tracks\/([a-z0-9-]+)$/);
-  if (m && method === 'PATCH') return editTrack(request, env, m[1]);
-  if (m && method === 'DELETE') return deleteTrack(env, m[1]);
+  m = path.match(/^\/api\/admin\/items\/([a-z0-9-]+)$/);
+  if (m && method === 'PATCH') return editItem(request, env, m[1]);
+  if (m && method === 'DELETE') return deleteItem(env, m[1]);
 
   throw new HttpError(404, 'Not found.');
 }
 
-// ---------- tracks ----------
+// ---------- settings ----------
 
-async function listTracks(env) {
-  return (await env.MEDIA.get('tracks', 'json')) ?? [];
+function defaultSettings() {
+  return {
+    sections: Object.fromEntries(SECTIONS.map((s) => [s, true])),
+    intros: Object.fromEntries(MEDIA_SECTIONS.map((s) => [s, ''])),
+  };
 }
 
-async function saveTracks(env, tracks) {
-  await env.MEDIA.put('tracks', JSON.stringify(tracks));
+async function getSettings(env) {
+  const stored = (await env.MEDIA.get('settings', 'json')) ?? {};
+  const base = defaultSettings();
+  return {
+    sections: { ...base.sections, ...pickKnown(stored.sections, SECTIONS, (v) => v === true || v === false) },
+    intros: { ...base.intros, ...pickKnown(stored.intros, MEDIA_SECTIONS, (v) => typeof v === 'string') },
+  };
 }
 
-function publicTrack(t) {
-  const { id, title, note, duration, audioType, hasCover, createdAt } = t;
-  return { id, title, note, duration, audioType, hasCover, createdAt };
+function pickKnown(obj, keys, valid) {
+  return Object.fromEntries(Object.entries(obj ?? {}).filter(([k, v]) => keys.includes(k) && valid(v)));
+}
+
+async function saveSettings(request, env) {
+  const body = await readJson(request);
+  const current = await getSettings(env);
+  const next = {
+    sections: { ...current.sections, ...pickKnown(body.sections, SECTIONS, (v) => v === true || v === false) },
+    intros: { ...current.intros },
+  };
+  for (const [k, v] of Object.entries(pickKnown(body.intros, MEDIA_SECTIONS, (v) => typeof v === 'string'))) {
+    next.intros[k] = cleanText(v, 600);
+  }
+  await env.MEDIA.put('settings', JSON.stringify(next));
+  return json(next);
+}
+
+// ---------- items ----------
+
+async function listItems(env) {
+  return (await env.MEDIA.get('items', 'json')) ?? [];
+}
+
+async function saveItems(env, items) {
+  await env.MEDIA.put('items', JSON.stringify(items));
+}
+
+function publicItem(i) {
+  const { id, section, title, note, link, kind, duration, hasFile, hasCover, createdAt } = i;
+  return { id, section, title, note, link, kind, duration, hasFile, hasCover, createdAt };
 }
 
 function cleanText(value, max) {
   return String(value ?? '').trim().slice(0, max);
 }
 
+function cleanLink(value) {
+  const raw = cleanText(value, 500);
+  if (!raw) return '';
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new HttpError(400, 'The link is not a valid web address.');
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new HttpError(400, 'The link must start with https://');
+  return u.href;
+}
+
 async function upload(request, env) {
   const form = await request.formData();
-  const audio = form.get('audio');
-  const cover = form.get('cover');
+  const section = String(form.get('section') ?? '');
+  if (!MEDIA_SECTIONS.includes(section)) throw new HttpError(400, 'Pick a section for this item.');
   const title = cleanText(form.get('title'), 120);
+  if (!title) throw new HttpError(400, 'Give the item a title.');
+  const link = cleanLink(form.get('link'));
 
-  if (!title) throw new HttpError(400, 'Give the track a title.');
-  if (!(audio instanceof File) || audio.size === 0) throw new HttpError(400, 'Choose an audio file.');
-  if (!audio.type.startsWith('audio/')) throw new HttpError(400, 'That file is not audio. Use MP3, M4A, OGG or WAV.');
-  if (audio.size > MAX_AUDIO_BYTES) throw new HttpError(413, 'The audio file is over 25 MB. Export it as MP3 and try again.');
-
+  const file = form.get('file');
+  const cover = form.get('cover');
+  const hasFile = file instanceof File && file.size > 0;
   const hasCover = cover instanceof File && cover.size > 0;
+  if (!hasFile && !link) throw new HttpError(400, 'Add a file or a link.');
+
+  let kind = 'link';
+  if (hasFile) {
+    kind = fileKind(file.type);
+    if (!kind) throw new HttpError(400, 'Unsupported file type. Use audio, video, PDF or an image (PNG, JPG, WebP).');
+    if (file.size > MAX_FILE_BYTES) throw new HttpError(413, 'The file is over 25 MB. Compress it, or upload it to YouTube or Drive and add a link instead.');
+  }
   if (hasCover) {
-    if (!cover.type.startsWith('image/')) throw new HttpError(400, 'The cover must be an image.');
+    if (!isCoverType(cover.type)) throw new HttpError(400, 'The cover must be a PNG, JPG or WebP image.');
     if (cover.size > MAX_COVER_BYTES) throw new HttpError(413, 'The cover image is over 2 MB.');
   }
 
   const id = crypto.randomUUID();
-  await env.MEDIA.put(`audio:${id}`, await audio.arrayBuffer(), {
-    metadata: { type: audio.type },
-  });
-  if (hasCover) {
-    await env.MEDIA.put(`cover:${id}`, await cover.arrayBuffer(), {
-      metadata: { type: cover.type },
-    });
-  }
+  if (hasFile) await env.MEDIA.put(`file:${id}`, await file.arrayBuffer(), { metadata: { type: file.type } });
+  if (hasCover) await env.MEDIA.put(`cover:${id}`, await cover.arrayBuffer(), { metadata: { type: cover.type } });
 
   const duration = Number(form.get('duration'));
-  const track = {
+  const item = {
     id,
+    section,
     title,
-    note: cleanText(form.get('note'), 280),
+    note: cleanText(form.get('note'), 600),
+    link,
+    kind,
     duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null,
-    audioType: audio.type,
-    fileName: cleanText(audio.name, 200),
-    size: audio.size,
+    hasFile,
+    fileType: hasFile ? file.type : null,
+    fileName: hasFile ? cleanText(file.name, 200) : null,
+    size: hasFile ? file.size : 0,
     hasCover,
     hidden: form.get('hidden') === 'true',
     createdAt: new Date().toISOString(),
   };
-  const tracks = await listTracks(env);
-  tracks.unshift(track);
-  await saveTracks(env, tracks);
-  return json(track, 201);
+  const items = await listItems(env);
+  items.unshift(item);
+  await saveItems(env, items);
+  return json(item, 201);
 }
 
-async function editTrack(request, env, id) {
+async function editItem(request, env, id) {
   const body = await readJson(request);
-  const tracks = await listTracks(env);
-  const track = tracks.find((t) => t.id === id);
-  if (!track) throw new HttpError(404, 'That track no longer exists.');
+  const items = await listItems(env);
+  const item = items.find((i) => i.id === id);
+  if (!item) throw new HttpError(404, 'That item no longer exists.');
   if ('title' in body) {
     const title = cleanText(body.title, 120);
-    if (!title) throw new HttpError(400, 'Give the track a title.');
-    track.title = title;
+    if (!title) throw new HttpError(400, 'Give the item a title.');
+    item.title = title;
   }
-  if ('note' in body) track.note = cleanText(body.note, 280);
-  if ('hidden' in body) track.hidden = Boolean(body.hidden);
-  await saveTracks(env, tracks);
-  return json(track);
+  if ('note' in body) item.note = cleanText(body.note, 600);
+  if ('link' in body) {
+    const link = cleanLink(body.link);
+    if (!link && !item.hasFile) throw new HttpError(400, 'This item has no file, so it needs a link.');
+    item.link = link;
+  }
+  if ('hidden' in body) item.hidden = Boolean(body.hidden);
+  if ('section' in body) {
+    if (!MEDIA_SECTIONS.includes(body.section)) throw new HttpError(400, 'Unknown section.');
+    item.section = body.section;
+  }
+  await saveItems(env, items);
+  return json(item);
 }
 
-async function deleteTrack(env, id) {
-  const tracks = await listTracks(env);
-  const remaining = tracks.filter((t) => t.id !== id);
-  if (remaining.length === tracks.length) throw new HttpError(404, 'That track no longer exists.');
-  await saveTracks(env, remaining);
-  await Promise.all([env.MEDIA.delete(`audio:${id}`), env.MEDIA.delete(`cover:${id}`)]);
+async function deleteItem(env, id) {
+  const items = await listItems(env);
+  const remaining = items.filter((i) => i.id !== id);
+  if (remaining.length === items.length) throw new HttpError(404, 'That item no longer exists.');
+  await saveItems(env, remaining);
+  await Promise.all([env.MEDIA.delete(`file:${id}`), env.MEDIA.delete(`cover:${id}`)]);
   return json({ ok: true });
 }
 
+// The client sends the full order of one section; other sections keep their places.
 async function reorder(request, env) {
   const { ids } = await readJson(request);
   if (!Array.isArray(ids)) throw new HttpError(400, 'Send the new order as a list of ids.');
-  const tracks = await listTracks(env);
-  const byId = new Map(tracks.map((t) => [t.id, t]));
-  const ordered = ids.filter((id) => byId.has(id)).map((id) => byId.get(id));
-  // Anything the client didn't mention keeps its place at the end.
-  for (const t of tracks) if (!ids.includes(t.id)) ordered.push(t);
-  await saveTracks(env, ordered);
+  const items = await listItems(env);
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const queue = ids.filter((id) => byId.has(id)).map((id) => byId.get(id));
+  const moving = new Set(queue.map((i) => i.id));
+  const ordered = items.map((i) => (moving.has(i.id) ? queue.shift() : i));
+  await saveItems(env, ordered);
   return json(ordered);
 }
 
@@ -179,8 +255,14 @@ async function media(request, env, kind, id) {
     'Content-Type': metadata?.type ?? 'application/octet-stream',
     'Cache-Control': 'public, max-age=31536000, immutable',
     'Accept-Ranges': 'bytes',
+    'Content-Disposition': 'inline',
     'X-Content-Type-Options': 'nosniff',
   });
+  // Uploads are admin-only, but keep them inert anyway. Chrome refuses to show
+  // PDFs under a sandbox CSP, so PDFs get only nosniff.
+  if (metadata?.type !== 'application/pdf') {
+    headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  }
   const total = value.byteLength;
   const range = request.headers.get('Range');
   const r = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
