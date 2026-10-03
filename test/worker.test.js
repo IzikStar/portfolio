@@ -66,7 +66,7 @@ const site = async () => (await req('/api/site')).json();
 
 describe('public routes', () => {
   it('serves static assets for non-API paths', async () => {
-    expect(await (await req('/')).text()).toBe('asset');
+    expect(await (await req('/styles.css')).text()).toBe('asset');
   });
 
   it('starts with every section on and no items', async () => {
@@ -274,7 +274,7 @@ describe('custom domains', () => {
 
   it('serves the main address and workers.dev without redirecting', async () => {
     for (const host of ['itschakshteren.com', 'portfolio.itschakme.workers.dev']) {
-      const res = await worker.fetch(new Request(`https://${host}/`), env);
+      const res = await worker.fetch(new Request(`https://${host}/cv`), env);
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('asset');
     }

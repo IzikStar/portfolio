@@ -125,9 +125,9 @@ describe('what members see', () => {
     const { member } = await setup();
     const list = await (await req('/api/entries?kind=article', { headers: { Cookie: member } })).json();
     expect(list.entries.map((e) => e.title).sort()).toEqual(['Inner circle', 'Open post']);
-    expect((await req('/writing/inner-circle', { headers: { Cookie: member } })).status).toBe(200);
-    expect((await req('/writing/just-mine', { headers: { Cookie: member } })).status).toBe(404);
-    expect((await req('/writing/inner-circle')).status).toBe(404);
+    expect((await req('/articles/inner-circle', { headers: { Cookie: member } })).status).toBe(200);
+    expect((await req('/articles/just-mine', { headers: { Cookie: member } })).status).toBe(404);
+    expect((await req('/articles/inner-circle')).status).toBe(404);
 
     const page = await (await req('/community', { headers: { Cookie: member } })).text();
     expect(page).toContain('Inner circle');
@@ -146,7 +146,7 @@ describe('what members see', () => {
     const { o, member } = await setup();
     const { users } = await (await studio(o, '/api/studio/community')).json();
     await studio(o, `/api/studio/members/${users[0].id}`, 'PATCH', { status: 'suspended' });
-    expect((await req('/writing/inner-circle', { headers: { Cookie: member } })).status).toBe(404);
+    expect((await req('/articles/inner-circle', { headers: { Cookie: member } })).status).toBe(404);
     expect((await req('/api/member/me', { headers: { Cookie: member } })).status).toBe(401);
     expect((await post('/api/member/login', { username: 'dana', password: 'longenough' })).status).toBe(403);
   });
