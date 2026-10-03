@@ -61,7 +61,8 @@ async function pages(request, env, url) {
   const path = url.pathname;
   if (path === '/') return home(env, await viewer(request, env));
   // The CV (the static portfolio page) lives at /cv; the home page is the platform.
-  if (path === '/cv') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+  // The static asset layer serves public/cv.html at /cv (asking it for /index.html would redirect to /).
+  if (path === '/cv') return env.ASSETS.fetch(request);
   if (path === '/cv/' || path === '/index.html') return Response.redirect(`${url.origin}/cv`, 301);
   // Older addresses.
   const old = path.match(/^\/(writing|work)(\/.*)?$/);
