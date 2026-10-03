@@ -25,6 +25,7 @@ import { postComment, deleteComment, studioComments, setCommentStatus, deleteCom
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
+import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
 
 // The main address. The other custom domains (and www.) redirect here;
 // the workers.dev address keeps working as is.
@@ -168,6 +169,14 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'GET') return studioList(env, url);
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
+  // The idea notebook (see src/ideas.js).
+  if (path === '/api/studio/ideas' && method === 'GET') return listIdeas(env);
+  if (path === '/api/studio/ideas' && method === 'POST') return captureIdea(request, env);
+  const gi = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)(\/grow)?$/);
+  if (gi && !gi[2] && method === 'PATCH') return updateIdea(request, env, gi[1]);
+  if (gi && gi[2] && method === 'POST') return growIdea(request, env, gi[1]);
+  if (path === '/api/studio/sparks' && method === 'GET') return getSparks(env);
+  if (path === '/api/studio/sparks' && method === 'PUT') return saveSparks(request, env);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
   if (path === '/api/studio/spaces' && method === 'GET') return studioSpaces(env);
   if (path === '/api/studio/spaces' && method === 'POST') return createSpace(request, env);

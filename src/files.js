@@ -13,26 +13,39 @@ export async function uploadFile(request, env) {
   const form = await request.formData();
   const file = form.get('file');
   const entryId = String(form.get('entryId') ?? '');
+  checkFile(file);
+  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  return json(await attachFile(env, entryId, file), 201);
+}
+
+// Throws unless `file` is something we can store and serve.
+export function checkFile(file) {
   if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Choose a file.');
   if (!fileKind(file.type)) throw new HttpError(400, 'Unsupported file type. Use an image (PNG, JPG, WebP, GIF), audio, video or PDF.');
   if (file.size > MAX_FILE_BYTES) throw new HttpError(413, 'The file is over 25 MB. Upload it to YouTube or Drive and link to it instead.');
-  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+}
 
+// Store the bytes and the row for an entry that exists.
+export async function attachFile(env, entryId, file) {
   const id = crypto.randomUUID();
   const name = String(file.name || 'file').slice(0, 200);
-  await env.MEDIA.put(`blob:${id}`, await file.arrayBuffer(), { metadata: { type: file.type } });
+  // A recorder's type can carry a codec ("audio/webm;codecs=opus"); keep the plain type.
+  const type = file.type.split(';')[0];
+  await env.MEDIA.put(`blob:${id}`, await file.arrayBuffer(), { metadata: { type } });
   const d = await db(env);
   await d
     .prepare('INSERT INTO files (id, entry_id, name, type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, entryId, name, file.type, file.size, new Date().toISOString())
+    .bind(id, entryId, name, type, file.size, new Date().toISOString())
     .run();
-  return json({ id, url: `/files/${id}`, name, type: file.type, kind: fileKind(file.type), size: file.size }, 201);
+  return fileInfo({ id, name, type, size: file.size });
 }
+
+export const fileInfo = (f) => ({ id: f.id, url: `/files/${f.id}`, name: f.name, type: f.type, kind: fileKind(f.type), size: f.size });
 
 export async function listFiles(env, entryId) {
   const d = await db(env);
   const { results } = await d.prepare('SELECT * FROM files WHERE entry_id = ? ORDER BY created_at').bind(entryId).all();
-  return json({ files: results.map((f) => ({ id: f.id, url: `/files/${f.id}`, name: f.name, type: f.type, kind: fileKind(f.type), size: f.size })) });
+  return json({ files: results.map(fileInfo) });
 }
 
 export async function deleteFile(env, id) {

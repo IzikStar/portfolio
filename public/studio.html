@@ -49,20 +49,78 @@
   </nav>
 
   <main class="studio">
-    <section id="view-ideas" hidden>
-      <form class="capture" id="capture">
-        <textarea id="capture-text" placeholder="מה עובר לך בראש?" dir="auto" aria-label="רעיון חדש"></textarea>
-        <div class="toolbar">
-          <input type="text" id="capture-tags" placeholder="תגיות, מופרדות בפסיק" dir="auto" aria-label="תגיות">
-          <button class="btn primary" type="submit">שמירה</button>
-          <small class="msg" id="capture-msg">Ctrl+Enter לשמירה</small>
+    <section id="view-ideas" class="ideas-page" hidden>
+      <div class="ideas-head">
+        <h1>רעיונות</h1>
+        <div class="pulse" id="pulse" hidden>
+          <span id="pulse-text"></span>
+          <span class="week" id="pulse-week" aria-hidden="true"></span>
         </div>
+      </div>
+
+      <form class="capture" id="capture">
+        <p class="answering" id="capture-spark" hidden>
+          <span class="t" id="capture-spark-text" dir="auto"></span>
+          <button class="x" type="button" id="capture-spark-clear" aria-label="לכתוב בלי הניצוץ">×</button>
+        </p>
+        <textarea id="capture-text" placeholder="מה עובר לך בראש?" dir="auto" aria-label="רעיון חדש"></textarea>
+        <div class="capture-row">
+          <button class="btn tool" type="button" id="rec" aria-pressed="false"><span class="rec-dot" aria-hidden="true"></span><span id="rec-label">הקלטה</span></button>
+          <button class="btn tool" type="button" id="photo-btn">תמונה</button>
+          <input type="file" id="photo" accept="image/*" hidden>
+          <button class="btn primary" type="submit" id="capture-save">שמירה</button>
+        </div>
+        <div class="capture-more">
+          <label class="sr-only" for="capture-wing">לאיזה אגף זה הולך</label>
+          <select id="capture-wing"></select>
+          <input type="text" id="capture-tags" placeholder="תגיות, מופרדות בפסיק" dir="auto" aria-label="תגיות">
+        </div>
+        <small class="msg" id="capture-msg" role="status"></small>
       </form>
-      <div class="toolbar" style="margin-block: 1.25rem 1rem">
-        <input class="grow" type="search" id="idea-search" placeholder="חיפוש ברעיונות" dir="auto" aria-label="חיפוש ברעיונות">
+
+      <div class="idea-boards">
+        <article class="board spark" id="spark">
+          <div class="board-head">
+            <span class="kicker">ניצוץ</span>
+            <label class="sr-only" for="spark-wing">ניצוץ מאיזה אגף</label>
+            <select id="spark-wing"></select>
+          </div>
+          <p class="spark-text" id="spark-text" dir="auto"></p>
+          <div class="actions">
+            <button class="btn small" type="button" id="spark-next">עוד אחד</button>
+            <button class="btn small accent" type="button" id="spark-write">לכתוב את זה</button>
+          </div>
+        </article>
+        <article class="board resurface" id="resurface" hidden>
+          <div class="board-head">
+            <span class="kicker">זוכר את זה?</span>
+            <span class="age" id="resurface-age"></span>
+          </div>
+          <div id="resurface-card"></div>
+          <div class="actions">
+            <button class="btn small" type="button" id="resurface-next">עוד אחד</button>
+          </div>
+        </article>
+      </div>
+
+      <div class="idea-filters">
+        <input type="search" id="idea-search" placeholder="חיפוש ברעיונות" dir="auto" aria-label="חיפוש ברעיונות">
+        <div class="filters" id="idea-wings" role="group" aria-label="לפי אגף"></div>
+        <div class="filters tags" id="idea-tags" role="group" aria-label="לפי תגית"></div>
       </div>
       <div class="ideas" id="ideas"></div>
-      <p class="empty" id="ideas-empty" hidden>עוד אין רעיונות. מה שתכתוב למעלה נשמר כאן, פרטי רק לך.</p>
+      <p class="empty" id="ideas-empty" hidden>עוד אין כאן כלום. מה שתזרוק למעלה נשמר כאן, רק אצלך.</p>
+
+      <details class="box spark-editor" id="spark-editor">
+        <summary>הניצוצות שלי</summary>
+        <p class="hint">שורה לכל ניצוץ. מה שכתוב תחת "לכל דבר" יכול לצוץ בכל אגף.</p>
+        <div class="spark-groups" id="spark-groups"></div>
+        <div class="toolbar">
+          <button class="btn primary" type="button" id="sparks-save">שמירה</button>
+          <button class="btn" type="button" id="sparks-reset">לחזור לרשימה המקורית</button>
+          <small class="msg" id="sparks-msg" role="status"></small>
+        </div>
+      </details>
     </section>
 
     <section id="view-wing" hidden>

@@ -12,7 +12,7 @@ const MAX_BODY = 200_000;
 // Where a new item goes when the studio does not say: the wing for its kind.
 const HOME = { ...Object.fromEntries(WINGS.map((w) => [w.kind, w.id])), work: 'videos', humor: 'humor' };
 
-function fromRow(r) {
+export function fromRow(r) {
   if (!r) return null;
   return {
     id: r.id,
@@ -197,7 +197,12 @@ export async function studioList(env, url) {
 }
 
 export async function studioCreate(request, env, source = 'studio') {
-  const body = await readJson(request);
+  return json(await createEntry(env, await readJson(request), source), 201);
+}
+
+// A new entry from client fields. allowEmpty: an idea that is only a recording
+// or a photo has no text yet.
+export async function createEntry(env, body, source = 'studio', { allowEmpty = false } = {}) {
   const now = new Date().toISOString();
   const entry = {
     id: crypto.randomUUID(),
@@ -220,9 +225,9 @@ export async function studioCreate(request, env, source = 'studio') {
   if (!('kind' in body)) throw new HttpError(400, 'Say what kind of item this is.');
   applyFields(entry, body);
   if (!('spaceId' in body)) entry.spaceId = HOME[entry.kind] ?? null;
-  if (!entry.title && !entry.body.trim() && !entry.meta.source) throw new HttpError(400, 'Write something first.');
+  if (!entry.title && !entry.body.trim() && !entry.meta.source && !allowEmpty) throw new HttpError(400, 'Write something first.');
   await write(env, entry, true);
-  return json(entry, 201);
+  return entry;
 }
 
 export async function studioUpdate(request, env, id) {
