@@ -36,7 +36,7 @@
       'open.video': 'לצפייה',
       'open.link': 'לפתיחה',
       'about.p1':
-        'אני מפתח Full-Stack. בשנתיים האחרונות כתבתי קוד שרץ בפרודקשן בחיל האוויר, בעיקר ב־TypeScript, React, NestJS, Java ו־PostgreSQL. הכי נהניתי לעבוד על התחברות והרשאות, על אלגוריתמים ועל בדיקות. חוץ מקוד אני גם כותב, מנגן, מדבב ועושה עוד כל מיני שטויות 🤪',
+        'אני מפתח Full-Stack. בשנתיים האחרונות כתבתי קוד שרץ בפרודקשן בחיל האוויר, בעיקר ב־TypeScript, React, NestJS, Java ו־PostgreSQL. הכי נהניתי לעבוד על התחברות והרשאות, על אלגוריתמים ועל בדיקות. חוץ מקוד אני גם כותב, מנגן, מדבב ועושה עוד כל מיני שטויות 😝',
       'contact.copy': 'העתקת כתובת',
       'contact.copied': 'הועתק',
       footer: 'נבנה ביד עם HTML, CSS ו־Cloudflare Workers.',
@@ -79,7 +79,7 @@
       'open.video': 'Watch',
       'open.link': 'Open',
       'about.p1':
-        'I\'m a full-stack developer. For the last two years I wrote production code in the Israeli Air Force, mostly in TypeScript, React, NestJS, Java and PostgreSQL. The parts I enjoyed most were login and permissions, algorithms and tests. Outside code I also write, play music, do voice acting and all sorts of other nonsense 🤪',
+        'I\'m a full-stack developer. For the last two years I wrote production code in the Israeli Air Force, mostly in TypeScript, React, NestJS, Java and PostgreSQL. The parts I enjoyed most were login and permissions, algorithms and tests. Outside code I also write, play music, do voice acting and all sorts of other nonsense 😝',
       'contact.copy': 'Copy address',
       'contact.copied': 'Copied',
       footer: 'Hand-built with HTML, CSS and Cloudflare Workers.',
