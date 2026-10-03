@@ -5,7 +5,7 @@ import { card, findVisible, listFeed, listVisible } from './entries.js';
 import { projectView } from './projects.js';
 
 const SITE = 'https://itschakshteren.com';
-const VIS_LABEL = { private: 'פרטי', members: 'לקהילה', public: 'ציבורי' };
+const VIS_LABEL = { private: 'פרטי', community: 'לקהילת האגף', members: 'לחברים', public: 'ציבורי' };
 
 const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' });
 const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '');
@@ -78,7 +78,7 @@ function badge(entry, role) {
 
 export async function writingIndex(env, v) {
   const { role } = v;
-  const entries = (await listVisible(env, role, 'article')).map(card);
+  const entries = (await listVisible(env, v.acc, 'article')).map(card);
   const list = entries.length
     ? `<ol class="article-list">${entries
         .map(
@@ -99,7 +99,7 @@ export async function writingIndex(env, v) {
 
 export async function writingPage(env, v, slug) {
   const { role } = v;
-  const entry = await findVisible(env, role, 'article', slug);
+  const entry = await findVisible(env, v.acc, 'article', slug);
   if (!entry) return null;
   const path = `/writing/${encodeURIComponent(entry.slug)}`;
   const tags = entry.tags.length ? `<ul class="chips">${entry.tags.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : '';
@@ -130,7 +130,7 @@ export async function communityPage(env, v) {
 </div>`;
     return html(layout({ title: 'קהילה', description: 'הקהילה של יצחק שטרן.', path: '/community', v, body }), role);
   }
-  const feed = (await listFeed(env, role)).filter((x) => role === 'owner' || x.visibility === 'members' || x.visibility === 'public');
+  const feed = await listFeed(env, v.acc);
   const items = feed.length
     ? `<ol class="article-list">${feed
         .map((x) => {
@@ -160,14 +160,14 @@ function linkRow(p) {
   return `<div class="links">${p.links.map((l) => `<a href="${e(l.href)}" rel="noopener">${e(LINK_LABEL[l.k] ?? l.k)} ↗</a>`).join('')}</div>`;
 }
 
-async function visibleProjects(env, role) {
-  const [projects, works] = await Promise.all([listVisible(env, role, 'project'), listVisible(env, role, 'work')]);
+async function visibleProjects(env, acc) {
+  const [projects, works] = await Promise.all([listVisible(env, acc, 'project'), listVisible(env, acc, 'work')]);
   return [...projects, ...works].sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
 }
 
 export async function workIndex(env, v) {
   const { role } = v;
-  const entries = await visibleProjects(env, role);
+  const entries = await visibleProjects(env, v.acc);
   const items = entries.length
     ? `<div class="work-grid">${entries
         .map((x) => {
@@ -195,7 +195,7 @@ export async function workIndex(env, v) {
 
 export async function workPage(env, v, slug) {
   const { role } = v;
-  const entry = (await findVisible(env, role, 'project', slug)) ?? (await findVisible(env, role, 'work', slug));
+  const entry = (await findVisible(env, v.acc, 'project', slug)) ?? (await findVisible(env, v.acc, 'work', slug));
   if (!entry) return null;
   const p = projectView(entry);
   const s = entry.meta?.synced ?? {};

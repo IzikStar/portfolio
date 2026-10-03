@@ -4,6 +4,7 @@
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { safeEqual } from './auth.js';
+import { access, addRequest, communityOf } from './spaces.js';
 
 export const MEMBER_COOKIE = 'member_session';
 const SESSION_DAYS = 30;
@@ -119,6 +120,14 @@ export async function join(request, env) {
   } catch (err) {
     if (/UNIQUE/i.test(String(err?.message))) throw new HttpError(409, 'That username is taken.');
     throw err;
+  }
+  // Signed up from a space's page (a book, a genre): ask to join its community too.
+  if (body.spaceId) {
+    const acc = await access(env, { role: 'public', member: null });
+    const target = communityOf(acc.byId, String(body.spaceId));
+    if (target && acc.visible.has(String(body.spaceId)) && acc.byId.get(target).joinMode === 'request') {
+      await addRequest(env, user.id, target, body.note);
+    }
   }
   if (!invite) return json({ status: 'pending' }, 201);
 
