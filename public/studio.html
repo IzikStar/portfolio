@@ -38,6 +38,7 @@
     <nav class="tabs" aria-label="סטודיו">
       <a href="#ideas" data-tab="ideas">רעיונות</a>
       <a href="#articles" data-tab="articles">מאמרים</a>
+      <a href="#community" data-tab="community">קהילה <span id="pending-count"></span></a>
     </nav>
 
     <section id="view-ideas" hidden>
@@ -63,6 +64,36 @@
       </div>
       <ol class="rows-table" id="articles"></ol>
       <p class="empty" id="articles-empty" hidden>עוד אין מאמרים.</p>
+    </section>
+
+    <section id="view-community" class="community" hidden>
+      <div>
+        <h2>בקשות הצטרפות</h2>
+        <ul class="people" id="pending"></ul>
+        <p class="empty" id="pending-empty">אין בקשות פתוחות.</p>
+      </div>
+      <div>
+        <h2>קישורי הזמנה</h2>
+        <form class="invite-form" id="invite-form">
+          <label class="field">למי <small>רק בשבילך</small>
+            <input type="text" id="inv-note" maxlength="200" dir="auto">
+          </label>
+          <label class="field">כמה אנשים
+            <input type="text" id="inv-uses" inputmode="numeric" value="1">
+          </label>
+          <label class="field">בתוקף לימים <small>ריק = בלי הגבלה</small>
+            <input type="text" id="inv-days" inputmode="numeric" value="14">
+          </label>
+          <button class="btn primary" type="submit">יצירת קישור</button>
+        </form>
+        <p class="msg" id="invite-msg" role="status"></p>
+        <ul class="people" id="invites"></ul>
+      </div>
+      <div>
+        <h2>חברים</h2>
+        <ul class="people" id="members"></ul>
+        <p class="empty" id="members-empty">עוד אין חברים.</p>
+      </div>
     </section>
 
     <section id="view-edit" class="editor split" hidden>

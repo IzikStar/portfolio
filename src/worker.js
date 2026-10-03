@@ -15,7 +15,8 @@
 import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
 import { login, logout, isOwner, requireOwner } from './auth.js';
 import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview, publicList } from './entries.js';
-import { writingIndex, writingPage } from './pages.js';
+import { writingIndex, writingPage, communityPage } from './pages.js';
+import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
 // The main address. The other custom domains (and www.) redirect here;
@@ -46,7 +47,8 @@ export default {
 async function pages(request, env, url) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
   const path = url.pathname;
-  if (path === '/writing') return writingIndex(env, await role(request, env));
+  if (path === '/writing') return writingIndex(env, await viewer(request, env));
+  if (path === '/community') return communityPage(env, await viewer(request, env));
   const m = path.match(/^\/writing\/([^/]+)$/);
   if (m) {
     let slug;
@@ -55,13 +57,16 @@ async function pages(request, env, url) {
     } catch {
       return null;
     }
-    return (await writingPage(env, await role(request, env), slug)) ?? notFound(request, env);
+    return (await writingPage(env, await viewer(request, env), slug)) ?? notFound(request, env);
   }
   return null;
 }
 
-async function role(request, env) {
-  return (await isOwner(request, env)) ? 'owner' : 'public';
+// Who is asking: the owner, a signed-in member, or the public.
+async function viewer(request, env) {
+  if (await isOwner(request, env)) return { role: 'owner', member: null };
+  const member = await currentMember(request, env);
+  return member ? { role: 'member', member } : { role: 'public', member: null };
 }
 
 async function notFound(request, env) {
@@ -81,8 +86,9 @@ async function api(request, env, url) {
     });
   }
 
-  if (path === '/api/entries' && method === 'GET') return publicList(env, await role(request, env), url);
+  if (path === '/api/entries' && method === 'GET') return publicList(env, (await viewer(request, env)).role, url);
   if (path.startsWith('/api/studio/')) return studio(request, env, url);
+  if (path.startsWith('/api/member/')) return memberApi(request, env, url);
 
   let m = path.match(/^\/api\/(file|cover)\/([a-z0-9-]+)$/);
   if (m && (method === 'GET' || method === 'HEAD')) return media(request, env, m[1], m[2]);
@@ -123,6 +129,13 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'GET') return studioList(env, url);
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
+  if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
+  if (path === '/api/studio/invites' && method === 'POST') return createInvite(request, env);
+  let mm = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)$/);
+  if (mm && method === 'PATCH') return setMemberStatus(request, env, mm[1]);
+  if (mm && method === 'DELETE') return removeMember(env, mm[1]);
+  mm = path.match(/^\/api\/studio\/invites\/([A-Za-z0-9_-]+)$/);
+  if (mm && method === 'DELETE') return revokeInvite(env, mm[1]);
   const m = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)$/);
   if (m && method === 'GET') {
     const entry = await getEntry(env, m[1]);
@@ -131,6 +144,19 @@ async function studio(request, env, url) {
   }
   if (m && method === 'PATCH') return studioUpdate(request, env, m[1]);
   if (m && method === 'DELETE') return studioDelete(env, m[1]);
+  throw new HttpError(404, 'Not found.');
+}
+
+// Community sign-up and sign-in.
+async function memberApi(request, env, url) {
+  const { pathname: path } = url;
+  const method = request.method;
+  if (method !== 'GET') checkOrigin(request, url);
+  if (path === '/api/member/invite' && method === 'GET') return checkInvite(env, url);
+  if (path === '/api/member/join' && method === 'POST') return join(request, env);
+  if (path === '/api/member/login' && method === 'POST') return memberLogin(request, env);
+  if (path === '/api/member/logout' && method === 'POST') return memberLogout();
+  if (path === '/api/member/me' && method === 'GET') return me(request, env);
   throw new HttpError(404, 'Not found.');
 }
 

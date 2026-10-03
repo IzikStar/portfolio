@@ -76,9 +76,11 @@
     }
     $('view-ideas').hidden = view !== 'ideas';
     $('view-articles').hidden = view !== 'articles';
+    $('view-community').hidden = view !== 'community';
     $('view-edit').hidden = view !== 'edit' && view !== 'new';
     if (view === 'ideas') loadIdeas();
     else if (view === 'articles') loadArticles();
+    else if (view === 'community') loadCommunity();
     else if (view === 'new') openEditor(null);
     else if (view === 'edit' && id) openEditor(id);
     else location.hash = '#ideas';
@@ -400,6 +402,95 @@
     ta.focus();
   });
 
+  // ---------- community ----------
+  const STATUS = { active: 'פעיל', pending: 'ממתין', suspended: 'מושעה' };
+
+  async function loadCommunity() {
+    try {
+      const { users, invites } = await call('/api/studio/community');
+      const pending = users.filter((u) => u.status === 'pending');
+      const members = users.filter((u) => u.status !== 'pending');
+      showPendingCount(pending.length);
+      $('pending').replaceChildren(...pending.map((u) => person(u, [['אישור', () => setStatus(u, 'active'), 'primary'], ['דחייה', () => remove(u, 'לדחות את הבקשה?'), 'danger']])));
+      $('pending-empty').hidden = pending.length > 0;
+      $('members').replaceChildren(
+        ...members.map((u) =>
+          person(u, [
+            u.status === 'active' ? ['השעיה', () => setStatus(u, 'suspended')] : ['החזרה', () => setStatus(u, 'active'), 'primary'],
+            ['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger'],
+          ]),
+        ),
+      );
+      $('members-empty').hidden = members.length > 0;
+      $('invites').replaceChildren(...invites.map(inviteRow));
+    } catch (err) {
+      report('invite-msg')(err);
+    }
+  }
+
+  function showPendingCount(n) {
+    $('pending-count').textContent = n ? `(${n})` : '';
+  }
+
+  function person(u, actions) {
+    return h(
+      'li',
+      {},
+      h('span', { className: 'who', dir: 'auto', textContent: u.displayName }),
+      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${u.username}` }), h('span', { className: 'badge', textContent: STATUS[u.status] ?? u.status }), h('time', { textContent: fmt(u.createdAt) }), u.viaInvite ? h('span', { textContent: 'דרך הזמנה' }) : null),
+      h('span', { className: 'actions' }, ...actions.map(([label, fn, cls = '']) => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn }))),
+      u.note ? h('span', { className: 'note', dir: 'auto', textContent: u.note }) : null,
+    );
+  }
+
+  const setStatus = (u, status) => send(`/api/studio/members/${u.id}`, 'PATCH', { status }).then(loadCommunity, report('invite-msg'));
+  const remove = (u, question) => confirm(question) && call(`/api/studio/members/${u.id}`, { method: 'DELETE' }).then(loadCommunity, report('invite-msg'));
+
+  function inviteRow(inv) {
+    const link = `${location.origin}/join?code=${inv.code}`;
+    const expired = inv.expiresAt && inv.expiresAt < new Date().toISOString();
+    const used = inv.uses >= inv.maxUses;
+    const state = expired ? 'פג תוקף' : used ? 'נוצל' : `${inv.uses}/${inv.maxUses} נוצלו${inv.expiresAt ? ` · עד ${fmt(inv.expiresAt)}` : ''}`;
+    return h(
+      'li',
+      {},
+      h('span', { className: 'who', dir: 'auto', textContent: inv.note || 'הזמנה' }),
+      h('span', { className: 'meta' }, h('span', { textContent: state })),
+      h(
+        'span',
+        { className: 'actions' },
+        expired || used
+          ? null
+          : h('button', {
+              className: 'btn small primary',
+              type: 'button',
+              textContent: 'העתקת קישור',
+              onclick: async (e) => {
+                await navigator.clipboard.writeText(link).catch(() => prompt('הקישור:', link));
+                e.target.textContent = 'הועתק';
+              },
+            }),
+        h('button', { className: 'btn small danger', type: 'button', textContent: 'ביטול', onclick: () => confirm('לבטל את הקישור?') && call(`/api/studio/invites/${inv.code}`, { method: 'DELETE' }).then(loadCommunity, report('invite-msg')) }),
+      ),
+      h('code', { className: 'note', textContent: link }),
+    );
+  }
+
+  $('invite-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const inv = await send('/api/studio/invites', 'POST', { note: $('inv-note').value, maxUses: $('inv-uses').value, days: $('inv-days').value });
+      $('inv-note').value = '';
+      await navigator.clipboard.writeText(`${location.origin}/join?code=${inv.code}`).then(
+        () => say('invite-msg', 'הקישור נוצר והועתק', 'ok'),
+        () => say('invite-msg', 'הקישור נוצר', 'ok'),
+      );
+      loadCommunity();
+    } catch (err) {
+      report('invite-msg')(err);
+    }
+  });
+
   // ---------- start ----------
   async function start() {
     try {
@@ -411,6 +502,7 @@
     $('login').hidden = true;
     $('app').hidden = false;
     route();
+    call('/api/studio/community').then(({ users }) => showPendingCount(users.filter((u) => u.status === 'pending').length), () => {});
   }
   start();
 })();

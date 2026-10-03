@@ -233,6 +233,20 @@ export async function listVisible(env, role, kind, limit = 100) {
   return results.map(fromRow);
 }
 
+// Everything published that this viewer may see, newest first (ideas never).
+export async function listFeed(env, role, limit = 100) {
+  const d = await db(env);
+  const vis = visibleTo(role);
+  const { results } = await d
+    .prepare(
+      `SELECT * FROM entries WHERE kind != 'idea' AND status = 'published' AND visibility IN (${vis.map(() => '?').join(', ')})
+       ORDER BY published_at DESC LIMIT ?`,
+    )
+    .bind(...vis, limit)
+    .all();
+  return results.map(fromRow);
+}
+
 export async function findVisible(env, role, kind, slug) {
   const d = await db(env);
   const row = await d.prepare(`SELECT * FROM entries WHERE kind = ? AND slug = ?`).bind(kind, slug).first();
