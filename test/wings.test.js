@@ -48,7 +48,7 @@ describe('addresses', () => {
     expect(home.status).toBe(200);
     expect(home.text).toContain('האגפים');
     expect(home.text).toContain('href="/music"');
-    expect((await page('/cv')).text).toBe('asset:/index.html');
+    expect((await page('/cv')).text).toBe('asset:/cv');
     expect((await req('/cv/')).headers.get('Location')).toBe(`${ORIGIN}/cv`);
   });
 
