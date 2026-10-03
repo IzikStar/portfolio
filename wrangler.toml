@@ -23,6 +23,13 @@ run_worker_first = true
 binding = "MEDIA"
 id = "d30f95f26d0b475c97a2c6171e2ea1a4"
 
+# Platform data (entries, members, invites). Tables are created by the worker
+# on first use (src/db.js), so there is no migration step to run.
+[[d1_databases]]
+binding = "DB"
+database_name = "izikstar-platform"
+database_id = "1812a536-0ea5-46b0-bfdf-9536d9baf84e"
+
 [observability]
 enabled = true
 
@@ -34,3 +41,8 @@ enabled = true
 [[previews.kv_namespaces]]
 binding = "MEDIA"
 id = "a570d681fd104ef1b2b2e3e679d9be17"
+
+[[previews.d1_databases]]
+binding = "DB"
+database_name = "izikstar-platform-preview"
+database_id = "e6b0e995-5423-4ffa-9021-2acc77e40292"

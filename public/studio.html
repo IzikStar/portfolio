@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>סטודיו</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6b5f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='serif' font-weight='700'%3EI%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/platform.css">
+</head>
+<body class="studio-body">
+<form class="login" id="login" hidden>
+  <h1>סטודיו</h1>
+  <label class="field">סיסמה
+    <input type="password" id="password" autocomplete="current-password" required>
+  </label>
+  <button class="btn primary" type="submit">כניסה</button>
+  <p class="msg" id="login-msg" role="status"></p>
+</form>
+
+<div id="app" hidden>
+  <header class="bar">
+    <div class="wrap">
+      <a class="mark" href="#ideas">סטודיו</a>
+      <nav class="always">
+        <a href="/writing">כתיבה באתר</a>
+        <a href="/admin">ניהול קורות חיים</a>
+        <a href="#" id="logout">יציאה</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap studio">
+    <nav class="tabs" aria-label="סטודיו">
+      <a href="#ideas" data-tab="ideas">רעיונות</a>
+      <a href="#articles" data-tab="articles">מאמרים</a>
+    </nav>
+
+    <section id="view-ideas" hidden>
+      <form class="capture" id="capture">
+        <textarea id="capture-text" placeholder="מה עובר לך בראש?" dir="auto" aria-label="רעיון חדש"></textarea>
+        <div class="toolbar">
+          <input type="text" id="capture-tags" placeholder="תגיות, מופרדות בפסיק" dir="auto" aria-label="תגיות">
+          <button class="btn primary" type="submit">שמירה</button>
+          <small class="msg" id="capture-msg">Ctrl+Enter לשמירה</small>
+        </div>
+      </form>
+      <div class="toolbar" style="margin-block: 1.25rem 1rem">
+        <input class="grow" type="search" id="idea-search" placeholder="חיפוש ברעיונות" dir="auto" aria-label="חיפוש ברעיונות">
+      </div>
+      <div class="ideas" id="ideas"></div>
+      <p class="empty" id="ideas-empty" hidden>עוד אין רעיונות. מה שתכתוב למעלה נשמר כאן, פרטי רק לך.</p>
+    </section>
+
+    <section id="view-articles" hidden>
+      <div class="toolbar" style="margin-bottom: 1rem">
+        <button class="btn primary" type="button" id="new-article">מאמר חדש</button>
+        <input class="grow" type="search" id="article-search" placeholder="חיפוש במאמרים" dir="auto" aria-label="חיפוש במאמרים">
+      </div>
+      <ol class="rows-table" id="articles"></ol>
+      <p class="empty" id="articles-empty" hidden>עוד אין מאמרים.</p>
+    </section>
+
+    <section id="view-edit" class="editor split" hidden>
+      <div class="toolbar">
+        <a class="btn small" href="#articles">כל המאמרים</a>
+        <span class="status" id="save-status" role="status"></span>
+      </div>
+      <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
+      <label class="field">תקציר <small>מופיע ברשימה ובתצוגה המקדימה של קישורים</small>
+        <textarea id="ed-summary" rows="2" maxlength="600" dir="auto"></textarea>
+      </label>
+      <div class="settings">
+        <label class="field">מי רואה
+          <select id="ed-visibility">
+            <option value="private">רק אני</option>
+            <option value="members">חברי הקהילה</option>
+            <option value="public">כולם</option>
+          </select>
+        </label>
+        <label class="field">כתובת <small>itschakshteren.com/writing/…</small>
+          <input type="text" id="ed-slug" dir="auto" placeholder="נוצרת מהכותרת">
+        </label>
+        <label class="field">תגיות
+          <input type="text" id="ed-tags" dir="auto" placeholder="מופרדות בפסיק">
+        </label>
+      </div>
+      <div class="toolbar">
+        <div class="md-tools" id="md-tools">
+          <button class="btn small" type="button" data-md="bold" title="מודגש"><b>B</b></button>
+          <button class="btn small" type="button" data-md="italic" title="נטוי"><i>I</i></button>
+          <button class="btn small" type="button" data-md="h2" title="כותרת">H2</button>
+          <button class="btn small" type="button" data-md="h3" title="כותרת משנה">H3</button>
+          <button class="btn small" type="button" data-md="quote" title="ציטוט">❝</button>
+          <button class="btn small" type="button" data-md="list" title="רשימה">•</button>
+          <button class="btn small" type="button" data-md="link" title="קישור">🔗</button>
+        </div>
+        <button class="btn small" type="button" id="toggle-preview">הסתרת תצוגה מקדימה</button>
+      </div>
+      <div class="panes">
+        <textarea class="body-input" id="ed-body" dir="auto" placeholder="כותבים כאן. Markdown עובד: ## כותרת, **מודגש**, - רשימה, [קישור](https://...)" aria-label="תוכן"></textarea>
+        <div class="preview prose" id="ed-preview" dir="auto" aria-label="תצוגה מקדימה"></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" type="button" id="publish">פרסום</button>
+        <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>צפייה באתר</a>
+        <button class="btn danger" type="button" id="delete-article">מחיקה</button>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="/studio.js"></script>
+</body>
+</html>

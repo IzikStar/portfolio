@@ -1,5 +1,6 @@
-// Portfolio site worker: serves the static site (ASSETS) and a small API for
-// the creative sections (music, voice acting, sketches, writing).
+// Site worker: serves the static site (ASSETS), the platform (studio API,
+// server-rendered /writing pages; data in D1, see src/db.js) and the older API
+// for the portfolio's creative sections (music, voice acting, sketches, writing).
 // KV layout:
 //   "items"         JSON list of every uploaded item, in display order
 //   "settings"      JSON { sections: { [name]: boolean }, intros: { [name]: string } }
@@ -8,17 +9,19 @@
 //
 // Required bindings/secrets (see wrangler.toml and README):
 //   MEDIA          KV namespace
+//   DB             D1 database (platform entries, members, invites)
 //   ADMIN_PASSWORD secret, the only way into the admin page
 
+import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
+import { login, logout, isOwner, requireOwner } from './auth.js';
+import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview, publicList } from './entries.js';
+import { writingIndex, writingPage } from './pages.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
-
-const SESSION_HOURS = 12;
 
 // The main address. The other custom domains (and www.) redirect here;
 // the workers.dev address keeps working as is.
 const CANONICAL_HOST = 'itschakshteren.com';
 const REDIRECT_HOSTS = ['www.itschakshteren.com', 'izikstar.com', 'www.izikstar.com'];
-const COOKIE = 'admin_session';
 
 export default {
   async fetch(request, env) {
@@ -28,6 +31,8 @@ export default {
     }
     try {
       if (url.pathname.startsWith('/api/')) return await api(request, env, url);
+      const page = await pages(request, env, url);
+      if (page) return page;
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
       console.error(err);
@@ -37,11 +42,31 @@ export default {
   },
 };
 
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
+// Server-rendered platform pages. Returns null to fall through to static assets.
+async function pages(request, env, url) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  const path = url.pathname;
+  if (path === '/writing') return writingIndex(env, await role(request, env));
+  const m = path.match(/^\/writing\/([^/]+)$/);
+  if (m) {
+    let slug;
+    try {
+      slug = decodeURIComponent(m[1]);
+    } catch {
+      return null;
+    }
+    return (await writingPage(env, await role(request, env), slug)) ?? notFound(request, env);
   }
+  return null;
+}
+
+async function role(request, env) {
+  return (await isOwner(request, env)) ? 'owner' : 'public';
+}
+
+async function notFound(request, env) {
+  const res = await env.ASSETS.fetch(new Request(new URL('/404.html', request.url)));
+  return new Response(res.body, { status: 404, headers: res.headers });
 }
 
 async function api(request, env, url) {
@@ -56,6 +81,9 @@ async function api(request, env, url) {
     });
   }
 
+  if (path === '/api/entries' && method === 'GET') return publicList(env, await role(request, env), url);
+  if (path.startsWith('/api/studio/')) return studio(request, env, url);
+
   let m = path.match(/^\/api\/(file|cover)\/([a-z0-9-]+)$/);
   if (m && (method === 'GET' || method === 'HEAD')) return media(request, env, m[1], m[2]);
 
@@ -65,11 +93,9 @@ async function api(request, env, url) {
   if (method !== 'GET') checkOrigin(request, url);
 
   if (path === '/api/admin/login' && method === 'POST') return login(request, env);
-  if (path === '/api/admin/logout' && method === 'POST') {
-    return json({ ok: true }, 200, { 'Set-Cookie': clearCookie() });
-  }
+  if (path === '/api/admin/logout' && method === 'POST') return logout();
 
-  await requireSession(request, env);
+  await requireOwner(request, env);
 
   if (path === '/api/admin/session' && method === 'GET') return json({ ok: true });
   if (path === '/api/admin/site' && method === 'GET') {
@@ -84,6 +110,27 @@ async function api(request, env, url) {
   if (m && method === 'PATCH') return editItem(request, env, m[1]);
   if (m && method === 'DELETE') return deleteItem(env, m[1]);
 
+  throw new HttpError(404, 'Not found.');
+}
+
+// Owner-only routes for the studio.
+async function studio(request, env, url) {
+  const { pathname: path } = url;
+  const method = request.method;
+  if (method !== 'GET') checkOrigin(request, url);
+  await requireOwner(request, env);
+
+  if (path === '/api/studio/entries' && method === 'GET') return studioList(env, url);
+  if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
+  if (path === '/api/studio/preview' && method === 'POST') return preview(request);
+  const m = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)$/);
+  if (m && method === 'GET') {
+    const entry = await getEntry(env, m[1]);
+    if (!entry) throw new HttpError(404, 'That item no longer exists.');
+    return json(entry);
+  }
+  if (m && method === 'PATCH') return studioUpdate(request, env, m[1]);
+  if (m && method === 'DELETE') return studioDelete(env, m[1]);
   throw new HttpError(404, 'Not found.');
 }
 
@@ -136,10 +183,6 @@ async function saveItems(env, items) {
 function publicItem(i) {
   const { id, section, title, note, link, kind, duration, hasFile, hasCover, createdAt } = i;
   return { id, section, title, note, link, kind, duration, hasFile, hasCover, createdAt };
-}
-
-function cleanText(value, max) {
-  return String(value ?? '').trim().slice(0, max);
 }
 
 function cleanLink(value) {
@@ -290,79 +333,4 @@ async function media(request, env, kind, id) {
   }
   headers.set('Content-Length', String(total));
   return new Response(request.method === 'HEAD' ? null : value, { status: 200, headers });
-}
-
-// ---------- auth ----------
-
-function checkOrigin(request, url) {
-  const origin = request.headers.get('Origin');
-  if (origin && origin !== url.origin) throw new HttpError(403, 'Cross-site request blocked.');
-}
-
-async function login(request, env) {
-  if (!env.ADMIN_PASSWORD) throw new HttpError(503, 'Admin password is not set on the server yet.');
-  const { password } = await readJson(request);
-  const ok = await safeEqual(String(password ?? ''), env.ADMIN_PASSWORD);
-  if (!ok) {
-    // Slow down guessing without spending KV writes on a counter.
-    await new Promise((r) => setTimeout(r, 1000));
-    throw new HttpError(401, 'Wrong password.');
-  }
-  const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
-  const token = `${expires}.${await sign(String(expires), env.ADMIN_PASSWORD)}`;
-  const cookie = `${COOKIE}=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_HOURS * 3600}`;
-  return json({ ok: true }, 200, { 'Set-Cookie': cookie });
-}
-
-async function requireSession(request, env) {
-  if (!env.ADMIN_PASSWORD) throw new HttpError(503, 'Admin password is not set on the server yet.');
-  const cookies = request.headers.get('Cookie') ?? '';
-  const token = cookies
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
-  const [expires, sig] = (token ?? '').split('.');
-  if (!expires || !sig || Number(expires) < Date.now()) throw new HttpError(401, 'Please log in again.');
-  const expected = await sign(expires, env.ADMIN_PASSWORD);
-  if (!(await safeEqual(sig, expected))) throw new HttpError(401, 'Please log in again.');
-}
-
-function clearCookie() {
-  return `${COOKIE}=; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
-}
-
-const enc = new TextEncoder();
-
-async function sign(message, secret) {
-  const key = await crypto.subtle.importKey('raw', enc.encode(`session:${secret}`), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const mac = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-  return btoa(String.fromCharCode(...new Uint8Array(mac))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-// Compare digests so timing does not leak the length or prefix of the secret.
-async function safeEqual(a, b) {
-  const [da, db] = await Promise.all([a, b].map((s) => crypto.subtle.digest('SHA-256', enc.encode(s))));
-  const x = new Uint8Array(da);
-  const y = new Uint8Array(db);
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
-  return diff === 0;
-}
-
-// ---------- helpers ----------
-
-async function readJson(request) {
-  try {
-    return (await request.json()) ?? {};
-  } catch {
-    throw new HttpError(400, 'Expected a JSON body.');
-  }
-}
-
-function json(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
-  });
 }
