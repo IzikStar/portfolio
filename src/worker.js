@@ -18,6 +18,8 @@ import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview
 import { writingIndex, writingPage, communityPage, workIndex, workPage } from './pages.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
+import { serveBytes } from './bytes.js';
+import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
 // The main address. The other custom domains (and www.) redirect here;
@@ -56,6 +58,8 @@ async function pages(request, env, url) {
   if (path === '/writing') return writingIndex(env, await viewer(request, env));
   if (path === '/community') return communityPage(env, await viewer(request, env));
   if (path === '/work') return workIndex(env, await viewer(request, env));
+  const f = path.match(/^\/files\/([a-z0-9-]+)$/);
+  if (f) return (await serveFile(request, env, (await viewer(request, env)).role, f[1])) ?? notFound(request, env);
   const m = path.match(/^\/(writing|work)\/([^/]+)$/);
   if (m) {
     let slug;
@@ -140,6 +144,11 @@ async function studio(request, env, url) {
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
   if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
+  if (path === '/api/studio/files' && method === 'POST') return uploadFile(request, env);
+  const fm = path.match(/^\/api\/studio\/files\/([a-z0-9-]+)$/);
+  if (fm && method === 'DELETE') return deleteFile(env, fm[1]);
+  const lf = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/files$/);
+  if (lf && method === 'GET') return listFiles(env, lf[1]);
   if (path === '/api/studio/invites' && method === 'POST') return createInvite(request, env);
   let mm = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)$/);
   if (mm && method === 'PATCH') return setMemberStatus(request, env, mm[1]);
@@ -155,7 +164,11 @@ async function studio(request, env, url) {
   if (m && method === 'PATCH') return studioUpdate(request, env, m[1]);
   const sm = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/sync$/);
   if (sm && method === 'POST') return syncOne(env, sm[1]);
-  if (m && method === 'DELETE') return studioDelete(env, m[1]);
+  if (m && method === 'DELETE') {
+    const res = await studioDelete(env, m[1]);
+    await deleteFilesOf(env, m[1]);
+    return res;
+  }
   throw new HttpError(404, 'Not found.');
 }
 
@@ -340,35 +353,5 @@ async function reorder(request, env) {
 async function media(request, env, kind, id) {
   const { value, metadata } = await env.MEDIA.getWithMetadata(`${kind}:${id}`, 'arrayBuffer');
   if (!value) throw new HttpError(404, 'Not found.');
-  const headers = new Headers({
-    'Content-Type': metadata?.type ?? 'application/octet-stream',
-    'Cache-Control': 'public, max-age=31536000, immutable',
-    'Accept-Ranges': 'bytes',
-    'Content-Disposition': 'inline',
-    'X-Content-Type-Options': 'nosniff',
-  });
-  // Uploads are admin-only, but keep them inert anyway. Chrome refuses to show
-  // PDFs under a sandbox CSP, so PDFs get only nosniff.
-  if (metadata?.type !== 'application/pdf') {
-    headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-  }
-  const total = value.byteLength;
-  const range = request.headers.get('Range');
-  const r = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-  if (r && (r[1] || r[2])) {
-    let start = r[1] ? Number(r[1]) : total - Number(r[2]);
-    let end = r[1] && r[2] ? Number(r[2]) : total - 1;
-    start = Math.max(0, start);
-    end = Math.min(end, total - 1);
-    if (start > end) {
-      headers.set('Content-Range', `bytes */${total}`);
-      return new Response(null, { status: 416, headers });
-    }
-    headers.set('Content-Range', `bytes ${start}-${end}/${total}`);
-    headers.set('Content-Length', String(end - start + 1));
-    const body = request.method === 'HEAD' ? null : value.slice(start, end + 1);
-    return new Response(body, { status: 206, headers });
-  }
-  headers.set('Content-Length', String(total));
-  return new Response(request.method === 'HEAD' ? null : value, { status: 200, headers });
+  return serveBytes(request, value, metadata?.type, 'public, max-age=31536000, immutable');
 }
