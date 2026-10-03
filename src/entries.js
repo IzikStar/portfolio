@@ -8,6 +8,8 @@ import { renderChords } from './chords.js';
 import { entryFilter, canSee } from './spaces.js';
 
 const MAX_BODY = 200_000;
+// Addresses taken by the site itself under every wing and space (/music/blog).
+export const RESERVED_SLUGS = ['blog'];
 
 // Where a new item goes when the studio does not say: the wing for its kind.
 const HOME = { ...Object.fromEntries(WINGS.map((w) => [w.kind, w.id])), work: 'videos', humor: 'humor' };
@@ -71,6 +73,16 @@ function cleanSource(src) {
   throw new HttpError(400, 'The source must be owner/repo, a GitHub link or a web address.');
 }
 
+// Credits on an item ("שירה: דנה"): who, by user id, and in what role.
+function cleanCredits(list) {
+  if (!Array.isArray(list)) return undefined;
+  const out = list
+    .filter((c) => c && /^[0-9a-f-]{36}$/.test(String(c.userId ?? '')))
+    .map((c) => ({ role: cleanText(c.role, 40), userId: String(c.userId) }))
+    .slice(0, 30);
+  return out.length ? out : undefined;
+}
+
 function pick(value, allowed, field) {
   if (!allowed.includes(value)) throw new HttpError(400, `Unknown ${field}.`);
   return value;
@@ -91,16 +103,20 @@ function applyFields(entry, body) {
     // "synced" is written only by source sync, never by the client.
     const { synced: _ignored, ...rest } = body.meta;
     rest.source = cleanSource(rest.source);
+    rest.credits = cleanCredits(rest.credits);
+    if (!rest.credits) delete rest.credits;
     if (JSON.stringify(rest).length > 20_000) throw new HttpError(400, 'meta is too large.');
     entry.meta = entry.meta?.synced ? { ...rest, synced: entry.meta.synced } : rest;
   }
   if ('slug' in body) entry.slug = slugify(body.slug) || null;
+  if ('slug' in body && RESERVED_SLUGS.includes(entry.slug)) throw new HttpError(400, 'That address is taken by the community blog. Pick another.');
   if ('spaceId' in body) entry.spaceId = body.spaceId ? String(body.spaceId) : null;
 
   if (entry.status === 'published') {
     if (!entry.title) throw new HttpError(400, 'Give it a title before publishing.');
     if (!entry.slug) {
       entry.slug = slugify(entry.title) || entry.id.slice(0, 8);
+      if (RESERVED_SLUGS.includes(entry.slug)) entry.slug += '-2';
       autoSlug.add(entry);
     }
     if (!entry.publishedAt) entry.publishedAt = new Date().toISOString();
@@ -287,6 +303,21 @@ export async function listFeed(env, acc, limit = 100) {
   const { results } = await d
     .prepare(`SELECT * FROM entries WHERE kind != 'idea' AND ${f.sql} ORDER BY COALESCE(published_at, updated_at) DESC LIMIT ?`)
     .bind(...f.args, limit)
+    .all();
+  return results.map(fromRow);
+}
+
+// Published items that credit this member and that the viewer may see.
+export async function listCredited(env, acc, userId, limit = 50) {
+  const d = await db(env);
+  const f = entryFilter(acc);
+  const { results } = await d
+    .prepare(
+      `SELECT * FROM entries WHERE kind != 'idea'
+       AND EXISTS (SELECT 1 FROM json_each(entries.meta, '$.credits') c WHERE json_extract(c.value, '$.userId') = ?)
+       AND ${f.sql} ORDER BY published_at DESC LIMIT ?`,
+    )
+    .bind(userId, ...f.args, limit)
     .all();
   return results.map(fromRow);
 }
