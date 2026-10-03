@@ -1,7 +1,7 @@
 // Studio: the owner's private workspace. Idea notebook, a studio per wing,
 // the item editor, projects, comments and the community.
 // Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
-// #projects, #project/<id>, #project-new, #comments, #community. (#edit/<id> and #articles still work.)
+// #projects, #project/<id>, #project-new, #comments, #community, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
@@ -126,6 +126,7 @@
     $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
     $('view-comments').hidden = view !== 'comments';
+    $('view-settings').hidden = view !== 'settings';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'item' && view !== 'new';
@@ -134,6 +135,7 @@
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
     else if (view === 'comments') loadComments();
+    else if (view === 'settings') loadSettings();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
     else if (view === 'project' && id) openProject(id);
@@ -1183,6 +1185,68 @@
     if (!b) return;
     comments.filter = b.dataset.status;
     loadComments();
+  });
+
+  // ---------- settings ----------
+  function socialRow(x = {}) {
+    const row = h(
+      'div',
+      { className: 'social-row' },
+      h('input', { type: 'text', value: x.label ?? '', placeholder: 'שם, למשל YouTube', dir: 'auto', ariaLabel: 'שם' }),
+      h('input', { type: 'text', value: x.href ?? '', placeholder: 'https://...', dir: 'ltr', ariaLabel: 'כתובת' }),
+      h('button', { className: 'btn small danger', type: 'button', textContent: 'הסרה', onclick: () => row.remove() }),
+    );
+    return row;
+  }
+
+  async function loadSettings() {
+    try {
+      const { socials } = await call('/api/studio/settings');
+      $('socials').replaceChildren(...socials.map(socialRow));
+    } catch (err) {
+      report('socials-msg')(err);
+    }
+  }
+
+  $('add-social').addEventListener('click', () => {
+    const row = socialRow();
+    $('socials').append(row);
+    row.querySelector('input').focus();
+  });
+
+  $('save-socials').addEventListener('click', async () => {
+    const socials = [...$('socials').children].map((r) => {
+      const [label, href] = r.querySelectorAll('input');
+      return { label: label.value, href: href.value };
+    });
+    try {
+      const saved = await send('/api/studio/settings/socials', 'PUT', { socials });
+      $('socials').replaceChildren(...saved.socials.map(socialRow));
+      say('socials-msg', 'נשמר', 'ok');
+    } catch (err) {
+      report('socials-msg')(err);
+    }
+  });
+
+  $('import-legacy').addEventListener('click', async () => {
+    say('legacy-msg', 'מעביר...');
+    try {
+      const { created, skipped, total } = await send('/api/studio/import-legacy', 'POST', {});
+      say('legacy-msg', total ? `עברו ${created.length} פריטים${skipped ? `, ${skipped} כבר היו כאן` : ''}.` : 'אין פריטים בדף הישן.', 'ok');
+      $('legacy-list').replaceChildren(
+        ...created.map((x) =>
+          h(
+            'li',
+            {},
+            h('a', { className: 'who', href: `#item/${x.id}`, dir: 'auto', textContent: x.title }),
+            h('span', { className: 'meta' }, h('span', { textContent: KIND[x.kind] }), h('span', { className: 'badge', textContent: x.status === 'published' ? 'ציבורי' : 'טיוטה פרטית' })),
+          ),
+        ),
+      );
+      if (created.length) loadSpaces().catch(() => {});
+    } catch (err) {
+      report('legacy-msg')(err);
+    }
   });
 
   // ---------- start ----------

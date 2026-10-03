@@ -32,7 +32,7 @@ export const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '');
 
 // The social links in the footer and on the home page. The owner sets them;
 // until then only the ones already known from the CV show.
-const DEFAULT_SOCIALS = [
+export const DEFAULT_SOCIALS = [
   { label: 'GitHub', href: 'https://github.com/IzikStar' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/itschak-shteren-0b7a59313' },
 ];

@@ -86,6 +86,8 @@
 .versions-editor { display: grid; gap: 10px; }
 .version-row { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 2.4fr) auto auto auto auto; gap: 8px; align-items: center; }
 @media (max-width: 900px) { .version-row { grid-template-columns: 1fr 1fr; } .version-row input[data-f='url'] { grid-column: 1 / -1; } }
+.social-row { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 2.4fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 700px) { .social-row { grid-template-columns: 1fr auto; } .social-row input[dir='ltr'] { grid-row: 2; grid-column: 1 / -1; } }
 .source-box { border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px 16px; display: grid; gap: 10px; margin: 0; }
 .source-box legend { font-weight: 500; padding-inline: 6px; }
 .synced { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
