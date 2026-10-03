@@ -40,6 +40,7 @@
     <a href="#comments" data-tab="comments">תגובות<span class="count" id="comment-count"></span></a>
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
     <a href="#projects" data-tab="projects">קורות חיים: פרויקטים</a>
+    <a href="#settings" data-tab="settings">הגדרות</a>
     <div class="foot">
       <a href="/" target="_blank" rel="noopener">לאתר ↗</a>
       <a href="/admin">ניהול ישן</a>
@@ -239,6 +240,29 @@
       <p class="msg" id="c-msg" role="status"></p>
       <ul class="people" id="c-list"></ul>
       <p class="empty" id="c-empty" hidden>אין כאן תגובות.</p>
+    </section>
+
+    <section id="view-settings" hidden>
+      <div class="head"><h1>הגדרות</h1></div>
+      <div class="box">
+        <h2>קישורים לרשתות</h2>
+        <p class="hint">מופיעים בתחתית כל עמוד ובעמוד הבית. שם וכתובת שמתחילה ב־https://</p>
+        <div class="versions-editor" id="socials"></div>
+        <div class="toolbar">
+          <button class="btn small" type="button" id="add-social">הוספת קישור</button>
+          <button class="btn primary" type="button" id="save-socials">שמירה</button>
+          <span class="msg" id="socials-msg" role="status"></span>
+        </div>
+      </div>
+      <div class="box">
+        <h2>הפריטים מדף הניהול הישן</h2>
+        <p class="hint">מעביר כל פריט מ־/admin לאגף שלו: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר ציבורי, מה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים מועתקים, והמקור בדף הישן נשאר כמו שהוא. אפשר להריץ שוב: מה שכבר עבר לא יוכפל.</p>
+        <div class="toolbar">
+          <button class="btn" type="button" id="import-legacy">העברה לאגפים</button>
+          <span class="msg" id="legacy-msg" role="status"></span>
+        </div>
+        <ul class="people" id="legacy-list"></ul>
+      </div>
     </section>
 
     <section id="view-community" class="community" hidden>

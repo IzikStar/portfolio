@@ -22,6 +22,7 @@ import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCo
 import { serveBytes } from './bytes.js';
 import { access, listSpaces, requestJoin, studioSpaces, createSpace, updateSpace, deleteSpace, spaceMembers, decideMember } from './spaces.js';
 import { postComment, deleteComment, studioComments, setCommentStatus, deleteCommentsOf } from './comments.js';
+import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
@@ -177,6 +178,9 @@ async function studio(request, env, url) {
   if (path === '/api/studio/comments' && method === 'GET') return studioComments(env, url, await access(env, { role: 'owner' }));
   const cs = path.match(/^\/api\/studio\/comments\/([a-z0-9-]+)$/);
   if (cs && method === 'PATCH') return setCommentStatus(request, env, cs[1]);
+  if (path === '/api/studio/settings' && method === 'GET') return studioSettings(env);
+  if (path === '/api/studio/settings/socials' && method === 'PUT') return saveSocials(request, env);
+  if (path === '/api/studio/import-legacy' && method === 'POST') return importLegacy(env);
   if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
   if (path === '/api/studio/files' && method === 'POST') return uploadFile(request, env);
   const fm = path.match(/^\/api\/studio\/files\/([a-z0-9-]+)$/);
