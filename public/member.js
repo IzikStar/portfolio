@@ -29,6 +29,18 @@
   const join = document.getElementById('join-form');
   if (join) {
     const code = params.get('code');
+    // Came from a wing or a book: the request covers that community too.
+    const space = params.get('space');
+    if (space && !code) {
+      fetch('/api/spaces')
+        .then((r) => r.json())
+        .then(({ spaces }) => {
+          const s = spaces.find((x) => x.id === space);
+          if (!s) return;
+          document.getElementById('join-title').textContent = s.kind === 'book' ? `קריאת בטא: ${s.title}` : `הצטרפות ל${s.parentId ? s.title : `קהילת ה${s.title}`}`;
+        })
+        .catch(() => {});
+    }
     if (code) {
       fetch(`/api/member/invite?code=${encodeURIComponent(code)}`)
         .then((r) => r.json())
@@ -48,7 +60,7 @@
       const f = Object.fromEntries(new FormData(join));
       say('join-msg', 'שולח...');
       try {
-        const { status } = await post('/api/member/join', { ...f, code: code || undefined });
+        const { status } = await post('/api/member/join', { ...f, code: code || undefined, spaceId: space || undefined });
         if (status === 'active') location.href = next();
         else {
           join.hidden = true;

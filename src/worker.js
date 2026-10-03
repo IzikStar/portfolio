@@ -1,5 +1,5 @@
 // Site worker: serves the static site (ASSETS), the platform (studio API,
-// server-rendered /writing pages; data in D1, see src/db.js) and the older API
+// server-rendered home, wing and item pages; data in D1, see src/db.js) and the older API
 // for the portfolio's creative sections (music, voice acting, sketches, writing).
 // KV layout:
 //   "items"         JSON list of every uploaded item, in display order
@@ -15,7 +15,8 @@
 import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
 import { login, logout, isOwner, requireOwner } from './auth.js';
 import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview, publicList } from './entries.js';
-import { writingIndex, writingPage, communityPage, workIndex, workPage } from './pages.js';
+import { home, wingPage, resolve, communityPage } from './wings.js';
+import { WINGS } from './db.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { serveBytes } from './bytes.js';
@@ -56,23 +57,28 @@ export default {
 async function pages(request, env, url) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
   const path = url.pathname;
-  if (path === '/writing') return writingIndex(env, await viewer(request, env));
+  if (path === '/') return home(env, await viewer(request, env));
+  // The CV (the static portfolio page) lives at /cv; the home page is the platform.
+  if (path === '/cv') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+  if (path === '/cv/' || path === '/index.html') return Response.redirect(`${url.origin}/cv`, 301);
+  // Older addresses.
+  const old = path.match(/^\/(writing|work)(\/.*)?$/);
+  if (old) return Response.redirect(`${url.origin}/${old[1] === 'writing' ? 'articles' : 'software'}${old[2] ?? ''}`, 301);
   if (path === '/community') return communityPage(env, await viewer(request, env));
-  if (path === '/work') return workIndex(env, await viewer(request, env));
   const f = path.match(/^\/files\/([a-z0-9-]+)$/);
   if (f) return (await serveFile(request, env, (await viewer(request, env)).acc, f[1])) ?? notFound(request, env);
-  const m = path.match(/^\/(writing|work)\/([^/]+)$/);
-  if (m) {
-    let slug;
-    try {
-      slug = decodeURIComponent(m[2]);
-    } catch {
-      return null;
-    }
-    const render = m[1] === 'writing' ? writingPage : workPage;
-    return (await render(env, await viewer(request, env), slug)) ?? notFound(request, env);
+
+  const parts = path.split('/').slice(1);
+  if (!WINGS.some((w) => w.id === parts[0]) || parts.length > 3 || parts.some((x) => !x)) return null;
+  let slugs;
+  try {
+    slugs = parts.map(decodeURIComponent);
+  } catch {
+    return null;
   }
-  return null;
+  const v = await viewer(request, env);
+  const page = slugs.length === 1 ? await wingPage(env, v, slugs[0]) : await resolve(env, v, ...slugs);
+  return page ?? notFound(request, env);
 }
 
 // Who is asking (the owner, a signed-in member, or the public) and what they may open.

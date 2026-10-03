@@ -161,21 +161,21 @@ describe('articles', () => {
     const owner = await (await req('/api/entries?kind=article', { headers: { Cookie: cookie } })).json();
     expect(owner.entries).toHaveLength(3);
 
-    const page = await req(`/writing/${encodeURIComponent(pub.slug)}`);
+    const page = await req(`/articles/${encodeURIComponent(pub.slug)}`);
     expect(page.status).toBe(200);
     expect(page.headers.get('Content-Type')).toMatch(/text\/html/);
     const text = await page.text();
     expect(text).toContain('<strong>hi</strong>');
     expect(text).not.toContain('noindex');
 
-    expect((await req('/writing/members-one')).status).toBe(404);
-    expect((await req('/writing/private-one')).status).toBe(404);
-    expect((await req('/writing/draft-one')).status).toBe(404);
-    const ownerView = await req('/writing/private-one', { headers: { Cookie: cookie } });
+    expect((await req('/articles/members-one')).status).toBe(404);
+    expect((await req('/articles/private-one')).status).toBe(404);
+    expect((await req('/articles/draft-one')).status).toBe(404);
+    const ownerView = await req('/articles/private-one', { headers: { Cookie: cookie } });
     expect(ownerView.status).toBe(200);
     expect(await ownerView.text()).toContain('noindex');
 
-    const index = await (await req('/writing')).text();
+    const index = await (await req('/articles')).text();
     expect(index).toContain('Public one');
     expect(index).not.toContain('Members one');
     expect(index).not.toContain('Private one');
@@ -184,7 +184,7 @@ describe('articles', () => {
   it('escapes titles on the public pages', async () => {
     const cookie = await login();
     const a = await create(cookie, { kind: 'article', title: '<script>alert(1)</script>', slug: 'x', visibility: 'public', status: 'published' });
-    const text = await (await req(`/writing/${a.slug}`)).text();
+    const text = await (await req(`/articles/${a.slug}`)).text();
     expect(text).not.toContain('<script>alert(1)</script>');
     expect(text).toContain('&lt;script&gt;');
   });

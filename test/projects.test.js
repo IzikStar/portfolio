@@ -165,12 +165,12 @@ describe('what visitors see', () => {
     const o = await owner();
     const p = await project(o, { title: 'MasterMind', slug: 'mastermind', status: 'published' });
     await studio(o, `/api/studio/entries/${p.id}/sync`, 'POST');
-    const index = await (await req('/work')).text();
+    const index = await (await req('/software')).text();
     expect(index).toContain('MasterMind');
-    const page = await (await req('/work/mastermind')).text();
+    const page = await (await req('/software/mastermind')).text();
     expect(page).toContain('https://raw.githubusercontent.com/IzikStar/MasterMindTS/main/docs/shot.png');
     expect(page).toContain('https://github.com/IzikStar/MasterMindTS/blob/main/LICENSE');
-    expect((await req('/work/nothing-here')).status).toBe(404);
+    expect((await req('/software/nothing-here')).status).toBe(404);
   });
 
   it('drops unsafe images and links', async () => {
