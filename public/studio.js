@@ -1,7 +1,7 @@
 // Studio: the owner's private workspace. Idea notebook, a studio per wing,
-// the item editor, projects and the community.
+// the item editor, projects, comments and the community.
 // Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
-// #projects, #project/<id>, #project-new, #community. (#edit/<id> and #articles still work.)
+// #projects, #project/<id>, #project-new, #comments, #community. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
@@ -125,6 +125,7 @@
     $('view-wing').hidden = view !== 'wing';
     $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
+    $('view-comments').hidden = view !== 'comments';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'item' && view !== 'new';
@@ -132,6 +133,7 @@
     else if (view === 'wing' && WING_KINDS[id]) openWing(id);
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
+    else if (view === 'comments') loadComments();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
     else if (view === 'project' && id) openProject(id);
@@ -467,7 +469,7 @@
 
   // ---------- editor (any item: a song, a chapter, an article...) ----------
   const editor = { entry: null, dirty: false, saving: null, defaults: {} };
-  const fields = ['title', 'summary', 'slug', 'tags', 'visibility', 'body', 'kind', 'space', 'order', 'capo', 'key'];
+  const fields = ['title', 'summary', 'slug', 'tags', 'visibility', 'body', 'kind', 'space', 'order', 'capo', 'key', 'comments'];
 
   function status(text, kind = '') {
     $('save-status').textContent = text;
@@ -542,6 +544,7 @@
     $('ed-order').value = entry?.meta?.order ?? '';
     $('ed-capo').value = entry?.meta?.capo ?? '';
     $('ed-key').value = entry?.meta?.key ?? '';
+    $('ed-comments').checked = entry?.meta?.comments !== false;
     $('ed-versions').replaceChildren(...(entry?.meta?.versions ?? []).map(versionRow));
     modeFor($('ed-kind').value);
     reflect(entry);
@@ -588,6 +591,7 @@
       capo: $('ed-capo').value.trim() || undefined,
       key: $('ed-key').value.trim() || undefined,
       versions: readVersions(),
+      comments: $('ed-comments').checked ? undefined : false,
     };
     delete meta.synced;
     for (const k of Object.keys(meta)) if (meta[k] === undefined) delete meta[k];
@@ -657,7 +661,7 @@
   }, 400);
 
   for (const f of fields) {
-    $(`ed-${f}`).addEventListener(f === 'kind' || f === 'space' ? 'change' : 'input', () => {
+    $(`ed-${f}`).addEventListener(f === 'kind' || f === 'space' || f === 'comments' ? 'change' : 'input', () => {
       changed();
       if (f === 'kind') modeFor($('ed-kind').value);
       if (f === 'body' || f === 'kind') renderPreview();
@@ -1126,6 +1130,61 @@
     }
   });
 
+  // ---------- comments ----------
+  const comments = { filter: 'open' };
+
+  async function loadComments() {
+    try {
+      const data = await call(`/api/studio/comments${comments.filter ? `?status=${comments.filter}` : ''}`);
+      showCommentCount(data.open);
+      for (const b of $('c-filters').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.status === comments.filter));
+      $('c-list').replaceChildren(...data.comments.map(commentRow));
+      $('c-empty').hidden = data.comments.length > 0;
+      say('c-msg', '');
+    } catch (err) {
+      report('c-msg')(err);
+    }
+  }
+
+  function showCommentCount(n) {
+    $('comment-count').textContent = n || '';
+  }
+
+  function commentRow(c) {
+    const where = state.byId.get(c.entry.spaceId);
+    const open = c.status === 'open';
+    return h(
+      'li',
+      {},
+      h('span', { className: 'who', dir: 'auto', textContent: c.author }),
+      h(
+        'span',
+        { className: 'meta', dir: 'auto' },
+        c.entry.path ? h('a', { href: `${c.entry.path}#c-${c.id}`, target: '_blank', rel: 'noopener', textContent: c.entry.title || 'בלי כותרת' }) : h('span', { textContent: c.entry.title || 'פריט שנמחק' }),
+        where ? h('span', { textContent: where.parentId ? where.title : wingOf(where.id)?.title }) : null,
+        c.replyTo ? h('span', { className: 'badge', textContent: 'תשובה' }) : null,
+        open ? null : h('span', { className: 'badge', textContent: 'טופל' }),
+        h('time', { textContent: fmt(c.createdAt) }),
+      ),
+      h(
+        'span',
+        { className: 'actions' },
+        h('button', { className: `btn small ${open ? 'primary' : ''}`, type: 'button', textContent: open ? 'טופל' : 'פתיחה מחדש', onclick: () => send(`/api/studio/comments/${c.id}`, 'PATCH', { status: open ? 'resolved' : 'open' }).then(loadComments, report('c-msg')) }),
+        h('a', { className: 'btn small', href: `#item/${c.entryId}`, textContent: 'לעריכה' }),
+        h('button', { className: 'btn small danger', type: 'button', textContent: 'מחיקה', onclick: () => confirm('למחוק את התגובה?') && call(`/api/comments/${c.id}`, { method: 'DELETE' }).then(loadComments, report('c-msg')) }),
+      ),
+      c.quote ? h('span', { className: 'note quote', dir: 'auto', textContent: c.quote }) : null,
+      h('span', { className: 'note', dir: 'auto', textContent: c.body }),
+    );
+  }
+
+  $('c-filters').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    comments.filter = b.dataset.status;
+    loadComments();
+  });
+
   // ---------- start ----------
   async function start() {
     try {
@@ -1138,6 +1197,7 @@
     $('app').hidden = false;
     route();
     call('/api/studio/community').then(({ users }) => showPendingCount(users.filter((u) => u.status === 'pending').length), () => {});
+    call('/api/studio/comments?status=open').then(({ open }) => showCommentCount(open), () => {});
   }
   start();
 })();

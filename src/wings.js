@@ -15,6 +15,7 @@ import { entryFilter, canSee, communityOf } from './spaces.js';
 import { projectView } from './projects.js';
 import { renderChords, hasChords } from './chords.js';
 import { mediaEmbed } from './media.js';
+import { commentsBlock, commentsOf, canComment } from './comments.js';
 import { render, socials, WING_INFO, KIND_LABEL, LOCK, icon, fmtDate, badge, entryPath, spacePath, wingOf } from './site.js';
 
 const SPACE_LABEL = { book: 'ספר', series: 'סדרה', genre: 'ז\'אנר', collection: 'אוסף' };
@@ -326,7 +327,8 @@ export async function entryPage(env, v, entry) {
     ${entry.summary ? `<p class="lede" dir="auto">${e(entry.summary)}</p>` : ''}
     ${entry.tags.length ? `<ul class="chips">${entry.tags.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : ''}`;
     const reading = entry.kind === 'chapter' ? 'paper prose' : entry.kind === 'article' || entry.kind === 'torah' ? 'prose read' : 'prose';
-    const text = entry.kind !== 'song' && entry.body.trim() ? `<div class="${reading}" dir="auto">${renderMarkdown(entry.body)}</div>` : '';
+    const anchors = canComment(v, entry) ? ' data-anchors' : '';
+    const text = entry.kind !== 'song' && entry.body.trim() ? `<div class="${reading}" dir="auto"${anchors}>${renderMarkdown(entry.body)}</div>` : '';
     main = `${versionsBlock(v, entry)}${text}`;
     if (entry.kind === 'chapter' || space.kind === 'series') {
       const { prev, next } = await siblings(env, v, entry);
@@ -338,6 +340,7 @@ export async function entryPage(env, v, entry) {
     ${header}
   </header>
   ${main}
+  ${commentsBlock(v, entry, canComment(v, entry) ? await commentsOf(env, entry.id) : [])}
   <p class="back"><a href="${spacePath(acc, space)}">חזרה ל${e(space.title)}</a></p>
 </article>`;
   const isPublic = entry.visibility === 'public' && entry.status === 'published' && acc.visible.has(entry.spaceId);
