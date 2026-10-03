@@ -15,7 +15,8 @@
 import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
 import { login, logout, isOwner, requireOwner } from './auth.js';
 import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview, publicList } from './entries.js';
-import { writingIndex, writingPage, communityPage } from './pages.js';
+import { writingIndex, writingPage, communityPage, workIndex, workPage } from './pages.js';
+import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
@@ -25,6 +26,11 @@ const CANONICAL_HOST = 'itschakshteren.com';
 const REDIRECT_HOSTS = ['www.itschakshteren.com', 'izikstar.com', 'www.izikstar.com'];
 
 export default {
+  // Daily: refresh every project that has a source (see wrangler.toml).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(syncAll(env).then((r) => console.log('source sync', r)));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     if (REDIRECT_HOSTS.includes(url.hostname)) {
@@ -49,15 +55,17 @@ async function pages(request, env, url) {
   const path = url.pathname;
   if (path === '/writing') return writingIndex(env, await viewer(request, env));
   if (path === '/community') return communityPage(env, await viewer(request, env));
-  const m = path.match(/^\/writing\/([^/]+)$/);
+  if (path === '/work') return workIndex(env, await viewer(request, env));
+  const m = path.match(/^\/(writing|work)\/([^/]+)$/);
   if (m) {
     let slug;
     try {
-      slug = decodeURIComponent(m[1]);
+      slug = decodeURIComponent(m[2]);
     } catch {
       return null;
     }
-    return (await writingPage(env, await viewer(request, env), slug)) ?? notFound(request, env);
+    const render = m[1] === 'writing' ? writingPage : workPage;
+    return (await render(env, await viewer(request, env), slug)) ?? notFound(request, env);
   }
   return null;
 }
@@ -86,6 +94,7 @@ async function api(request, env, url) {
     });
   }
 
+  if (path === '/api/cv-projects' && method === 'GET') return cvProjects(env);
   if (path === '/api/entries' && method === 'GET') return publicList(env, (await viewer(request, env)).role, url);
   if (path.startsWith('/api/studio/')) return studio(request, env, url);
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
@@ -130,6 +139,7 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
+  if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
   if (path === '/api/studio/invites' && method === 'POST') return createInvite(request, env);
   let mm = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)$/);
   if (mm && method === 'PATCH') return setMemberStatus(request, env, mm[1]);
@@ -143,6 +153,8 @@ async function studio(request, env, url) {
     return json(entry);
   }
   if (m && method === 'PATCH') return studioUpdate(request, env, m[1]);
+  const sm = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/sync$/);
+  if (sm && method === 'POST') return syncOne(env, sm[1]);
   if (m && method === 'DELETE') return studioDelete(env, m[1]);
   throw new HttpError(404, 'Not found.');
 }

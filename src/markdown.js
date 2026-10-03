@@ -19,6 +19,22 @@ export function safeUrl(href) {
   return null;
 }
 
+// Relative links and images resolve against these while a document renders
+// (a GitHub README points at files in its own repo).
+let base = null;
+
+function resolve(href, kind) {
+  const raw = String(href ?? '').trim();
+  if (base && raw && !/^[a-z][a-z0-9+.-]*:|^\/\/|^#/i.test(raw)) {
+    try {
+      return new URL(raw.replace(/^\//, ''), base[kind]).href;
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 const marked = new Marked({
   gfm: true,
   breaks: true,
@@ -28,14 +44,14 @@ const marked = new Marked({
     },
     link({ href, title, tokens }) {
       const text = this.parser.parseInline(tokens);
-      const url = safeUrl(href);
+      const url = safeUrl(resolve(href, 'link'));
       if (!url) return text;
       const external = /^https?:/.test(url) ? ' rel="noopener nofollow"' : '';
       const t = title ? ` title="${escapeHtml(title)}"` : '';
       return `<a href="${escapeHtml(url)}"${t}${external}>${text}</a>`;
     },
     image({ href, title, text }) {
-      const url = safeUrl(href);
+      const url = safeUrl(resolve(href, 'image'));
       if (!url || url.startsWith('mailto:')) return escapeHtml(text);
       const t = title ? ` title="${escapeHtml(title)}"` : '';
       return `<img src="${escapeHtml(url)}" alt="${escapeHtml(text)}"${t} loading="lazy">`;
@@ -43,8 +59,13 @@ const marked = new Marked({
   },
 });
 
-export function renderMarkdown(source) {
-  return marked.parse(String(source ?? ''), { async: false });
+export function renderMarkdown(source, options = {}) {
+  base = options.base ?? null;
+  try {
+    return marked.parse(String(source ?? ''), { async: false });
+  } finally {
+    base = null;
+  }
 }
 
 // Plain-text excerpt for lists and link previews.
