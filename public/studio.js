@@ -1,8 +1,20 @@
-// Studio: the owner's private workspace. Idea notebook and article editor.
-// Routes (hash): #ideas, #articles, #new, #edit/<id>.
+// Studio: the owner's private workspace. Idea notebook, a studio per wing,
+// the item editor, projects and the community.
+// Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
+// #projects, #project/<id>, #project-new, #community. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
+  const KIND = {
+    song: 'שיר', chapter: 'פרק', sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', torah: 'דבר תורה',
+    article: 'מאמר', project: 'פרויקט', work: 'יצירה', video: 'סרטון', idea: 'רעיון',
+  };
+  // What each wing holds; the first kind is the default for a new item.
+  const WING_KINDS = {
+    music: ['song', 'video'], books: ['chapter'], sketches: ['sketch', 'video'], humor: ['dub', 'humor', 'video'],
+    torah: ['torah'], articles: ['article'], software: ['project'], videos: ['video'],
+  };
+  const SPACE_KIND = { book: 'ספר', series: 'סדרה', genre: 'ז\'אנר', collection: 'אוסף' };
   const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const fmt = (iso) => (iso ? dateFmt.format(new Date(iso)) : '');
 
@@ -65,29 +77,66 @@
     showLogin();
   });
 
+  // ---------- spaces (wings and what is inside them) ----------
+  const state = { spaces: [], byId: new Map() };
+  async function loadSpaces() {
+    const { spaces } = await call('/api/studio/spaces');
+    state.spaces = spaces;
+    state.byId = new Map(spaces.map((x) => [x.id, x]));
+    // Requests waiting in each wing, counted on the sidebar.
+    const counts = {};
+    for (const x of spaces) counts[x.wing] = (counts[x.wing] ?? 0) + x.requests;
+    for (const el of document.querySelectorAll('[data-count]')) el.textContent = counts[el.dataset.count] || '';
+    return spaces;
+  }
+  const wingOf = (id) => {
+    let x = state.byId.get(id);
+    while (x?.parentId) x = state.byId.get(x.parentId);
+    return x;
+  };
+  const spaceLabel = (x) => (x.parentId ? `${x.title}` : `${x.title} (האגף עצמו)`);
+  const pathOf = (x) => (x.parentId ? `/${x.wing}/${encodeURIComponent(x.slug)}` : `/${x.id}`);
+  const itemPath = (e) => {
+    const x = state.byId.get(e.spaceId);
+    return x && e.slug ? `${pathOf(x)}/${encodeURIComponent(e.slug)}` : null;
+  };
+  const inside = (rootId) => {
+    const ids = [rootId];
+    for (let i = 0; i < ids.length; i++) for (const x of state.spaces) if (x.parentId === ids[i]) ids.push(x.id);
+    return ids;
+  };
+
   // ---------- routing ----------
-  function route() {
+  async function route() {
     const hash = location.hash.slice(1) || 'ideas';
-    const [view, id] = hash.split('/');
-    const tab = view === 'edit' || view === 'new' ? 'articles' : view === 'project' || view === 'project-new' ? 'projects' : view;
-    for (const a of document.querySelectorAll('.tabs a')) {
+    const [view, id, extra] = hash.split('/');
+    if (view === 'articles') return void (location.hash = '#wing/articles');
+    if (view === 'edit' && id) return void (location.hash = `#item/${id}`);
+    if (!state.spaces.length) await loadSpaces().catch(() => {});
+    let tab = view;
+    if (view === 'wing') tab = `wing/${id}`;
+    else if (view === 'space' || view === 'new') tab = `wing/${wingOf(id)?.id}`;
+    else if (view === 'project' || view === 'project-new') tab = 'projects';
+    for (const a of document.querySelectorAll('.studio-side [data-tab]')) {
       if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     }
     $('view-ideas').hidden = view !== 'ideas';
-    $('view-articles').hidden = view !== 'articles';
+    $('view-wing').hidden = view !== 'wing';
+    $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
-    $('view-edit').hidden = view !== 'edit' && view !== 'new';
+    $('view-edit').hidden = view !== 'item' && view !== 'new';
     if (view === 'ideas') loadIdeas();
-    else if (view === 'articles') loadArticles();
+    else if (view === 'wing' && WING_KINDS[id]) openWing(id);
+    else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
     else if (view === 'project' && id) openProject(id);
-    else if (view === 'new') openEditor(null);
-    else if (view === 'edit' && id) openEditor(id);
+    else if (view === 'new' && id) openEditor(null, { spaceId: id, kind: extra });
+    else if (view === 'item' && id) openEditor(id);
     else location.hash = '#ideas';
   }
   let current = location.hash;
@@ -175,8 +224,8 @@
         ? { kind: 'article' }
         : { kind: 'article', title: first.replace(/^#+\s*/, '').slice(0, 120), body: rest.join('\n').trim() };
       try {
-        await send(`/api/studio/entries/${idea.id}`, 'PATCH', change);
-        location.hash = `#edit/${idea.id}`;
+        await send(`/api/studio/entries/${idea.id}`, 'PATCH', { ...change, spaceId: 'articles' });
+        location.hash = `#item/${idea.id}`;
       } catch (err) {
         fail(err);
       }
@@ -200,52 +249,301 @@
     return node;
   }
 
-  // ---------- articles ----------
-  async function loadArticles() {
-    const q = $('article-search').value.trim();
-    try {
-      const { entries } = await call(`/api/studio/entries?kind=article${q ? `&q=${encodeURIComponent(q)}` : ''}`);
-      $('articles').replaceChildren(
-        ...entries.map((a) =>
-          h(
-            'li',
-            {},
-            h('a', { className: 'title', href: `#edit/${a.id}`, dir: 'auto', textContent: a.title || 'ללא כותרת' }),
-            a.status === 'published' && a.slug ? h('a', { className: 'btn small', href: `/writing/${encodeURIComponent(a.slug)}`, target: '_blank', textContent: 'צפייה' }) : h('span'),
-            h(
-              'div',
-              { className: 'meta' },
-              h('span', { className: `badge ${a.status === 'draft' ? 'draft' : 'vis-public'}`, textContent: a.status === 'draft' ? 'טיוטה' : 'פורסם' }),
-              h('span', { className: `badge vis-${a.visibility}`, textContent: VIS[a.visibility] }),
-              h('time', { textContent: `עודכן ${fmt(a.updatedAt)}` }),
-            ),
-          ),
+  // ---------- a wing's studio ----------
+  const wingView = { id: null, filter: null };
+
+  function itemRow(e) {
+    const path = e.status === 'published' ? itemPath(e) : null;
+    const where = state.byId.get(e.spaceId);
+    const href = e.kind === 'project' || e.kind === 'work' ? `#project/${e.id}` : `#item/${e.id}`;
+    return h(
+      'li',
+      {},
+      h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'ללא כותרת' }),
+      path ? h('a', { className: 'btn small', href: path, target: '_blank', textContent: 'צפייה' }) : h('span'),
+      h(
+        'div',
+        { className: 'meta' },
+        h('span', { textContent: KIND[e.kind] ?? e.kind }),
+        where?.parentId ? h('span', { dir: 'auto', textContent: where.title }) : null,
+        e.meta?.order != null ? h('span', { textContent: `#${e.meta.order}` }) : null,
+        h('span', { className: `badge ${e.status === 'draft' ? 'draft' : 'vis-public'}`, textContent: e.status === 'draft' ? 'טיוטה' : 'פורסם' }),
+        h('span', { className: `badge vis-${e.visibility}`, textContent: VIS[e.visibility] }),
+        h('time', { textContent: `עודכן ${fmt(e.updatedAt)}` }),
+      ),
+    );
+  }
+
+  function request(m, spaceId, done) {
+    const decide = (status) => send(`/api/studio/spaces/${spaceId}/members`, 'PATCH', { userId: m.userId, status }).then(done, report('w-msg'));
+    const where = state.byId.get(spaceId);
+    return h(
+      'li',
+      {},
+      h('span', { className: 'who', dir: 'auto', textContent: m.displayName }),
+      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${m.username}` }), where ? h('span', { textContent: where.parentId ? where.title : 'כל האגף' }) : null, m.accountPending ? h('span', { className: 'badge', textContent: 'חשבון חדש' }) : null, h('time', { textContent: fmt(m.createdAt) })),
+      h(
+        'span',
+        { className: 'actions' },
+        ...(m.status === 'pending'
+          ? [
+              h('button', { className: 'btn small primary', type: 'button', textContent: 'אישור', onclick: () => decide('active') }),
+              h('button', { className: 'btn small danger', type: 'button', textContent: 'דחייה', onclick: () => decide('refused') }),
+            ]
+          : [h('button', { className: 'btn small danger', type: 'button', textContent: m.status === 'active' ? 'הסרה' : 'מחיקה', onclick: () => confirm(`להוציא את ${m.displayName}?`) && decide('removed') })]),
+      ),
+      m.note ? h('span', { className: 'note', dir: 'auto', textContent: m.note }) : null,
+    );
+  }
+
+  async function openWing(id) {
+    wingView.id = id;
+    wingView.filter = null;
+    const wing = state.byId.get(id);
+    document.querySelector('#view-wing').dataset.wing = id;
+    $('w-title').textContent = `סטודיו ${wing?.title ?? ''}`;
+    $('w-kind').replaceChildren(...WING_KINDS[id].map((k) => h('option', { value: k, textContent: KIND[k] })));
+    $('w-kind').hidden = WING_KINDS[id].length < 2;
+    $('w-settings').href = `#space/${id}`;
+    $('w-view').href = `/${id}`;
+    $('w-new-space').hidden = id === 'software' || id === 'articles' || id === 'torah';
+    await loadSpaces().catch(report('w-msg'));
+    const kids = state.spaces.filter((x) => x.parentId && inside(id).includes(x.id) && x.id !== id);
+    $('w-spaces').replaceChildren(
+      ...kids.map((x) =>
+        h(
+          'a',
+          { className: 'space-card', href: `#space/${x.id}` },
+          h('span', { className: 't', dir: 'auto', textContent: x.title }),
+          h('span', { className: 'meta' }, h('span', { textContent: SPACE_KIND[x.kind] ?? '' }), h('span', { textContent: `${x.entries} פריטים` }), x.members ? h('span', { textContent: `${x.members} בקהילה` }) : null, x.requests ? h('span', { className: 'badge vis-community', textContent: `${x.requests} בקשות` }) : null, h('span', { className: `badge vis-${x.visibility}`, textContent: VIS[x.visibility] })),
         ),
-      );
-      $('articles-empty').hidden = entries.length > 0 || Boolean(q);
+      ),
+    );
+    $('w-spaces-empty').hidden = kids.length > 0;
+    $('w-spaces-box').hidden = !kids.length && $('w-new-space').hidden;
+    $('w-filters').replaceChildren(
+      ...[{ id: null, title: 'הכל' }, ...kids].map((x) =>
+        h('button', {
+          type: 'button',
+          textContent: x.title,
+          ariaPressed: String(wingView.filter === x.id),
+          onclick: (ev) => {
+            wingView.filter = x.id;
+            for (const b of $('w-filters').children) b.setAttribute('aria-pressed', String(b === ev.currentTarget));
+            loadWingItems();
+          },
+        }),
+      ),
+    );
+    $('w-filters').hidden = !kids.length;
+    loadWingItems();
+    loadRequests(id, kids);
+  }
+
+  async function loadWingItems() {
+    const id = wingView.id;
+    const q = $('w-search').value.trim();
+    const ids = wingView.filter ? inside(wingView.filter) : inside(id);
+    try {
+      const lists = await Promise.all(ids.map((x) => call(`/api/studio/entries?space=${encodeURIComponent(x)}${q ? `&q=${encodeURIComponent(q)}` : ''}`)));
+      const all = lists.flatMap((l) => l.entries).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      $('w-items').replaceChildren(...all.map(itemRow));
+      $('w-items-empty').hidden = all.length > 0;
     } catch (err) {
-      if (!(err instanceof AuthError)) $('articles').replaceChildren(h('li', { className: 'msg err', textContent: err.message }));
+      report('w-msg')(err);
     }
   }
-  $('article-search').addEventListener('input', debounce(loadArticles, 250));
-  $('new-article').addEventListener('click', () => (location.hash = '#new'));
+  $('w-search').addEventListener('input', debounce(loadWingItems, 250));
 
-  // ---------- editor ----------
-  const editor = { entry: null, dirty: false, saving: null };
-  const fields = ['title', 'summary', 'slug', 'tags', 'visibility', 'body'];
+  async function loadRequests(id, kids) {
+    const targets = [state.byId.get(id), ...kids.filter((x) => x.ownCommunity)].filter(Boolean);
+    try {
+      const lists = await Promise.all(targets.map((x) => call(`/api/studio/spaces/${x.id}/members`).then((r) => r.members.filter((m) => m.status === 'pending').map((m) => [m, x.id]))));
+      const pending = lists.flat();
+      $('w-requests').replaceChildren(...pending.map(([m, sid]) => request(m, sid, () => openWing(id))));
+      $('w-requests-empty').hidden = pending.length > 0;
+    } catch (err) {
+      report('w-msg')(err);
+    }
+  }
+
+  $('w-new').addEventListener('click', () => {
+    const kind = $('w-kind').value;
+    location.hash = kind === 'project' ? '#project-new' : `#new/${wingView.id}/${kind}`;
+  });
+  $('w-new-space').addEventListener('click', async () => {
+    const kinds = wingView.id === 'books' ? 'book' : wingView.id === 'sketches' ? 'series' : 'collection';
+    const title = prompt(wingView.id === 'books' ? 'שם הספר:' : 'שם:');
+    if (!title?.trim()) return;
+    try {
+      const x = await send('/api/studio/spaces', 'POST', { parentId: wingView.id, kind: kinds, title });
+      await loadSpaces();
+      location.hash = `#space/${x.id}`;
+    } catch (err) {
+      report('w-msg')(err);
+    }
+  });
+
+  // ---------- one space (or a wing's own settings) ----------
+  const spaceView = { id: null };
+
+  async function openSpace(id) {
+    spaceView.id = id;
+    await loadSpaces().catch(() => {});
+    const x = state.byId.get(id);
+    if (!x) return void say('s-status', 'לא נמצא', 'err');
+    const isWing = !x.parentId;
+    document.querySelector('#view-space').dataset.wing = x.wing;
+    $('s-back').href = `#wing/${x.wing}`;
+    $('s-title').value = x.title;
+    $('s-summary').value = x.summary;
+    $('s-kind').value = x.kind;
+    $('s-kind').closest('label').hidden = isWing;
+    $('s-visibility').value = x.visibility;
+    $('s-join').value = x.joinMode;
+    $('s-own').checked = x.ownCommunity;
+    $('s-own-field').hidden = isWing;
+    $('s-slug').value = x.slug;
+    $('s-slug').closest('label').hidden = isWing;
+    $('s-state').value = x.meta?.status ?? '';
+    $('s-cover').value = x.meta?.cover ?? '';
+    $('s-sort').value = x.sort ?? 0;
+    $('s-delete').hidden = isWing;
+    $('s-view').href = pathOf(x);
+    $('s-status').textContent = isWing ? 'הגדרות האגף' : `${SPACE_KIND[x.kind] ?? ''} ב${wingOf(id)?.title ?? ''}`;
+    const kinds = WING_KINDS[x.wing] ?? [];
+    $('s-new-item').hidden = !kinds.length || kinds[0] === 'project';
+    $('s-members-title').textContent = x.ownCommunity || isWing ? (x.kind === 'book' ? 'קוראי בטא' : 'הקהילה') : 'הקהילה (של האגף שמעליו)';
+    try {
+      const [{ entries }, members] = await Promise.all([
+        call(`/api/studio/entries?space=${encodeURIComponent(id)}`),
+        x.ownCommunity || isWing ? call(`/api/studio/spaces/${id}/members`).then((r) => r.members) : Promise.resolve([]),
+      ]);
+      entries.sort((a, b) => (a.meta?.order ?? 1e9) - (b.meta?.order ?? 1e9) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      $('s-items').replaceChildren(...entries.map(itemRow));
+      $('s-items-empty').hidden = entries.length > 0;
+      $('s-members').replaceChildren(...members.filter((m) => m.status !== 'refused').map((m) => request(m, id, () => openSpace(id))));
+      $('s-members-empty').hidden = members.length > 0;
+    } catch (err) {
+      report('s-status')(err);
+    }
+  }
+
+  $('s-save').addEventListener('click', async () => {
+    const x = state.byId.get(spaceView.id);
+    if (!x) return;
+    const body = {
+      title: $('s-title').value,
+      summary: $('s-summary').value,
+      visibility: $('s-visibility').value,
+      joinMode: $('s-join').value,
+      sort: $('s-sort').value,
+      meta: { ...x.meta, status: $('s-state').value.trim() || undefined, cover: $('s-cover').value.trim() || undefined },
+    };
+    if (x.parentId) Object.assign(body, { kind: $('s-kind').value, ownCommunity: $('s-own').checked, slug: $('s-slug').value });
+    try {
+      await send(`/api/studio/spaces/${x.id}`, 'PATCH', body);
+      say('s-status', 'נשמר', 'ok');
+      openSpace(x.id);
+    } catch (err) {
+      report('s-status')(err);
+    }
+  });
+  $('s-delete').addEventListener('click', async () => {
+    const x = state.byId.get(spaceView.id);
+    if (!x || !confirm(`למחוק את "${x.title}"? אפשר רק כשאין בו כלום.`)) return;
+    try {
+      await call(`/api/studio/spaces/${x.id}`, { method: 'DELETE' });
+      await loadSpaces();
+      location.hash = `#wing/${x.wing}`;
+    } catch (err) {
+      report('s-status')(err);
+    }
+  });
+  $('s-new-item').addEventListener('click', () => {
+    const x = state.byId.get(spaceView.id);
+    location.hash = `#new/${x.id}/${(WING_KINDS[x.wing] ?? ['article'])[0]}`;
+  });
+
+  // ---------- editor (any item: a song, a chapter, an article...) ----------
+  const editor = { entry: null, dirty: false, saving: null, defaults: {} };
+  const fields = ['title', 'summary', 'slug', 'tags', 'visibility', 'body', 'kind', 'space', 'order', 'capo', 'key'];
 
   function status(text, kind = '') {
     $('save-status').textContent = text;
-    $('save-status').style.color = kind === 'err' ? 'var(--signal)' : '';
+    $('save-status').style.color = kind === 'err' ? '#ff9b85' : '';
+  }
+
+  // Versions: recordings, videos, arrangements. One row each.
+  function versionRow(v = {}) {
+    const tag = (n, f) => {
+      n.dataset.f = f;
+      return n;
+    };
+    const input = (f, props) => tag(h('input', { type: 'text', value: v[f] ?? '', ...props }), f);
+    const kind = h('select', {}, h('option', { value: '', textContent: 'זיהוי אוטומטי' }), h('option', { value: 'audio', textContent: 'שמע' }), h('option', { value: 'video', textContent: 'וידאו' }));
+    tag(kind, 'kind').value = v.kind ?? '';
+    const vis = h('select', {}, h('option', { value: '', textContent: 'כמו הפריט' }), h('option', { value: 'community', textContent: 'רק לקהילה' }));
+    tag(vis, 'visibility').value = v.visibility ?? '';
+    const row = h(
+      'div',
+      { className: 'version-row' },
+      input('label', { placeholder: 'שם, למשל "הקלטה רשמית"', dir: 'auto', title: 'שם הגרסה' }),
+      input('url', { placeholder: 'קישור מהדרייב, מיוטיוב, או העלאה', dir: 'ltr', title: 'קישור' }),
+      kind,
+      vis,
+      h('button', { className: 'btn small', type: 'button', textContent: 'העלאה', onclick: () => { versionTarget = row; $('ed-version-file').click(); } }),
+      h('button', { className: 'btn small danger', type: 'button', textContent: 'הסרה', onclick: () => { row.remove(); changed(); } }),
+    );
+    row.addEventListener('input', changed);
+    row.addEventListener('change', changed);
+    return row;
+  }
+  let versionTarget = null;
+  const readVersions = () =>
+    [...$('ed-versions').children]
+      .map((r) => Object.fromEntries([...r.querySelectorAll('[data-f]')].map((n) => [n.dataset.f, n.value.trim()])))
+      .filter((v) => v.url)
+      .map((v) => Object.fromEntries(Object.entries(v).filter(([, x]) => x)));
+  $('ed-add-version').addEventListener('click', () => $('ed-versions').append(versionRow()));
+
+  function spaceOptions(spaceId) {
+    const wing = wingOf(spaceId);
+    const ids = wing ? inside(wing.id) : [];
+    $('ed-space').replaceChildren(...ids.map((id) => state.byId.get(id)).filter(Boolean).map((x) => h('option', { value: x.id, textContent: spaceLabel(x) })));
+    $('ed-space').value = spaceId ?? '';
+    const kinds = [...new Set([...(WING_KINDS[wing?.id] ?? []), editor.entry?.kind ?? editor.defaults.kind].filter(Boolean))];
+    $('ed-kind').replaceChildren(...kinds.map((k) => h('option', { value: k, textContent: KIND[k] ?? k })));
+    $('ed-back').href = spaceId ? (state.byId.get(spaceId)?.parentId ? `#space/${spaceId}` : `#wing/${spaceId}`) : '#ideas';
+    $('ed-back').textContent = spaceId ? `חזרה ל${state.byId.get(spaceId)?.title ?? 'אגף'}` : 'חזרה';
+  }
+
+  function modeFor(kind) {
+    const song = kind === 'song';
+    $('ed-song').hidden = !song;
+    $('ed-body').classList.toggle('chords-mode', song);
+    $('md-tools').hidden = song;
+    $('ed-body').dir = song ? 'rtl' : 'auto';
+    $('ed-body').placeholder = song
+      ? 'מילים ואקורדים. אפשר [Am]כך בתוך השורה, או שורת אקורדים מעל שורת מילים. {c: פזמון} לכותרת קטנה.'
+      : 'כותבים כאן. Markdown עובד: ## כותרת, **מודגש**, - רשימה, [קישור](https://...)';
   }
 
   function fill(entry) {
+    const d = editor.defaults;
     $('ed-title').value = entry?.title ?? '';
     $('ed-summary').value = entry?.summary ?? '';
     $('ed-slug').value = entry?.slug ?? '';
     $('ed-tags').value = (entry?.tags ?? []).join(', ');
     $('ed-visibility').value = entry?.visibility ?? 'private';
     $('ed-body').value = entry?.body ?? '';
+    spaceOptions(entry ? entry.spaceId : d.spaceId);
+    $('ed-kind').value = entry?.kind ?? d.kind ?? $('ed-kind').value;
+    $('ed-order').value = entry?.meta?.order ?? '';
+    $('ed-capo').value = entry?.meta?.capo ?? '';
+    $('ed-key').value = entry?.meta?.key ?? '';
+    $('ed-versions').replaceChildren(...(entry?.meta?.versions ?? []).map(versionRow));
+    modeFor($('ed-kind').value);
     reflect(entry);
   }
 
@@ -254,20 +552,23 @@
     $('publish').textContent = published ? 'החזרה לטיוטה' : 'פרסום';
     $('publish').classList.toggle('primary', !published);
     $('delete-article').hidden = !entry;
-    $('view-link').hidden = !(published && entry.slug);
-    if (published && entry.slug) $('view-link').href = `/writing/${encodeURIComponent(entry.slug)}`;
+    const path = entry && published ? itemPath(entry) : null;
+    $('view-link').hidden = !path;
+    if (path) $('view-link').href = path;
     if (entry) status(`${published ? 'פורסם' : 'טיוטה'} · ${VIS[entry.visibility]} · נשמר ${fmt(entry.updatedAt)}`);
     else status('טיוטה חדשה');
   }
 
-  async function openEditor(id) {
+  async function openEditor(id, defaults = {}) {
     editor.entry = null;
     editor.dirty = false;
+    editor.defaults = defaults;
     fill(null);
     if (id) {
       status('טוען...');
       try {
         editor.entry = await call(`/api/studio/entries/${id}`);
+        if (editor.entry.kind === 'project' || editor.entry.kind === 'work') return void (location.hash = `#project/${id}`);
         fill(editor.entry);
       } catch (err) {
         if (!(err instanceof AuthError)) status(err.message, 'err');
@@ -280,9 +581,33 @@
   }
 
   function collect() {
-    const body = {};
-    for (const f of fields) body[f] = $(`ed-${f}`).value;
-    return body;
+    const num = (v) => (v === '' ? undefined : Number(v));
+    const meta = {
+      ...(editor.entry?.meta ?? {}),
+      order: num($('ed-order').value),
+      capo: $('ed-capo').value.trim() || undefined,
+      key: $('ed-key').value.trim() || undefined,
+      versions: readVersions(),
+    };
+    delete meta.synced;
+    for (const k of Object.keys(meta)) if (meta[k] === undefined) delete meta[k];
+    return {
+      title: $('ed-title').value,
+      summary: $('ed-summary').value,
+      slug: $('ed-slug').value,
+      tags: $('ed-tags').value,
+      visibility: $('ed-visibility').value,
+      body: $('ed-body').value,
+      kind: $('ed-kind').value,
+      spaceId: $('ed-space').value || null,
+      meta,
+    };
+  }
+
+  function changed() {
+    editor.dirty = true;
+    status('לא נשמר');
+    editor.flush();
   }
 
   // Saves are serialized; a change made during a save triggers one more.
@@ -300,8 +625,8 @@
         if (editor.entry) {
           editor.entry = await send(`/api/studio/entries/${editor.entry.id}`, 'PATCH', { ...body, baseUpdatedAt: editor.entry.updatedAt });
         } else {
-          editor.entry = await send('/api/studio/entries', 'POST', { kind: 'article', ...body });
-          history.replaceState(null, '', `#edit/${editor.entry.id}`);
+          editor.entry = await send('/api/studio/entries', 'POST', body);
+          history.replaceState(null, '', `#item/${editor.entry.id}`);
           current = location.hash;
         }
         if (!$('ed-slug').matches(':focus')) $('ed-slug').value = editor.entry.slug ?? '';
@@ -324,7 +649,7 @@
   const renderPreview = debounce(async () => {
     if ($('view-edit').classList.contains('split') === false) return;
     try {
-      const { html } = await send('/api/studio/preview', 'POST', { body: $('ed-body').value });
+      const { html } = await send('/api/studio/preview', 'POST', { body: $('ed-body').value, mode: $('ed-kind').value === 'song' ? 'chords' : 'markdown' });
       $('ed-preview').innerHTML = html; // rendered and sanitized by the server
     } catch {
       // the next keystroke tries again
@@ -332,11 +657,10 @@
   }, 400);
 
   for (const f of fields) {
-    $(`ed-${f}`).addEventListener('input', () => {
-      editor.dirty = true;
-      status('לא נשמר');
-      editor.flush();
-      if (f === 'body') renderPreview();
+    $(`ed-${f}`).addEventListener(f === 'kind' || f === 'space' ? 'change' : 'input', () => {
+      changed();
+      if (f === 'kind') modeFor($('ed-kind').value);
+      if (f === 'body' || f === 'kind') renderPreview();
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -357,7 +681,7 @@
 
   $('publish').addEventListener('click', async () => {
     const publishing = editor.entry?.status !== 'published';
-    if (publishing && $('ed-visibility').value === 'private' && !confirm('המאמר מוגדר "רק אני", אז גם אחרי פרסום רק אתה תראה אותו. להמשיך?')) return;
+    if (publishing && $('ed-visibility').value === 'private' && !confirm('הפריט מוגדר "רק אני", אז גם אחרי פרסום רק אתה תראה אותו. להמשיך?')) return;
     editor.flush.cancel();
     try {
       await save({ status: publishing ? 'published' : 'draft' });
@@ -367,12 +691,12 @@
   });
 
   $('delete-article').addEventListener('click', async () => {
-    if (!editor.entry || !confirm('למחוק את המאמר לצמיתות?')) return;
+    if (!editor.entry || !confirm('למחוק את הפריט לצמיתות?')) return;
     editor.flush.cancel();
     try {
       await call(`/api/studio/entries/${editor.entry.id}`, { method: 'DELETE' });
       editor.dirty = false;
-      location.hash = '#articles';
+      location.hash = $('ed-back').getAttribute('href');
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, 'err');
     }
@@ -440,6 +764,30 @@
       const ta = $('ed-body');
       ta.setRangeText(`${snippet}\n`, ta.selectionStart, ta.selectionEnd, 'end');
       ta.dispatchEvent(new Event('input'));
+    } catch (err) {
+      if (!(err instanceof AuthError)) status(err.message, 'err');
+    }
+  });
+
+  // A file for a version row: upload it and put its address in the row.
+  $('ed-version-file').addEventListener('change', async () => {
+    const file = $('ed-version-file').files[0];
+    $('ed-version-file').value = '';
+    const row = versionTarget;
+    if (!file || !row) return;
+    try {
+      if (!editor.entry) {
+        if (!$('ed-title').value.trim()) $('ed-title').value = file.name.replace(/\.[^.]+$/, '');
+        editor.flush.cancel();
+        await save();
+      }
+      status(`מעלה ${file.name}...`);
+      const f = await upload(editor.entry.id, file);
+      row.querySelector('[data-f="url"]').value = f.url;
+      const label = row.querySelector('[data-f="label"]');
+      if (!label.value) label.value = f.name.replace(/\.[^.]+$/, '');
+      if (f.kind === 'audio' || f.kind === 'video') row.querySelector('[data-f="kind"]').value = f.kind;
+      changed();
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, 'err');
     }

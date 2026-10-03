@@ -8,9 +8,10 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6b5f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='serif' font-weight='700'%3EI%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/platform.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Secular+One&family=Heebo:wght@300;400;500;700&family=Frank+Ruhl+Libre:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/studio.css">
+<meta name="theme-color" content="#13110e">
 </head>
 <body class="studio-body">
 <form class="login" id="login" hidden>
@@ -22,26 +23,30 @@
   <p class="msg" id="login-msg" role="status"></p>
 </form>
 
-<div id="app" hidden>
-  <header class="bar">
-    <div class="wrap">
-      <a class="mark" href="#ideas">סטודיו</a>
-      <nav class="always">
-        <a href="/writing">כתיבה באתר</a>
-        <a href="/admin">ניהול קורות חיים</a>
-        <a href="#" id="logout">יציאה</a>
-      </nav>
+<div id="app" class="studio-shell" hidden>
+  <nav class="studio-side" aria-label="סטודיו">
+    <a class="mark" href="#ideas">הסטודיו</a>
+    <a href="#ideas" data-tab="ideas">רעיונות</a>
+    <span class="group">סטודיו לכל אגף</span>
+    <a href="#wing/music" data-tab="wing/music" data-wing="music"><span class="dot"></span>מוזיקה<span class="count" data-count="music"></span></a>
+    <a href="#wing/books" data-tab="wing/books" data-wing="books"><span class="dot"></span>ספרים<span class="count" data-count="books"></span></a>
+    <a href="#wing/sketches" data-tab="wing/sketches" data-wing="sketches"><span class="dot"></span>מערכונים<span class="count" data-count="sketches"></span></a>
+    <a href="#wing/humor" data-tab="wing/humor" data-wing="humor"><span class="dot"></span>דיבובים והומור<span class="count" data-count="humor"></span></a>
+    <a href="#wing/torah" data-tab="wing/torah" data-wing="torah"><span class="dot"></span>דברי תורה<span class="count" data-count="torah"></span></a>
+    <a href="#wing/articles" data-tab="wing/articles" data-wing="articles"><span class="dot"></span>מאמרים<span class="count" data-count="articles"></span></a>
+    <a href="#wing/software" data-tab="wing/software" data-wing="software"><span class="dot"></span>תוכנה<span class="count" data-count="software"></span></a>
+    <a href="#wing/videos" data-tab="wing/videos" data-wing="videos"><span class="dot"></span>סרטונים<span class="count" data-count="videos"></span></a>
+    <span class="group">כללי</span>
+    <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
+    <a href="#projects" data-tab="projects">קורות חיים: פרויקטים</a>
+    <div class="foot">
+      <a href="/" target="_blank" rel="noopener">לאתר ↗</a>
+      <a href="/admin">ניהול ישן</a>
+      <a href="#" id="logout">יציאה</a>
     </div>
-  </header>
+  </nav>
 
-  <main class="wrap studio">
-    <nav class="tabs" aria-label="סטודיו">
-      <a href="#ideas" data-tab="ideas">רעיונות</a>
-      <a href="#articles" data-tab="articles">מאמרים</a>
-      <a href="#projects" data-tab="projects">פרויקטים</a>
-      <a href="#community" data-tab="community">קהילה <span id="pending-count"></span></a>
-    </nav>
-
+  <main class="studio">
     <section id="view-ideas" hidden>
       <form class="capture" id="capture">
         <textarea id="capture-text" placeholder="מה עובר לך בראש?" dir="auto" aria-label="רעיון חדש"></textarea>
@@ -58,13 +63,83 @@
       <p class="empty" id="ideas-empty" hidden>עוד אין רעיונות. מה שתכתוב למעלה נשמר כאן, פרטי רק לך.</p>
     </section>
 
-    <section id="view-articles" hidden>
-      <div class="toolbar" style="margin-bottom: 1rem">
-        <button class="btn primary" type="button" id="new-article">מאמר חדש</button>
-        <input class="grow" type="search" id="article-search" placeholder="חיפוש במאמרים" dir="auto" aria-label="חיפוש במאמרים">
+    <section id="view-wing" hidden>
+      <div class="head">
+        <h1 id="w-title"></h1>
+        <label class="sr-only" for="w-kind">סוג פריט</label>
+        <select id="w-kind" style="width:auto"></select>
+        <button class="btn accent" type="button" id="w-new">פריט חדש</button>
+        <button class="btn" type="button" id="w-new-space">ספר, סדרה או אוסף חדש</button>
+        <a class="btn" id="w-settings">הגדרות האגף</a>
+        <a class="btn" id="w-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
       </div>
-      <ol class="rows-table" id="articles"></ol>
-      <p class="empty" id="articles-empty" hidden>עוד אין מאמרים.</p>
+      <p class="msg" id="w-msg" role="status"></p>
+      <div class="box" id="w-spaces-box">
+        <h2>בתוך האגף</h2>
+        <div class="spaces" id="w-spaces"></div>
+        <p class="empty" id="w-spaces-empty">עוד אין כאן ספרים, סדרות או אוספים.</p>
+      </div>
+      <div class="two">
+        <div class="box">
+          <div class="toolbar">
+            <h2 style="margin:0; flex:1">פריטים</h2>
+            <input class="grow" type="search" id="w-search" placeholder="חיפוש" dir="auto" aria-label="חיפוש באגף">
+          </div>
+          <div class="filters" id="w-filters"></div>
+          <ol class="rows-table" id="w-items"></ol>
+          <p class="empty" id="w-items-empty" hidden>עוד אין כאן פריטים.</p>
+        </div>
+        <div class="box">
+          <h2>בקשות הצטרפות</h2>
+          <ul class="people" id="w-requests"></ul>
+          <p class="empty" id="w-requests-empty">אין בקשות פתוחות באגף הזה.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-space" class="editor" hidden>
+      <div class="toolbar">
+        <a class="btn small" id="s-back">חזרה לאגף</a>
+        <span class="status" id="s-status" role="status"></span>
+      </div>
+      <input type="text" class="title-input" id="s-title" placeholder="שם" dir="auto" aria-label="שם">
+      <label class="field">תיאור קצר<textarea id="s-summary" rows="3" dir="auto"></textarea></label>
+      <div class="settings">
+        <label class="field">סוג
+          <select id="s-kind"><option value="book">ספר</option><option value="series">סדרה</option><option value="genre">ז'אנר</option><option value="collection">אוסף</option></select>
+        </label>
+        <label class="field">מי רואה את העמוד
+          <select id="s-visibility"><option value="private">רק אני</option><option value="community">הקהילה שלו</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
+        </label>
+        <label class="field">הצטרפות לקהילה
+          <select id="s-join"><option value="request">בבקשה ואישור</option><option value="closed">בהזמנה בלבד</option></select>
+        </label>
+        <label class="field check-field" id="s-own-field"><span><input type="checkbox" id="s-own"> קהילה נפרדת משלו <small>(כמו קוראי בטא של ספר)</small></span></label>
+      </div>
+      <div class="settings" id="s-extra">
+        <label class="field">כתובת <small>החלק האחרון בקישור</small><input type="text" id="s-slug" dir="auto"></label>
+        <label class="field">מצב <small>למשל "בכתיבה"</small><input type="text" id="s-state" dir="auto"></label>
+        <label class="field">כריכה <small>כתובת תמונה</small><input type="text" id="s-cover" dir="ltr"></label>
+        <label class="field">סדר<input type="number" id="s-sort"></label>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" type="button" id="s-save">שמירה</button>
+        <a class="btn" id="s-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
+        <button class="btn danger" type="button" id="s-delete">מחיקה</button>
+      </div>
+      <div class="two">
+        <div class="box">
+          <h2>מה יש בפנים</h2>
+          <ol class="rows-table" id="s-items"></ol>
+          <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
+        </div>
+        <div class="box">
+          <h2 id="s-members-title">הקהילה</h2>
+          <ul class="people" id="s-members"></ul>
+          <p class="empty" id="s-members-empty">עוד אין כאן אף אחד.</p>
+        </div>
+      </div>
     </section>
 
     <section id="view-projects" hidden>
@@ -184,10 +259,15 @@
 
     <section id="view-edit" class="editor split" hidden>
       <div class="toolbar">
-        <a class="btn small" href="#articles">כל המאמרים</a>
+        <a class="btn small" id="ed-back" href="#ideas">חזרה</a>
         <span class="status" id="save-status" role="status"></span>
       </div>
       <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
+      <div class="settings">
+        <label class="field">סוג<select id="ed-kind"></select></label>
+        <label class="field">איפה<select id="ed-space"></select></label>
+        <label class="field">מספר / סדר <small>פרק 1, 2, 3…</small><input type="number" id="ed-order"></label>
+      </div>
       <label class="field">תקציר <small>מופיע ברשימה ובתצוגה המקדימה של קישורים</small>
         <textarea id="ed-summary" rows="2" maxlength="600" dir="auto"></textarea>
       </label>
@@ -200,13 +280,23 @@
             <option value="public">כולם</option>
           </select>
         </label>
-        <label class="field">כתובת <small>itschakshteren.com/writing/…</small>
+        <label class="field">כתובת <small>החלק האחרון בקישור</small>
           <input type="text" id="ed-slug" dir="auto" placeholder="נוצרת מהכותרת">
         </label>
         <label class="field">תגיות
           <input type="text" id="ed-tags" dir="auto" placeholder="מופרדות בפסיק">
         </label>
       </div>
+      <div class="settings" id="ed-song" hidden>
+        <label class="field">קאפו<input type="text" id="ed-capo" dir="ltr"></label>
+        <label class="field">סולם<input type="text" id="ed-key" dir="ltr"></label>
+      </div>
+      <fieldset class="source-box">
+        <legend>הקלטות, סרטונים וגרסאות</legend>
+        <p class="hint">קישור מהדרייב, מיוטיוב, או קובץ שמעלים. גרסה "לקהילה" מופיעה לשאר עם מנעול. בדרייב צריך לשתף את הקובץ ככל מי שיש לו קישור.</p>
+        <div class="versions-editor" id="ed-versions"></div>
+        <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden></div>
+      </fieldset>
       <div class="toolbar">
         <div class="md-tools" id="md-tools">
           <button class="btn small" type="button" data-md="bold" title="מודגש"><b>B</b></button>
