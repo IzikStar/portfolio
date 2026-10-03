@@ -33,6 +33,7 @@
 [data-wing='videos'] { --accent: #b6a2ee; --on-accent: #170c33; --tint: #221a3b; }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;

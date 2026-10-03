@@ -4,6 +4,7 @@
 import { db, KINDS, VISIBILITY, STATUS, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { renderMarkdown, excerpt } from './markdown.js';
+import { renderChords } from './chords.js';
 import { entryFilter, canSee } from './spaces.js';
 
 const MAX_BODY = 200_000;
@@ -247,8 +248,9 @@ export async function studioDelete(env, id) {
 }
 
 export async function preview(request) {
-  const { body } = await readJson(request);
-  return json({ html: renderMarkdown(String(body ?? '').slice(0, MAX_BODY)) });
+  const { body, mode } = await readJson(request);
+  const text = String(body ?? '').slice(0, MAX_BODY);
+  return json({ html: mode === 'chords' ? renderChords(text) : renderMarkdown(text) });
 }
 
 // ---------- visitors ----------

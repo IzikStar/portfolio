@@ -188,3 +188,11 @@ describe('media', () => {
     expect(mediaEmbed('https://x.test/page', { title: '<x>' })).toContain('&lt;x&gt;');
   });
 });
+
+describe('studio preview', () => {
+  it('renders chord sheets for songs', async () => {
+    const o = await owner();
+    const res = await call(o, '/api/studio/preview', 'POST', { body: '[Am]שלום', mode: 'chords' });
+    expect((await res.json()).html).toContain('<span class="ch">Am</span>');
+  });
+});
