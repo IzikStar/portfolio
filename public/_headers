@@ -5,3 +5,6 @@
 
 /admin
   Cache-Control: no-store
+
+/studio
+  Cache-Control: no-store

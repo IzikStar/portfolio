@@ -9,8 +9,12 @@ Personal site of Itschak Shteren: full-stack developer, musician, writer, voice 
   - `GET /api/site`: which sections are on, their intro lines, and the visible items
   - `GET /api/file/:id`, `GET /api/cover/:id`: uploaded files and cover images, with HTTP range support so players can seek
   - `/api/admin/*`: login, section switches, upload (file or link), edit, reorder, hide and delete (session cookie, HMAC-signed, HttpOnly, SameSite=Strict, plus an Origin check on writes)
+- The platform (owner studio at `/studio`, articles at `/writing`) keeps its data in D1 (`src/db.js` creates the tables on first use, so a new database needs no migration step):
+  - `/api/studio/*`: owner-only. Ideas and articles (create, edit, autosave with a stale-write check, publish, delete) and a Markdown preview.
+  - `GET /api/entries?kind=article`: published entries the visitor may see. Every entry is private, members-only or public.
+  - `/writing` and `/writing/:slug` are rendered on the server. Raw HTML in Markdown is shown as text and only http(s), mailto and same-site links survive.
 - Files and covers are stored in Workers KV (one value per file, 25 MB max; bigger videos go on YouTube and are added as links). The item list and the settings are one JSON value each.
-- The admin password is a Worker secret (`ADMIN_PASSWORD`). Changing it logs out every session.
+- The admin password is a Worker secret (`ADMIN_PASSWORD`). Changing it logs out every session. One sign-in covers `/admin` and `/studio`.
 
 ## Develop
 
@@ -18,7 +22,7 @@ Personal site of Itschak Shteren: full-stack developer, musician, writer, voice 
 npm install
 echo ADMIN_PASSWORD=devpass > .dev.vars
 npm run dev      # http://localhost:8787, admin at /admin
-npm test         # API tests (Vitest, in-memory KV)
+npm test         # API tests (Vitest, in-memory KV, SQLite standing in for D1)
 ```
 
 ## Deploy
