@@ -21,6 +21,7 @@ import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { serveBytes } from './bytes.js';
 import { access, listSpaces, requestJoin, studioSpaces, createSpace, updateSpace, deleteSpace, spaceMembers, decideMember } from './spaces.js';
+import { postComment, deleteComment, studioComments, setCommentStatus, deleteCommentsOf } from './comments.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
@@ -117,6 +118,13 @@ async function api(request, env, url) {
   }
   if (path === '/api/spaces' && method === 'GET') return listSpaces(env, (await viewer(request, env)).acc);
   if (path.startsWith('/api/studio/')) return studio(request, env, url);
+  if (path.startsWith('/api/comments')) {
+    if (method !== 'GET') checkOrigin(request, url);
+    if (path === '/api/comments' && method === 'POST') return postComment(request, env, await viewer(request, env));
+    const cm = path.match(/^\/api\/comments\/([a-z0-9-]+)$/);
+    if (cm && method === 'DELETE') return deleteComment(env, await viewer(request, env), cm[1]);
+    throw new HttpError(404, 'Not found.');
+  }
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
 
   let m = path.match(/^\/api\/(file|cover)\/([a-z0-9-]+)$/);
@@ -166,6 +174,9 @@ async function studio(request, env, url) {
   if (sp && !sp[2] && method === 'DELETE') return deleteSpace(env, sp[1]);
   if (sp && sp[2] && method === 'GET') return spaceMembers(env, sp[1]);
   if (sp && sp[2] && method === 'PATCH') return decideMember(request, env, sp[1]);
+  if (path === '/api/studio/comments' && method === 'GET') return studioComments(env, url, await access(env, { role: 'owner' }));
+  const cs = path.match(/^\/api\/studio\/comments\/([a-z0-9-]+)$/);
+  if (cs && method === 'PATCH') return setCommentStatus(request, env, cs[1]);
   if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
   if (path === '/api/studio/files' && method === 'POST') return uploadFile(request, env);
   const fm = path.match(/^\/api\/studio\/files\/([a-z0-9-]+)$/);
@@ -190,6 +201,7 @@ async function studio(request, env, url) {
   if (m && method === 'DELETE') {
     const res = await studioDelete(env, m[1]);
     await deleteFilesOf(env, m[1]);
+    await deleteCommentsOf(env, m[1]);
     return res;
   }
   throw new HttpError(404, 'Not found.');

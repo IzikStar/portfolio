@@ -37,6 +37,7 @@
     <a href="#wing/software" data-tab="wing/software" data-wing="software"><span class="dot"></span>תוכנה<span class="count" data-count="software"></span></a>
     <a href="#wing/videos" data-tab="wing/videos" data-wing="videos"><span class="dot"></span>סרטונים<span class="count" data-count="videos"></span></a>
     <span class="group">כללי</span>
+    <a href="#comments" data-tab="comments">תגובות<span class="count" id="comment-count"></span></a>
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
     <a href="#projects" data-tab="projects">קורות חיים: פרויקטים</a>
     <div class="foot">
@@ -227,6 +228,19 @@
       </div>
     </section>
 
+    <section id="view-comments" hidden>
+      <div class="head"><h1>תגובות</h1></div>
+      <p class="hint">מה שהקהילות כותבות על השירים, הפרקים ושאר הפריטים. "טופל" מסמן שקראת או תיקנת; התגובה נשארת באתר.</p>
+      <div class="filters" id="c-filters" style="margin-block: 12px">
+        <button type="button" data-status="open">פתוחות</button>
+        <button type="button" data-status="resolved">טופלו</button>
+        <button type="button" data-status="">הכל</button>
+      </div>
+      <p class="msg" id="c-msg" role="status"></p>
+      <ul class="people" id="c-list"></ul>
+      <p class="empty" id="c-empty" hidden>אין כאן תגובות.</p>
+    </section>
+
     <section id="view-community" class="community" hidden>
       <div>
         <h2>בקשות הצטרפות</h2>
@@ -267,6 +281,7 @@
         <label class="field">סוג<select id="ed-kind"></select></label>
         <label class="field">איפה<select id="ed-space"></select></label>
         <label class="field">מספר / סדר <small>פרק 1, 2, 3…</small><input type="number" id="ed-order"></label>
+        <label class="field check-field"><span><input type="checkbox" id="ed-comments" checked> תגובות פתוחות לקהילה</span></label>
       </div>
       <label class="field">תקציר <small>מופיע ברשימה ובתצוגה המקדימה של קישורים</small>
         <textarea id="ed-summary" rows="2" maxlength="600" dir="auto"></textarea>

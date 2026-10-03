@@ -101,4 +101,6 @@
 .people .who { font-weight: 500; overflow-wrap: anywhere; }
 .people .note { flex-basis: 100%; color: var(--muted); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .people .actions { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.people .note.quote { font-family: var(--read); padding-inline-start: 10px; border-inline-start: 3px solid var(--accent); }
+.people .meta a { color: var(--ink); }
 .people code { font-family: var(--mono); font-size: 13px; direction: ltr; overflow-wrap: anywhere; }

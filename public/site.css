@@ -234,6 +234,39 @@ a { color: inherit; }
 .media.audio iframe { aspect-ratio: auto; height: 120px; }
 .media-note { font-size: 14px; color: var(--muted); margin-top: 8px; }
 
+/* ---------- comments ---------- */
+.comments { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); display: grid; gap: 20px; }
+.comments h2 { font-family: var(--display); font-weight: 400; font-size: 30px; }
+.comments h2 small { font-family: var(--text); font-size: 16px; color: var(--muted); }
+.comments.closed { color: var(--soft); gap: 12px; justify-items: start; }
+.comment-list, .replies { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.replies { margin-top: 12px; padding-inline-start: 18px; border-inline-start: 2px solid var(--line); }
+.comment { background: var(--raised); border-radius: 16px; padding: 14px 16px; display: grid; gap: 8px; }
+.replies .comment { background: var(--raised-2); }
+.comment.by-owner { box-shadow: inset 3px 0 var(--accent); }
+.comment.resolved > p, .comment.resolved > .quote { opacity: 0.6; }
+.comment:target { outline: 2px solid var(--accent); }
+.comment p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment .quote { font-family: var(--read); font-size: 15px; color: var(--muted); text-decoration: none; padding-inline-start: 10px; border-inline-start: 3px solid var(--accent); }
+.comment .actions, .comment-form .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+button.link { font: inherit; font-size: 14px; background: none; border: 0; padding: 4px 0; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; min-height: 32px; }
+button.link:hover { color: var(--ink); }
+.comment-form { display: grid; gap: 10px; }
+.comment-form textarea { width: 100%; resize: vertical; line-height: 1.6; }
+.comment-form .target { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 14px; color: var(--soft); background: var(--raised); padding: 8px 12px; border-radius: 12px; overflow-wrap: anywhere; }
+.anchored { position: relative; }
+.anchored:target { background: rgb(233 162 59 / 0.14); border-radius: 6px; }
+.pin {
+  position: absolute; inset-inline-end: calc(100% + 6px); top: 0.25em;
+  width: 28px; height: 28px; border-radius: 999px; border: 1px solid rgb(127 127 127 / 0.35);
+  background: transparent; color: inherit; font: 700 13px/1 var(--text); cursor: pointer; opacity: 0.35;
+}
+.anchored:hover .pin, .pin:focus-visible, .pin.has { opacity: 1; }
+.pin.has { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+@media (max-width: 900px) {
+  .pin { position: static; float: inline-end; margin-inline-start: 8px; opacity: 0.6; }
+}
+
 /* ---------- forms (join, sign-in) ---------- */
 .member-form { display: grid; gap: 16px; max-width: 460px; padding-block: 48px; }
 .member-form h1 { font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1.05; }

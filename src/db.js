@@ -7,6 +7,7 @@
 //               space that says so, has its own community.
 //   space_members  who belongs to which community (requests wait for the owner)
 //   entries     every piece of content: a song, a chapter, an article, a project...
+//   comments    what the community says about an item (optionally one paragraph)
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
 //   invites     invite links for new members
@@ -78,6 +79,20 @@ const SCHEMA = [
     PRIMARY KEY (space_id, user_id)
   )`,
   `CREATE INDEX IF NOT EXISTS space_members_user ON space_members(user_id, status)`,
+  `CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    entry_id TEXT NOT NULL,
+    user_id TEXT,
+    author TEXT NOT NULL,
+    anchor INTEGER,
+    quote TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    reply_to TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS comments_entry ON comments(entry_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS comments_recent ON comments(status, created_at)`,
   `CREATE TABLE IF NOT EXISTS files (
     id TEXT PRIMARY KEY,
     entry_id TEXT,
