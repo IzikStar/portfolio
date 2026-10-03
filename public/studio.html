@@ -75,6 +75,7 @@
         <button class="btn" type="button" id="w-new-space">ספר, סדרה או אוסף חדש</button>
         <a class="btn" id="w-settings">הגדרות האגף</a>
         <a class="btn" id="w-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <a class="btn" id="w-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
       </div>
       <p class="msg" id="w-msg" role="status"></p>
       <div class="box" id="w-spaces-box">
@@ -82,6 +83,7 @@
         <div class="spaces" id="w-spaces"></div>
         <p class="empty" id="w-spaces-empty">עוד אין כאן ספרים, סדרות או אוספים.</p>
       </div>
+      <details class="box batch" data-batch="wing"></details>
       <div class="two">
         <div class="box">
           <div class="toolbar">
@@ -89,6 +91,7 @@
             <input class="grow" type="search" id="w-search" placeholder="חיפוש" dir="auto" aria-label="חיפוש באגף">
           </div>
           <div class="filters" id="w-filters"></div>
+          <div class="pick-bar" id="w-pickbar"></div>
           <ol class="rows-table" id="w-items"></ol>
           <p class="empty" id="w-items-empty" hidden>עוד אין כאן פריטים.</p>
         </div>
@@ -124,16 +127,20 @@
         <label class="field">מצב <small>למשל "בכתיבה"</small><input type="text" id="s-state" dir="auto"></label>
         <label class="field">כריכה <small>כתובת תמונה</small><input type="text" id="s-cover" dir="ltr"></label>
         <label class="field">סדר<input type="number" id="s-sort"></label>
+        <label class="field">תיקייה בדרייב <small>הקישור לתיקייה של כל הקבצים</small><input type="text" id="s-drive" dir="ltr" placeholder="https://drive.google.com/drive/folders/..."></label>
       </div>
       <div class="toolbar">
         <button class="btn primary" type="button" id="s-save">שמירה</button>
         <a class="btn" id="s-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
         <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
+        <a class="btn" id="s-drive-open" target="_blank" rel="noopener" hidden>פתיחה בדרייב ↗</a>
         <button class="btn danger" type="button" id="s-delete">מחיקה</button>
       </div>
+      <details class="box batch" data-batch="space"></details>
       <div class="two">
         <div class="box">
           <h2>מה יש בפנים</h2>
+          <div class="pick-bar" id="s-pickbar"></div>
           <ol class="rows-table" id="s-items"></ol>
           <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
         </div>
@@ -320,6 +327,8 @@
     <section id="view-edit" class="editor split" hidden>
       <div class="toolbar">
         <a class="btn small" id="ed-back" href="#ideas">חזרה</a>
+        <button class="btn small" type="button" id="ed-move">העברה לאגף או סוג אחר</button>
+        <button class="btn small" type="button" id="ed-page-toggle" aria-pressed="false">איך זה ייראה באתר</button>
         <span class="status" id="save-status" role="status"></span>
       </div>
       <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
@@ -356,7 +365,14 @@
         <legend>הקלטות, סרטונים וגרסאות</legend>
         <p class="hint">קישור מהדרייב, מיוטיוב, או קובץ שמעלים. גרסה "לקהילה" מופיעה לשאר עם מנעול. בדרייב צריך לשתף את הקובץ ככל מי שיש לו קישור.</p>
         <div class="versions-editor" id="ed-versions"></div>
-        <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden></div>
+        <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden><a class="btn small" id="ed-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a></div>
+        <details class="batch" data-batch="item"></details>
+      </fieldset>
+      <fieldset class="source-box">
+        <legend>פרויקטים</legend>
+        <p class="hint">קבצי העבודה: פרויקט קיובייס (.cpr, או גיבוי .bak) או ZIP עם הכל. בעמוד הם מופיעים כקישורי הורדה: לך תמיד, ולאחרים רק אם בחרת. אפשר להעלות לכאן קובץ עד 25MB. פרויקט גדול יותר מעלים לדרייב ומדביקים את הקישור.</p>
+        <div class="versions-editor" id="ed-projects"></div>
+        <div class="toolbar"><button class="btn small" type="button" id="ed-add-project">הוספת פרויקט</button><input type="file" id="ed-project-file" accept=".cpr,.bak,.zip" hidden></div>
       </fieldset>
       <fieldset class="source-box">
         <legend>קרדיטים</legend>
@@ -387,9 +403,32 @@
         <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>צפייה באתר</a>
         <button class="btn danger" type="button" id="delete-article">מחיקה</button>
       </div>
+      <aside class="page-preview" id="ed-page" hidden aria-label="איך זה ייראה באתר">
+        <div class="toolbar">
+          <label class="sr-only" for="ed-page-as">לראות כמו</label>
+          <select id="ed-page-as"><option value="owner">כמו שאני רואה</option><option value="community">כמו חבר.ת קהילה</option><option value="public">כמו אורח.ת</option></select>
+          <span class="msg" id="ed-page-msg" role="status"></span>
+          <button class="btn small" type="button" id="ed-page-close">סגירה</button>
+        </div>
+        <iframe id="ed-page-frame" title="איך זה ייראה באתר"></iframe>
+      </aside>
     </section>
   </main>
 </div>
+<dialog class="move-dialog" id="move-dialog">
+  <form id="mv-form" method="dialog">
+    <h2 id="mv-title">העברה</h2>
+    <label class="field">לאיזה אגף<select id="mv-wing"></select></label>
+    <label class="field">איפה בתוכו<select id="mv-space"></select></label>
+    <label class="field">סוג<select id="mv-kind"></select></label>
+    <p class="hint">מה שכבר פורסם ממשיך לעבוד גם בכתובת הישנה: מי שמגיע אליה עובר לכתובת החדשה. אם הכתובת תפוסה במקום החדש, נוסף לה מספר.</p>
+    <div class="toolbar">
+      <button class="btn primary" type="submit" id="mv-go">העברה</button>
+      <button class="btn" type="button" id="mv-cancel">ביטול</button>
+      <span class="msg" id="mv-msg" role="status"></span>
+    </div>
+  </form>
+</dialog>
 <script src="/studio.js"></script>
 </body>
 </html>

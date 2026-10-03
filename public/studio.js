@@ -265,6 +265,7 @@
     return h(
       'li',
       {},
+      h('input', { type: 'checkbox', className: 'pick', value: e.id, ariaLabel: `בחירת ${e.title || 'פריט'}` }),
       h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'ללא כותרת' }),
       path ? h('a', { className: 'btn small', href: path, target: '_blank', textContent: 'צפייה' }) : h('span'),
       h(
@@ -314,6 +315,7 @@
     $('w-view').href = `/${id}`;
     $('w-new-space').hidden = id === 'software' || id === 'articles' || id === 'torah';
     await loadSpaces().catch(report('w-msg'));
+    showDriveLink($('w-drive'), driveFolder(id));
     const kids = state.spaces.filter((x) => x.parentId && inside(id).includes(x.id) && x.id !== id);
     $('w-spaces').replaceChildren(
       ...kids.map((x) =>
@@ -414,6 +416,8 @@
     $('s-state').value = x.meta?.status ?? '';
     $('s-cover').value = x.meta?.cover ?? '';
     $('s-sort').value = x.sort ?? 0;
+    $('s-drive').value = x.meta?.drive?.folder ?? '';
+    showDriveLink($('s-drive-open'), driveFolder(id));
     $('s-delete').hidden = isWing;
     $('s-view').href = pathOf(x);
     $('s-status').textContent = isWing ? 'הגדרות האגף' : `${SPACE_KIND[x.kind] ?? ''} ב${wingOf(id)?.title ?? ''}`;
@@ -444,7 +448,7 @@
       visibility: $('s-visibility').value,
       joinMode: $('s-join').value,
       sort: $('s-sort').value,
-      meta: { ...x.meta, status: $('s-state').value.trim() || undefined, cover: $('s-cover').value.trim() || undefined },
+      meta: { ...x.meta, status: $('s-state').value.trim() || undefined, cover: $('s-cover').value.trim() || undefined, drive: driveMeta(x.meta?.drive, $('s-drive').value) },
     };
     if (x.parentId) Object.assign(body, { kind: $('s-kind').value, ownCommunity: $('s-own').checked, slug: $('s-slug').value });
     try {
@@ -503,6 +507,7 @@
     );
     row.addEventListener('input', changed);
     row.addEventListener('change', changed);
+    enhanceVersion(row);
     return row;
   }
   let versionTarget = null;
@@ -583,9 +588,12 @@
     $('ed-key').value = entry?.meta?.key ?? '';
     $('ed-comments').checked = entry?.meta?.comments !== false;
     $('ed-versions').replaceChildren(...(entry?.meta?.versions ?? []).map(versionRow));
+    $('ed-projects').replaceChildren(...(entry?.meta?.projects ?? []).map(projectRow));
+    showDriveLink($('ed-drive'), driveFolder($('ed-space').value));
     $('ed-credits').replaceChildren(...(entry?.meta?.credits ?? []).map(creditRow));
     modeFor($('ed-kind').value);
     reflect(entry);
+    refreshPage();
   }
 
   function reflect(entry) {
@@ -630,6 +638,7 @@
       capo: $('ed-capo').value.trim() || undefined,
       key: $('ed-key').value.trim() || undefined,
       versions: readVersions(),
+      projects: readProjects(),
       comments: $('ed-comments').checked ? undefined : false,
       credits: readCredits(),
     };
@@ -652,6 +661,7 @@
     editor.dirty = true;
     status('לא נשמר');
     editor.flush();
+    refreshPage();
   }
 
   // Saves are serialized; a change made during a save triggers one more.
@@ -831,7 +841,7 @@
       const label = row.querySelector('[data-f="label"]');
       if (!label.value) label.value = f.name.replace(/\.[^.]+$/, '');
       if (f.kind === 'audio' || f.kind === 'video') row.querySelector('[data-f="kind"]').value = f.kind;
-      changed();
+      row.dispatchEvent(new Event('input')); // saves, and shows the player
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, 'err');
     }
@@ -1360,6 +1370,495 @@
       report('legacy-msg')(err);
     }
   });
+
+  // ---------- media links: players while editing ----------
+  const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|flac|opus)(\?|$)/i;
+  const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|$)/i;
+  // Same rules as src/media.js, so the studio shows what the page will show.
+  function ytId(href) {
+    try {
+      const u = new URL(href);
+      const host = u.hostname.replace(/^www\.|^m\./, '');
+      if (host === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
+      if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+        if (u.pathname === '/watch') return u.searchParams.get('v');
+        return u.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/)?.[1] ?? null;
+      }
+    } catch {
+      // not a URL
+    }
+    return null;
+  }
+  function drId(href) {
+    try {
+      const u = new URL(href);
+      if (u.hostname !== 'drive.google.com' && u.hostname !== 'docs.google.com') return null;
+      return u.pathname.match(/\/(?:file\/d|document\/d|presentation\/d)\/([\w-]{10,})/)?.[1] ?? u.searchParams.get('id');
+    } catch {
+      return null;
+    }
+  }
+  const linkInfo = async (urls) => (await send('/api/studio/link-info', 'POST', { urls })).links;
+
+  // What an uploaded file is, asked once per address.
+  const fileTypes = new Map();
+  function fileType(url) {
+    if (!fileTypes.has(url)) {
+      fileTypes.set(url, fetch(url, { method: 'HEAD', credentials: 'same-origin' }).then((r) => (r.ok ? r.headers.get('Content-Type') ?? '' : ''), () => ''));
+    }
+    return fileTypes.get(url);
+  }
+
+  function frame(src, audio) {
+    const f = h('iframe', { src, title: 'נגן', loading: 'lazy', allowFullscreen: true });
+    f.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    return h('div', { className: `media${audio ? ' audio' : ''}` }, f);
+  }
+
+  async function player(url, kind) {
+    const yt = ytId(url);
+    if (yt && /^[\w-]+$/.test(yt)) return frame(`https://www.youtube-nocookie.com/embed/${yt}`, false);
+    const drive = drId(url);
+    if (drive && /^[\w-]+$/.test(drive)) return frame(`https://drive.google.com/file/d/${drive}/preview`, kind === 'audio');
+    let k = kind;
+    if (!k && /^\/files\/[a-z0-9-]+$/.test(url)) {
+      const type = await fileType(url);
+      k = type.startsWith('audio/') ? 'audio' : type.startsWith('video/') ? 'video' : '';
+    }
+    if (!k) k = AUDIO_EXT.test(url) ? 'audio' : VIDEO_EXT.test(url) ? 'video' : '';
+    if (k === 'audio') return h('div', { className: 'media audio' }, h('audio', { controls: true, preload: 'metadata', src: url }));
+    if (k === 'video') return h('div', { className: 'media' }, h('video', { controls: true, preload: 'metadata', playsInline: true, src: url }));
+    return h('p', { className: 'hint', textContent: 'לקישור הזה אין נגן. באתר הוא יופיע ככפתור.' });
+  }
+
+  // A version row shows its player and keeps it in step with the link.
+  // A pasted Drive or YouTube link fills in audio or video, and a name if empty.
+  function enhanceVersion(row) {
+    const url = row.querySelector('[data-f="url"]');
+    const kind = row.querySelector('[data-f="kind"]');
+    const label = row.querySelector('[data-f="label"]');
+    const box = h('div', { className: 'version-preview' });
+    const note = h('p', { className: 'hint warn', hidden: true });
+    row.append(box, note);
+    const refresh = debounce(async () => {
+      const u = url.value.trim();
+      const key = `${u}|${kind.value}`;
+      if (box.dataset.key === key) return;
+      box.dataset.key = key;
+      const node = u ? await player(u, kind.value) : null;
+      if (box.dataset.key === key) box.replaceChildren(...(node ? [node] : []));
+    }, 250);
+    let asked = '';
+    const detect = debounce(async () => {
+      const u = url.value.trim();
+      if (u === asked || !(ytId(u) || drId(u))) return;
+      asked = u;
+      try {
+        const [info] = await linkInfo([u]);
+        if (url.value.trim() !== u) return;
+        note.hidden = !info.private;
+        note.textContent = 'נראה שהקובץ לא משותף. בדרייב: שיתוף, ואז "כל מי שיש לו את הקישור", אחרת המבקרים לא יראו אותו.';
+        let touched = false;
+        if (info.kind && !kind.value) {
+          kind.value = info.kind;
+          touched = true;
+        }
+        if (info.title && !label.value.trim()) {
+          label.value = info.title.slice(0, 40);
+          touched = true;
+        }
+        if (touched) row.dispatchEvent(new Event('change'));
+      } catch {
+        // no title is fine; the row works without it
+      }
+    }, 400);
+    row.addEventListener('input', () => {
+      refresh();
+      detect();
+    });
+    row.addEventListener('change', refresh);
+    refresh();
+  }
+
+  // ---------- project files (Cubase, zip) ----------
+  const PROJECT_KIND = { cubase: 'קיובייס', zip: 'ZIP', other: 'אחר' };
+  const PROJECT_VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'כולם' };
+  const projectKindOf = (name) => (/\.(cpr|bak)$/i.test(name) ? 'cubase' : /\.zip$/i.test(name) ? 'zip' : null);
+  let projectTarget = null;
+
+  function projectRow(p = {}) {
+    const tag = (n, f) => {
+      n.dataset.f = f;
+      return n;
+    };
+    const select = (f, options, value) => {
+      const n = tag(h('select', {}, ...Object.entries(options).map(([v, t]) => h('option', { value: v, textContent: t }))), f);
+      n.value = value;
+      return n;
+    };
+    const url = tag(h('input', { type: 'text', value: p.url ?? '', placeholder: 'קישור מהדרייב, או העלאה', dir: 'ltr', title: 'קישור' }), 'url');
+    const label = tag(h('input', { type: 'text', value: p.label ?? '', placeholder: 'שם, למשל "מיקס אחרון"', dir: 'auto', title: 'שם' }), 'label');
+    const kind = select('kind', PROJECT_KIND, PROJECT_KIND[p.kind] ? p.kind : 'cubase');
+    const vis = select('visibility', PROJECT_VIS, PROJECT_VIS[p.visibility] ? p.visibility : 'private');
+    vis.title = 'מי יכול להוריד';
+    const row = h(
+      'div',
+      { className: 'version-row project-row' },
+      label,
+      url,
+      kind,
+      vis,
+      h('button', { className: 'btn small', type: 'button', textContent: 'העלאה', onclick: () => { projectTarget = row; $('ed-project-file').click(); } }),
+      h('button', { className: 'btn small danger', type: 'button', textContent: 'הסרה', onclick: () => { row.remove(); changed(); } }),
+    );
+    // A pasted Drive link: take the name and the kind from the file when it is shared.
+    let asked = '';
+    const detect = debounce(async () => {
+      const u = url.value.trim();
+      if (u === asked || !drId(u)) return;
+      asked = u;
+      try {
+        const [info] = await linkInfo([u]);
+        if (url.value.trim() !== u || !info.name) return;
+        const k = projectKindOf(info.name);
+        if (k) kind.value = k;
+        if (!label.value.trim()) label.value = info.title.slice(0, 80);
+        changed();
+      } catch {
+        // fine without it
+      }
+    }, 400);
+    row.addEventListener('input', (e) => {
+      changed();
+      if (e.target === url) detect();
+    });
+    row.addEventListener('change', changed);
+    return row;
+  }
+  function readProjects() {
+    const list = [...$('ed-projects').children]
+      .map((r) => Object.fromEntries([...r.querySelectorAll('[data-f]')].map((n) => [n.dataset.f, n.value.trim()])))
+      .filter((p) => p.url);
+    return list.length ? list : undefined;
+  }
+  $('ed-add-project').addEventListener('click', () => {
+    const row = projectRow();
+    $('ed-projects').append(row);
+    row.querySelector('input').focus();
+  });
+  $('ed-project-file').addEventListener('change', async () => {
+    const file = $('ed-project-file').files[0];
+    $('ed-project-file').value = '';
+    const row = projectTarget;
+    if (!file || !row) return;
+    if (file.size > 25 * 1024 * 1024) return void status('הקובץ גדול מ־25MB. מעלים אותו לדרייב ומדביקים כאן את הקישור.', 'err');
+    try {
+      if (!editor.entry) {
+        if (!$('ed-title').value.trim()) $('ed-title').value = file.name.replace(/\.[^.]+$/, '');
+        editor.flush.cancel();
+        await save();
+      }
+      status(`מעלה ${file.name}...`);
+      const f = await upload(editor.entry.id, file);
+      row.querySelector('[data-f="url"]').value = f.url;
+      const label = row.querySelector('[data-f="label"]');
+      if (!label.value) label.value = f.name.replace(/\.[^.]+$/, '');
+      row.querySelector('[data-f="kind"]').value = f.project ?? projectKindOf(f.name) ?? 'other';
+      changed();
+    } catch (err) {
+      if (!(err instanceof AuthError)) status(err.message, 'err');
+    }
+  });
+
+  // ---------- Drive folders ----------
+  const isHttps = (u) => /^https:\/\/\S+$/.test(u ?? '');
+  // The folder of a space, or of the nearest space above it that has one.
+  function driveFolder(spaceId) {
+    for (let x = state.byId.get(spaceId), hops = 0; x && hops < 20; x = state.byId.get(x.parentId), hops++) {
+      if (isHttps(x.meta?.drive?.folder)) return x.meta.drive.folder;
+    }
+    return null;
+  }
+  function showDriveLink(a, folder) {
+    a.hidden = !folder;
+    if (folder) a.href = folder;
+  }
+  function driveMeta(old, value) {
+    const folder = value.trim();
+    if (folder && !isHttps(folder)) return old; // only https links; keep what was there
+    return folder ? { ...old, folder } : undefined;
+  }
+  $('ed-space').addEventListener('change', () => showDriveLink($('ed-drive'), driveFolder($('ed-space').value)));
+
+  // ---------- pasting many links at once ----------
+  // where(): the space new drafts go into. versions: also offer "add as versions".
+  let batches = 0;
+  function linkBatch(mount, { where, versions = false, done = () => {} }) {
+    const msgId = `batch-msg-${++batches}`;
+    const area = h('textarea', { rows: 4, dir: 'ltr', placeholder: 'https://drive.google.com/file/d/...\nhttps://youtu.be/...', ariaLabel: 'קישורים' });
+    const list = h('ul', { className: 'batch-list' });
+    const count = h('span', { className: 'hint' });
+    const msg = h('p', { className: 'msg', id: msgId, role: 'status' });
+    const made = h('ul', { className: 'batch-made' });
+    const folder = h('a', { className: 'btn small', target: '_blank', rel: 'noopener', textContent: 'פתיחת התיקייה בדרייב ↗', hidden: true });
+    const asVersions = h('button', { className: 'btn small', type: 'button', textContent: 'להוסיף כגרסאות לפריט הזה', hidden: !versions });
+    const asItems = h('button', { className: 'btn small accent', type: 'button', textContent: 'פריט טיוטה לכל קישור' });
+    const known = new Map(); // url -> what the server read from it
+    const rows = new Map(); // url -> its row
+
+    const urlsIn = (text) => [...new Set(text.match(/https?:\/\/[^\s,<>"']+/g) ?? [])];
+    function row(url) {
+      const title = h('input', { type: 'text', dir: 'auto', placeholder: 'רגע, קורא את השם...', ariaLabel: 'שם' });
+      const kind = h('select', { ariaLabel: 'סוג' }, h('option', { value: '', textContent: 'זיהוי אוטומטי' }), h('option', { value: 'audio', textContent: 'שמע' }), h('option', { value: 'video', textContent: 'וידאו' }));
+      const src = h('small', { className: 'src', dir: 'ltr', textContent: url });
+      return { li: h('li', {}, title, kind, src), title, kind, src };
+    }
+    function apply(url, info) {
+      const r = rows.get(url);
+      if (!r) return;
+      if (!r.title.value && info.title) r.title.value = info.title;
+      if (!r.kind.value && info.kind) r.kind.value = info.kind;
+      r.title.placeholder = info.source === 'drive-folder' ? 'זו תיקייה. צריך קישור לקובץ עצמו' : info.private ? 'הקובץ לא משותף, אז אין שם. מה השם?' : 'מה השם?';
+    }
+    const read = debounce(async () => {
+      const urls = urlsIn(area.value);
+      for (const u of [...rows.keys()]) if (!urls.includes(u)) rows.delete(u);
+      for (const u of urls) if (!rows.has(u)) rows.set(u, row(u));
+      list.replaceChildren(...urls.map((u) => rows.get(u).li));
+      count.textContent = urls.length ? `${urls.length} קישורים` : '';
+      for (const u of urls) if (known.has(u)) apply(u, known.get(u));
+      const fresh = urls.filter((u) => !known.has(u));
+      if (!fresh.length) return;
+      try {
+        for (const info of await linkInfo(fresh)) {
+          known.set(info.url, info);
+          apply(info.url, info);
+        }
+      } catch {
+        for (const u of fresh) apply(u, {});
+      }
+    }, 400);
+    area.addEventListener('input', read);
+
+    // A folder link is not something to play; it stays in the list until removed.
+    const picked = () =>
+      [...rows.entries()]
+        .filter(([url]) => known.get(url)?.source !== 'drive-folder')
+        .map(([url, r]) => ({ url, title: r.title.value.trim(), kind: r.kind.value, row: r }));
+    const tabName = (x) => (x.kind === 'audio' ? 'הקלטה' : x.kind === 'video' ? 'וידאו' : 'נגן');
+    const clearDone = (urls) => {
+      area.value = urlsIn(area.value).filter((u) => !urls.includes(u)).join('\n');
+      read();
+    };
+
+    asVersions.addEventListener('click', () => {
+      const all = picked();
+      if (!all.length) return;
+      for (const x of all) $('ed-versions').append(versionRow({ label: (x.title || tabName(x)).slice(0, 40), url: x.url, kind: x.kind || undefined }));
+      changed();
+      clearDone(all.map((x) => x.url));
+      say(msgId, `נוספו ${all.length} גרסאות`, 'ok');
+    });
+
+    asItems.addEventListener('click', async () => {
+      const spaceId = where();
+      const kind = (WING_KINDS[wingOf(spaceId)?.id] ?? [])[0];
+      if (!spaceId || !kind || kind === 'project') return say(msgId, 'כאן אי אפשר ליצור פריטים מקישורים.', 'err');
+      const all = picked();
+      const named = all.filter((x) => x.title);
+      const created = [];
+      let failed = 0;
+      say(msgId, 'יוצר טיוטות...');
+      for (const x of named) {
+        try {
+          const version = { label: tabName(x), url: x.url, ...(x.kind ? { kind: x.kind } : {}) };
+          created.push({ ...(await send('/api/studio/entries', 'POST', { kind, spaceId, title: x.title, status: 'draft', meta: { versions: [version] } })), from: x.url });
+        } catch (err) {
+          if (err instanceof AuthError) return;
+          failed++;
+          x.row.src.textContent = `${x.url} · ${err.message}`;
+        }
+      }
+      clearDone(created.map((x) => x.from));
+      const missing = all.length - named.length;
+      const parts = [
+        created.length ? `נוצרו ${created.length} טיוטות ב${state.byId.get(spaceId)?.title ?? ''}` : null,
+        missing ? `ל־${missing} קישורים חסר שם: משלימים ולוחצים שוב` : null,
+        failed ? `${failed} לא נשמרו` : null,
+      ];
+      say(msgId, parts.filter(Boolean).join('. '), missing || failed ? 'err' : 'ok');
+      made.replaceChildren(...created.map((x) => h('li', {}, h('a', { href: `#item/${x.id}`, dir: 'auto', textContent: x.title }))));
+      if (created.length) done();
+    });
+
+    mount.replaceChildren(
+      h('summary', { textContent: 'הדבקת קישורים מהדרייב או מיוטיוב' }),
+      h(
+        'div',
+        { className: 'batch-body' },
+        h('p', { className: 'hint', textContent: 'קישור בכל שורה, או כמה קישורים שהעתקת יחד מהדרייב. כשהקובץ משותף, השם נקרא ממנו; לקישור בלי שם כותבים אחד.' }),
+        area,
+        list,
+        h('div', { className: 'toolbar' }, asVersions, asItems, folder, count),
+        msg,
+        made,
+      ),
+    );
+    mount.addEventListener('toggle', () => {
+      if (!mount.open) return;
+      showDriveLink(folder, driveFolder(where()));
+      asItems.hidden = (WING_KINDS[wingOf(where())?.id] ?? ['project'])[0] === 'project';
+      area.focus();
+    });
+  }
+  linkBatch(document.querySelector('[data-batch="wing"]'), { where: () => wingView.filter ?? wingView.id, done: () => loadWingItems() });
+  linkBatch(document.querySelector('[data-batch="space"]'), { where: () => spaceView.id, done: () => openSpace(spaceView.id) });
+  linkBatch(document.querySelector('[data-batch="item"]'), { where: () => $('ed-space').value, versions: true });
+
+  // ---------- moving items ----------
+  const mover = { ids: [], single: false, kind: '', resolve: null };
+
+  function fillMove(spaceId) {
+    const wing = $('mv-wing').value;
+    const ids = inside(wing);
+    $('mv-space').replaceChildren(...ids.map((id) => state.byId.get(id)).filter(Boolean).map((x) => h('option', { value: x.id, textContent: x.parentId ? x.title : 'האגף עצמו' })));
+    $('mv-space').value = spaceId && ids.includes(spaceId) ? spaceId : wing;
+    const kinds = WING_KINDS[wing] ?? [];
+    $('mv-kind').replaceChildren(
+      ...(mover.single ? [] : [h('option', { value: '', textContent: 'כמו שהוא, אם מתאים לאגף' })]),
+      ...kinds.map((k) => h('option', { value: k, textContent: KIND[k] ?? k })),
+    );
+    $('mv-kind').value = kinds.includes(mover.kind) ? mover.kind : mover.single ? kinds[0] : '';
+  }
+
+  // Resolves with the moved entries, or null if the owner changed their mind.
+  function openMove(ids, { spaceId = null, kind = '', single = false } = {}) {
+    endMove(null);
+    Object.assign(mover, { ids, single, kind });
+    const wings = state.spaces.filter((x) => !x.parentId);
+    $('mv-wing').replaceChildren(...wings.map((w) => h('option', { value: w.id, textContent: w.title })));
+    $('mv-wing').value = wingOf(spaceId)?.id ?? wings[0]?.id;
+    fillMove(spaceId);
+    $('mv-title').textContent = ids.length > 1 ? `לאן להעביר ${ids.length} פריטים?` : 'לאן להעביר?';
+    say('mv-msg', '');
+    $('move-dialog').showModal();
+    return new Promise((r) => (mover.resolve = r));
+  }
+  function endMove(result) {
+    mover.resolve?.(result);
+    mover.resolve = null;
+  }
+  $('mv-wing').addEventListener('change', () => fillMove(null));
+  $('mv-cancel').addEventListener('click', () => $('move-dialog').close());
+  $('move-dialog').addEventListener('close', () => endMove(null));
+  $('mv-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    say('mv-msg', 'מעביר...');
+    try {
+      const { entries } = await send('/api/studio/entries/move', 'POST', { ids: mover.ids, spaceId: $('mv-space').value, kind: $('mv-kind').value || undefined });
+      endMove(entries);
+      $('move-dialog').close();
+      loadSpaces().catch(() => {});
+    } catch (err) {
+      report('mv-msg')(err);
+    }
+  });
+
+  $('ed-move').addEventListener('click', async () => {
+    editor.flush.cancel();
+    try {
+      if (!editor.entry || editor.dirty) await save();
+    } catch {
+      return; // the status line says why
+    }
+    if (!editor.entry) return void status('קודם כותבים משהו, ואז מעבירים', 'err');
+    const moved = await openMove([editor.entry.id], { spaceId: editor.entry.spaceId, kind: editor.entry.kind, single: true });
+    if (!moved?.length) return;
+    editor.entry = moved[0];
+    if (editor.entry.kind === 'project' || editor.entry.kind === 'work') return void (location.hash = `#project/${editor.entry.id}`);
+    fill(editor.entry);
+    status(`עבר ל${state.byId.get(editor.entry.spaceId)?.title ?? ''} · ${KIND[editor.entry.kind] ?? ''}`);
+  });
+
+  // Marking several items in a wing or space list and moving them together.
+  function pickBar(barId, listId, from, reload) {
+    const list = $(listId);
+    const toggle = h('button', { className: 'btn small', type: 'button' });
+    const count = h('span', { className: 'picked' });
+    const all = h('button', { className: 'btn small', type: 'button', textContent: 'סימון הכל' });
+    const go = h('button', { className: 'btn small accent', type: 'button', textContent: 'להעביר את המסומנים' });
+    const boxes = () => [...list.querySelectorAll('.pick')];
+    const picked = () => boxes().filter((c) => c.checked).map((c) => c.value);
+    const sync = () => {
+      const n = picked().length;
+      count.textContent = n ? `${n} מסומנים` : 'מסמנים פריטים ברשימה';
+      go.disabled = !n;
+    };
+    const set = (on) => {
+      list.classList.toggle('picking', on);
+      toggle.textContent = on ? 'סיום' : 'סימון והעברה';
+      toggle.setAttribute('aria-pressed', String(on));
+      for (const n of [count, all, go]) n.hidden = !on;
+      if (!on) for (const c of boxes()) c.checked = false;
+      sync();
+    };
+    toggle.addEventListener('click', () => set(!list.classList.contains('picking')));
+    all.addEventListener('click', () => {
+      const every = boxes().every((c) => c.checked);
+      for (const c of boxes()) c.checked = !every;
+      sync();
+    });
+    list.addEventListener('change', (e) => e.target.matches('.pick') && sync());
+    new MutationObserver(sync).observe(list, { childList: true });
+    go.addEventListener('click', async () => {
+      const moved = await openMove(picked(), { spaceId: from() });
+      if (!moved) return;
+      set(false);
+      reload();
+    });
+    $(barId).replaceChildren(toggle, count, all, go);
+    set(false);
+  }
+  pickBar('w-pickbar', 'w-items', () => wingView.filter ?? wingView.id, () => openWing(wingView.id));
+  pickBar('s-pickbar', 's-items', () => spaceView.id, () => openSpace(spaceView.id));
+
+  // ---------- the item as visitors will see it ----------
+  const pagePreview = { on: false };
+  const refreshPage = debounce(async () => {
+    if (!pagePreview.on || $('view-edit').hidden) return;
+    try {
+      const { html } = await send('/api/studio/preview-page', 'POST', { id: editor.entry?.id, ...collect(), as: $('ed-page-as').value });
+      const f = $('ed-page-frame');
+      const y = f.contentWindow?.scrollY ?? 0;
+      f.onload = () => f.contentWindow?.scrollTo(0, y);
+      // Links open in a new tab, not inside the preview.
+      f.srcdoc = html.replace('<head>', '<head><base target="_blank">');
+      say('ed-page-msg', '');
+    } catch (err) {
+      if (!(err instanceof AuthError)) say('ed-page-msg', err.message, 'err');
+    }
+  }, 700);
+  function setPagePreview(on) {
+    pagePreview.on = on;
+    $('ed-page').hidden = !on;
+    $('view-edit').classList.toggle('with-page', on);
+    $('ed-page-toggle').setAttribute('aria-pressed', String(on));
+    try {
+      localStorage.setItem('studio.pagePreview', on ? '1' : '');
+    } catch {
+      // private window
+    }
+    if (on) refreshPage();
+  }
+  $('ed-page-toggle').addEventListener('click', () => setPagePreview(!pagePreview.on));
+  $('ed-page-close').addEventListener('click', () => setPagePreview(false));
+  $('ed-page-as').addEventListener('change', refreshPage);
+  try {
+    if (localStorage.getItem('studio.pagePreview') && matchMedia('(min-width: 1100px)').matches) setPagePreview(true);
+  } catch {
+    // private window
+  }
 
   // ---------- start ----------
   async function start() {
