@@ -12,6 +12,7 @@ Personal site of Itschak Shteren: full-stack developer, musician, writer, voice 
 - The platform (owner studio at `/studio`, articles at `/writing`) keeps its data in D1 (`src/db.js` creates the tables on first use, so a new database needs no migration step):
   - `/api/studio/*`: owner-only. Ideas and articles (create, edit, autosave with a stale-write check, publish, delete) and a Markdown preview.
   - `GET /api/entries?kind=article`: published entries the visitor may see. Every entry is private, members-only or public.
+  - Community: invite links (`/join?code=…`) let people in at once; without one, `/join` files a request the owner approves in the studio. Members sign in at `/login` (PBKDF2 password hashes, a signed 30-day cookie, and the account is re-checked on every request so suspending someone cuts them off at once). `/community` is the members' feed.
   - `/writing` and `/writing/:slug` are rendered on the server. Raw HTML in Markdown is shown as text and only http(s), mailto and same-site links survive.
 - Files and covers are stored in Workers KV (one value per file, 25 MB max; bigger videos go on YouTube and are added as links). The item list and the settings are one JSON value each.
 - The admin password is a Worker secret (`ADMIN_PASSWORD`). Changing it logs out every session. One sign-in covers `/admin` and `/studio`.

@@ -1,7 +1,7 @@
-// Server-rendered public pages of the platform (articles for now). Rendering
+// Server-rendered pages of the platform (articles, community). Rendering
 // on the server means link previews and search engines see the real text.
 import { escapeHtml as e, renderMarkdown } from './markdown.js';
-import { card, findVisible, listVisible } from './entries.js';
+import { card, findVisible, listFeed, listVisible } from './entries.js';
 
 const SITE = 'https://itschakshteren.com';
 const VIS_LABEL = { private: 'פרטי', members: 'לקהילה', public: 'ציבורי' };
@@ -9,7 +9,9 @@ const VIS_LABEL = { private: 'פרטי', members: 'לקהילה', public: 'צי�
 const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' });
 const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '');
 
-function layout({ title, description = '', path, role, body, noindex = false }) {
+function layout({ title, description = '', path, v, body, noindex = false }) {
+  const { role, member } = v;
+  const here = (p) => (path === p || path.startsWith(`${p}/`) ? ' aria-current="page"' : '');
   const full = title ? `${title} · יצחק שטרן` : 'יצחק שטרן';
   return `<!doctype html>
 <html lang="he" dir="rtl">
@@ -37,9 +39,12 @@ ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
   <div class="wrap">
     <a class="mark" href="/">יצחק שטרן</a>
     <nav class="always">
-      <a href="/writing"${path.startsWith('/writing') ? ' aria-current="page"' : ''}>כתיבה</a>
+      <a href="/writing"${here('/writing')}>כתיבה</a>
+      <a href="/community"${here('/community')}>קהילה</a>
       <a href="/">קורות חיים</a>
       ${role === 'owner' ? '<a href="/studio">סטודיו</a>' : ''}
+      ${member ? `<a href="/login?logout=1" title="יציאה">${e(member.displayName)} · יציאה</a>` : ''}
+      ${role === 'public' ? '<a href="/login">כניסה</a>' : ''}
     </nav>
   </div>
 </header>
@@ -63,12 +68,14 @@ function html(markup, role, status = 200) {
 }
 
 function badge(entry, role) {
+  if (role === 'member' && entry.visibility === 'members') return `<span class="badge vis-members">${VIS_LABEL.members}</span>`;
   if (role !== 'owner') return '';
   const draft = entry.status === 'draft' ? '<span class="badge draft">טיוטה</span>' : '';
   return `${draft}<span class="badge vis-${e(entry.visibility)}">${e(VIS_LABEL[entry.visibility])}</span>`;
 }
 
-export async function writingIndex(env, role) {
+export async function writingIndex(env, v) {
+  const { role } = v;
   const entries = (await listVisible(env, role, 'article')).map(card);
   const list = entries.length
     ? `<ol class="article-list">${entries
@@ -76,7 +83,7 @@ export async function writingIndex(env, role) {
           (a) => `<li>
   <a href="/writing/${encodeURIComponent(a.slug)}"><h2>${e(a.title)}</h2></a>
   <p>${e(a.summary)}</p>
-  <div class="meta"><time datetime="${e(a.publishedAt)}">${e(fmtDate(a.publishedAt))}</time>${role === 'owner' ? `<span class="badge vis-${e(a.visibility)}">${e(VIS_LABEL[a.visibility])}</span>` : ''}</div>
+  <div class="meta"><time datetime="${e(a.publishedAt)}">${e(fmtDate(a.publishedAt))}</time>${badge(a, role)}</div>
 </li>`,
         )
         .join('\n')}</ol>`
@@ -85,10 +92,11 @@ export async function writingIndex(env, role) {
   <div class="head"><h1>כתיבה</h1></div>
   ${list}
 </div>`;
-  return html(layout({ title: 'כתיבה', description: 'מאמרים ורשימות של יצחק שטרן.', path: '/writing', role, body }), role);
+  return html(layout({ title: 'כתיבה', description: 'מאמרים ורשימות של יצחק שטרן.', path: '/writing', v, body }), role);
 }
 
-export async function writingPage(env, role, slug) {
+export async function writingPage(env, v, slug) {
+  const { role } = v;
   const entry = await findVisible(env, role, 'article', slug);
   if (!entry) return null;
   const path = `/writing/${encodeURIComponent(entry.slug)}`;
@@ -105,5 +113,40 @@ export async function writingPage(env, role, slug) {
   <p class="back"><a href="/writing">לכל המאמרים</a></p>
 </article>`;
   const noindex = entry.visibility !== 'public' || entry.status !== 'published';
-  return html(layout({ title: entry.title, description: entry.summary || card(entry).summary, path, role, body, noindex }), role);
+  return html(layout({ title: entry.title, description: entry.summary || card(entry).summary, path, v, body, noindex }), role);
+}
+
+const KIND_LABEL = { article: 'מאמר', project: 'פרויקט', work: 'יצירה' };
+
+export async function communityPage(env, v) {
+  const { role, member } = v;
+  if (role === 'public') {
+    const body = `<div class="wrap page narrow">
+  <div class="head"><h1>קהילה</h1></div>
+  <p class="lede">חלק מהדברים שאני כותב ויוצר פתוחים רק לחברי הקהילה. מי שקיבל ממני קישור הזמנה יכול פשוט לפתוח אותו. אפשר גם לבקש להצטרף, ואני מאשר.</p>
+  <div class="actions"><a class="btn primary" href="/join">בקשת הצטרפות</a><a class="btn" href="/login">כניסה לחברים</a></div>
+</div>`;
+    return html(layout({ title: 'קהילה', description: 'הקהילה של יצחק שטרן.', path: '/community', v, body }), role);
+  }
+  const feed = (await listFeed(env, role)).filter((x) => role === 'owner' || x.visibility === 'members' || x.visibility === 'public');
+  const items = feed.length
+    ? `<ol class="article-list">${feed
+        .map((x) => {
+          const c = card(x);
+          const title = x.kind === 'article' ? `<a href="/writing/${encodeURIComponent(x.slug)}"><h2 dir="auto">${e(x.title)}</h2></a>` : `<h2 dir="auto">${e(x.title)}</h2>`;
+          return `<li>
+  ${title}
+  <p dir="auto">${e(c.summary)}</p>
+  <div class="meta"><span>${e(KIND_LABEL[x.kind] ?? '')}</span><time datetime="${e(x.publishedAt)}">${e(fmtDate(x.publishedAt))}</time>${badge(x, role)}</div>
+</li>`;
+        })
+        .join('\n')}</ol>`
+    : '<p class="empty">עוד אין כאן כלום. בקרוב.</p>';
+  const hello = member ? `<p class="lede">שלום ${e(member.displayName)}, טוב לראות אותך כאן.</p>` : '';
+  const body = `<div class="wrap page">
+  <div class="head"><h1>קהילה</h1></div>
+  ${hello}
+  ${items}
+</div>`;
+  return html(layout({ title: 'קהילה', path: '/community', v, body, noindex: true }), role);
 }

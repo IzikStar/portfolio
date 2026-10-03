@@ -127,3 +127,32 @@
 .editor .md-tools { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .editor .md-tools button { font-family: var(--mono); min-width: 2.2rem; }
 .editor .status { font-family: var(--mono); font-size: var(--step--1); color: var(--muted); margin-inline-start: auto; }
+
+/* ---------- member pages ---------- */
+.page.narrow { max-width: 30rem; }
+.narrow .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-block: 1rem 1.5rem; }
+.narrow .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.member-form { display: grid; gap: 1rem; }
+.member-form h1, #join-done h1 { font-family: var(--display); font-size: var(--step-3); line-height: 1.1; }
+.member-form .lede { margin: 0; }
+.member-form input, .member-form textarea {
+  font: inherit; font-size: var(--step-0); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 0.55rem 0.7rem; width: 100%;
+}
+.member-form .hint { font-size: var(--step--1); color: var(--muted); }
+.hp { position: absolute; inset-inline-start: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* ---------- studio: community ---------- */
+.community { display: grid; gap: 2rem; }
+.community h2 { font-family: var(--display); font-size: var(--step-2); margin-bottom: 0.75rem; }
+.invite-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 0.75rem; align-items: end; }
+.people { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.people li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; padding-block: 0.8rem; border-bottom: 1px solid var(--line); }
+.people .who { font-weight: 600; overflow-wrap: anywhere; }
+.people .note { flex-basis: 100%; color: var(--muted); font-size: var(--step--1); white-space: pre-wrap; overflow-wrap: anywhere; }
+.people .actions { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.people code { font-family: var(--mono); font-size: 0.8rem; direction: ltr; overflow-wrap: anywhere; }
+
+.bar .mark { white-space: nowrap; }
+@media (max-width: 560px) { .bar nav.always { gap: 0.3rem 0.9rem; } }
+.page > .lede { color: var(--muted); font-size: var(--step-1); margin-bottom: 1.5rem; }

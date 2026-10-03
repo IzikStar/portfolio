@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6b5f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='serif' font-weight='700'%3EI%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700;900&family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/platform.css">
+<meta name="robots" content="noindex">
+<title>הצטרפות לקהילה · יצחק שטרן</title>
+</head>
+<body>
+<header class="bar"><div class="wrap"><a class="mark" href="/">יצחק שטרן</a><nav class="always"><a href="/writing">כתיבה</a><a href="/community">קהילה</a></nav></div></header>
+<main class="wrap page narrow">
+  <form class="member-form" id="join-form" novalidate>
+    <h1 id="join-title">בקשת הצטרפות</h1>
+    <p class="lede" id="join-lede">כמה מילים על עצמך ועל איך אנחנו מכירים יעזרו לי לאשר את הבקשה.</p>
+    <label class="field">שם לתצוגה
+      <input type="text" name="displayName" maxlength="60" autocomplete="name" dir="auto">
+    </label>
+    <label class="field">שם משתמש <small>3 עד 30 אותיות, ספרות, נקודה, מקף או קו תחתון</small>
+      <input type="text" name="username" required minlength="3" maxlength="30" autocomplete="username" dir="auto">
+    </label>
+    <label class="field">סיסמה <small>לפחות 8 תווים</small>
+      <input type="password" name="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <label class="field" id="note-field">כמה מילים עליך
+      <textarea name="note" rows="3" maxlength="600" dir="auto"></textarea>
+    </label>
+    <label class="hp" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+    <button class="btn primary" type="submit">שליחה</button>
+    <p class="msg" id="join-msg" role="status"></p>
+    <p class="hint">כבר בקהילה? <a href="/login">כניסה</a></p>
+  </form>
+  <div id="join-done" hidden>
+    <h1>הבקשה נשלחה</h1>
+    <p class="lede">אני אעבור עליה בקרוב. אחרי האישור אפשר להיכנס עם שם המשתמש והסיסמה שבחרת.</p>
+  </div>
+</main>
+<script src="/member.js"></script>
+</body>
+</html>
