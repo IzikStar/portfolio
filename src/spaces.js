@@ -8,7 +8,7 @@
 // result as a SQL filter.
 import { db, VISIBILITY, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
-import { slugify } from './entries.js';
+import { slugify, RESERVED_SLUGS } from './entries.js';
 
 const SPACE_KINDS = ['wing', 'book', 'series', 'genre', 'collection'];
 const JOIN_MODES = ['request', 'closed'];
@@ -204,8 +204,10 @@ function applySpace(space, body, byId) {
     space.meta = body.meta;
   }
   if ('slug' in body) space.slug = slugify(body.slug);
+  if ('slug' in body && RESERVED_SLUGS.includes(space.slug)) throw new HttpError(400, 'That address is taken by the community blog. Pick another.');
   if (!space.title) throw new HttpError(400, 'Give it a name.');
   if (!space.slug) space.slug = slugify(space.title) || space.id.slice(0, 8);
+  if (RESERVED_SLUGS.includes(space.slug)) space.slug += '-2';
   return space;
 }
 

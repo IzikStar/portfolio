@@ -8,6 +8,10 @@
 //   space_members  who belongs to which community (requests wait for the owner)
 //   entries     every piece of content: a song, a chapter, an article, a project...
 //   comments    what the community says about an item (optionally one paragraph)
+//               or about a blog post: entry_id holds the id of either (both are UUIDs)
+//   posts       community blog posts, one blog per community (a wing, or a space
+//               with its own community); space_id is that community's space
+//   mentions    who was tagged where (@ in a comment or a post), for the member's page
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
 //   invites     invite links for new members
@@ -93,6 +97,32 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS comments_entry ON comments(entry_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS comments_recent ON comments(status, created_at)`,
+  `CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    space_id TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    user_id TEXT,
+    author TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'visible',
+    public INTEGER NOT NULL DEFAULT 0,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS posts_slug ON posts(space_id, slug)`,
+  `CREATE INDEX IF NOT EXISTS posts_recent ON posts(space_id, pinned, created_at)`,
+  `CREATE INDEX IF NOT EXISTS posts_user ON posts(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS mentions (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    by_user TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id, user_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS mentions_user ON mentions(user_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS files (
     id TEXT PRIMARY KEY,
     entry_id TEXT,

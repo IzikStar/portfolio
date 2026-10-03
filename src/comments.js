@@ -3,15 +3,18 @@
 // paragraph; it keeps the opening words of that paragraph so the note still
 // makes sense after the text is edited. Only the item's community and the
 // owner see comments, and the owner can close or delete any of them.
+// Blog posts use the same comments: entry_id then holds the post's id.
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { canSee, communityOf } from './spaces.js';
 import { getEntry } from './entries.js';
+import { getPost, canReadPost, canCommentPost, postPath } from './posts.js';
+import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions } from './mentions.js';
 import { escapeHtml as e } from './markdown.js';
 import { fmtDate, entryPath } from './site.js';
 
 const MAX_BODY = 4000;
-const OWNER_NAME = 'יצחק';
+export const OWNER_NAME = 'יצחק';
 const PER_HOUR = 60;
 
 function fromRow(r) {
@@ -41,7 +44,8 @@ export function canComment(v, entry) {
 export async function commentsOf(env, entryId) {
   const d = await db(env);
   const { results } = await d.prepare('SELECT * FROM comments WHERE entry_id = ? ORDER BY created_at, id').bind(entryId).all();
-  return results.map(fromRow);
+  const names = await mentionNames(env, results.map((r) => r.body));
+  return results.map((r) => ({ ...fromRow(r), names }));
 }
 
 // ---------- the block under an item ----------
@@ -56,18 +60,19 @@ function one(c, v, replies = []) {
   return `<li class="comment${c.userId ? '' : ' by-owner'}${c.status === 'resolved' ? ' resolved' : ''}" id="c-${e(c.id)}"${c.anchor != null ? ` data-anchor="${c.anchor}"` : ''}>
   <div class="meta"><b>${e(c.author)}</b><time datetime="${e(c.createdAt)}">${e(fmtDate(c.createdAt))}</time>${c.status === 'resolved' ? '<span class="badge">טופל</span>' : ''}</div>
   ${c.quote ? `<a class="quote" href="#p-${c.anchor}" dir="auto">${e(c.quote)}</a>` : ''}
-  <p dir="auto">${e(c.body)}</p>
+  <p dir="auto">${withMentions(e(c.body), c.names ?? new Map())}</p>
   <div class="actions">${actions}</div>
   ${replies.length ? `<ol class="replies">${replies.map((r) => one(r, v)).join('')}</ol>` : ''}
 </li>`;
 }
 
-// The comments section for an item page. Visitors outside the community get
-// a line saying how to get in.
-export function commentsBlock(v, entry, comments) {
+// The comments section for an item page (or a blog post, passed as
+// { id, spaceId, kind: 'post' } with its own `can`). Visitors outside the
+// community get a line saying how to get in.
+export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
   const { acc } = v;
   if (entry.kind === 'idea' || entry.meta?.comments === false || !entry.spaceId) return '';
-  if (!canComment(v, entry)) {
+  if (!can) {
     const target = communityOf(acc.byId, entry.spaceId);
     const space = acc.byId.get(target);
     if (!space) return '';
@@ -82,12 +87,12 @@ export function commentsBlock(v, entry, comments) {
   const top = comments.filter((c) => !c.replyTo);
   const kids = new Map();
   for (const c of comments) if (c.replyTo) kids.set(c.replyTo, [...(kids.get(c.replyTo) ?? []), c]);
-  return `<section class="comments" id="comments" data-comments="${e(entry.id)}">
+  return `<section class="comments" id="comments" data-comments="${e(entry.id)}"${entry.kind === 'post' ? ' data-on="post"' : ''}>
   <h2>תגובות${comments.length ? ` <small>${comments.length}</small>` : ''}</h2>
   ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על הכל, או ללחוץ על הסימן ליד פסקה כדי להגיב עליה.</p>'}
   <form class="comment-form" data-comment-form>
     <div class="target" hidden><span></span><button type="button" class="link" data-clear-target>ביטול</button></div>
-    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבת?" required></textarea></label>
+    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבת? @ ושם מתייג מישהו מהקהילה" data-people="${e(entry.spaceId)}" required></textarea></label>
     <div class="actions"><button class="btn accent small" type="submit">שליחה</button><p class="msg" role="status"></p></div>
   </form>
 </section>`;
@@ -98,15 +103,28 @@ export function commentsBlock(v, entry, comments) {
 export async function postComment(request, env, v) {
   if (v.role === 'public') throw new HttpError(401, 'Sign in first.');
   const body = await readJson(request);
-  const entry = await getEntry(env, String(body.entryId ?? ''));
-  if (!entry || !canSee(v.acc, entry)) throw new HttpError(404, 'That item no longer exists.');
-  if (!canComment(v, entry)) throw new HttpError(403, 'Comments here are open to this community only.');
-  const text = cleanText(body.body, MAX_BODY);
-  if (!text) throw new HttpError(400, 'Write something first.');
+  // What is being commented on, and which community may be tagged in it.
+  let targetId;
+  let community;
+  if (body.postId) {
+    const post = await getPost(env, String(body.postId));
+    if (!post || !canReadPost(v, post)) throw new HttpError(404, 'That post no longer exists.');
+    if (!canCommentPost(v, post)) throw new HttpError(403, 'Comments here are open to this community only.');
+    targetId = post.id;
+    community = post.spaceId;
+  } else {
+    const entry = await getEntry(env, String(body.entryId ?? ''));
+    if (!entry || !canSee(v.acc, entry)) throw new HttpError(404, 'That item no longer exists.');
+    if (!canComment(v, entry)) throw new HttpError(403, 'Comments here are open to this community only.');
+    targetId = entry.id;
+    community = communityOf(v.acc.byId, entry.spaceId);
+  }
+  const { text, ids: tagged } = await cleanMentions(env, community, cleanText(body.body, MAX_BODY));
+  if (!text.trim()) throw new HttpError(400, 'Write something first.');
   const d = await db(env);
   let replyTo = null;
   if (body.replyTo) {
-    const parent = await d.prepare('SELECT id, reply_to FROM comments WHERE id = ? AND entry_id = ?').bind(String(body.replyTo), entry.id).first();
+    const parent = await d.prepare('SELECT id, reply_to FROM comments WHERE id = ? AND entry_id = ?').bind(String(body.replyTo), targetId).first();
     if (!parent) throw new HttpError(400, 'The comment you replied to is gone.');
     replyTo = parent.reply_to ?? parent.id;
   }
@@ -119,7 +137,7 @@ export async function postComment(request, env, v) {
   }
   const c = {
     id: crypto.randomUUID(),
-    entryId: entry.id,
+    entryId: targetId,
     userId: v.acc.owner ? null : v.member.id,
     author: v.acc.owner ? OWNER_NAME : v.member.displayName,
     anchor,
@@ -136,6 +154,7 @@ export async function postComment(request, env, v) {
     )
     .bind(c.id, c.entryId, c.userId, c.author, c.anchor, c.quote, c.body, c.replyTo, c.status, c.createdAt)
     .run();
+  await recordMentions(env, 'comment', c.id, tagged, c.userId);
   return json(c, 201);
 }
 
@@ -146,7 +165,9 @@ export async function deleteComment(env, v, id) {
   const row = await d.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
   if (!row) throw new HttpError(404, 'That comment is already gone.');
   if (!v.acc.owner && row.user_id !== v.member.id) throw new HttpError(403, 'Only the writer can delete this comment.');
+  const { results } = await d.prepare('SELECT id FROM comments WHERE id = ? OR reply_to = ?').bind(id, id).all();
   await d.prepare('DELETE FROM comments WHERE id = ? OR reply_to = ?').bind(id, id).run();
+  await dropMentions(env, 'comment', results.map((r) => r.id));
   return json({ ok: true });
 }
 
@@ -160,8 +181,10 @@ export async function studioComments(env, url, acc) {
   const where = status === 'open' ? `WHERE c.status = ? AND c.user_id IS NOT NULL` : status === 'resolved' ? 'WHERE c.status = ?' : '';
   const { results } = await d
     .prepare(
-      `SELECT c.*, e.title AS entry_title, e.slug AS entry_slug, e.space_id AS entry_space, e.kind AS entry_kind
-       FROM comments c LEFT JOIN entries e ON e.id = c.entry_id ${where} ORDER BY c.created_at DESC LIMIT 300`,
+      `SELECT c.*, e.title AS entry_title, e.slug AS entry_slug, e.space_id AS entry_space, e.kind AS entry_kind,
+       p.id AS post_id, p.title AS post_title, p.slug AS post_slug, p.space_id AS post_space
+       FROM comments c LEFT JOIN entries e ON e.id = c.entry_id LEFT JOIN posts p ON p.id = c.entry_id
+       ${where} ORDER BY c.created_at DESC LIMIT 300`,
     )
     .bind(...(where ? [status] : []))
     .all();
@@ -170,7 +193,9 @@ export async function studioComments(env, url, acc) {
     open,
     comments: results.map((r) => ({
       ...fromRow(r),
-      entry: { id: r.entry_id, title: r.entry_title ?? '', kind: r.entry_kind, spaceId: r.entry_space, path: entryPath(acc, { slug: r.entry_slug, spaceId: r.entry_space }) },
+      entry: r.post_id
+        ? { id: r.entry_id, title: r.post_title, kind: 'post', spaceId: r.post_space, path: postPath(acc, { slug: r.post_slug, spaceId: r.post_space }) }
+        : { id: r.entry_id, title: r.entry_title ?? '', kind: r.entry_kind, spaceId: r.entry_space, path: entryPath(acc, { slug: r.entry_slug, spaceId: r.entry_space }) },
     })),
   });
 }
@@ -184,8 +209,10 @@ export async function setCommentStatus(request, env, id) {
   return json({ ok: true, status });
 }
 
-// When an item goes, so do its comments.
+// When an item (or a post) goes, so do its comments and the tags in them.
 export async function deleteCommentsOf(env, entryId) {
   const d = await db(env);
+  const { results } = await d.prepare('SELECT id FROM comments WHERE entry_id = ?').bind(entryId).all();
   await d.prepare('DELETE FROM comments WHERE entry_id = ?').bind(entryId).run();
+  await dropMentions(env, 'comment', results.map((r) => r.id));
 }

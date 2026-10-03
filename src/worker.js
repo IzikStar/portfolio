@@ -26,6 +26,8 @@ import { getSettings as studioSettings, saveSocials, importLegacy } from './sett
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
+import { blogRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
+import { people } from './mentions.js';
 
 // The main address. The other custom domains (and www.) redirect here;
 // the workers.dev address keeps working as is.
@@ -73,7 +75,7 @@ async function pages(request, env, url) {
   if (f) return (await serveFile(request, env, (await viewer(request, env)).acc, f[1])) ?? notFound(request, env);
 
   const parts = path.split('/').slice(1);
-  if (!WINGS.some((w) => w.id === parts[0]) || parts.length > 3 || parts.some((x) => !x)) return null;
+  if (!WINGS.some((w) => w.id === parts[0]) || parts.length > 4 || parts.some((x) => !x)) return null;
   let slugs;
   try {
     slugs = parts.map(decodeURIComponent);
@@ -81,6 +83,10 @@ async function pages(request, env, url) {
     return null;
   }
   const v = await viewer(request, env);
+  // A community's blog: /<wing>/blog[/<post>] or /<wing>/<space>/blog[/<post>].
+  const blog = await blogRoute(env, v, slugs);
+  if (blog !== undefined) return blog ?? notFound(request, env);
+  if (slugs.length > 3) return null;
   const page = slugs.length === 1 ? await wingPage(env, v, slugs[0]) : await resolve(env, v, ...slugs);
   return page ?? notFound(request, env);
 }
@@ -129,6 +135,7 @@ async function api(request, env, url) {
     throw new HttpError(404, 'Not found.');
   }
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
+  if (path.startsWith('/api/blog/') || path === '/api/people') return blogApi(request, env, url);
 
   let m = path.match(/^\/api\/(file|cover)\/([a-z0-9-]+)$/);
   if (m && (method === 'GET' || method === 'HEAD')) return media(request, env, m[1], m[2]);
@@ -188,6 +195,9 @@ async function studio(request, env, url) {
   if (path === '/api/studio/comments' && method === 'GET') return studioComments(env, url, await access(env, { role: 'owner' }));
   const cs = path.match(/^\/api\/studio\/comments\/([a-z0-9-]+)$/);
   if (cs && method === 'PATCH') return setCommentStatus(request, env, cs[1]);
+  if (path === '/api/studio/posts' && method === 'GET') return studioPosts(env, url, await access(env, { role: 'owner' }));
+  const ps = path.match(/^\/api\/studio\/posts\/([a-z0-9-]+)$/);
+  if (ps && method === 'PATCH') return moderatePost(request, env, ps[1]);
   if (path === '/api/studio/settings' && method === 'GET') return studioSettings(env);
   if (path === '/api/studio/settings/socials' && method === 'PUT') return saveSocials(request, env);
   if (path === '/api/studio/import-legacy' && method === 'POST') return importLegacy(env);
@@ -233,6 +243,21 @@ async function memberApi(request, env, url) {
   if (path === '/api/member/me' && method === 'GET') return me(request, env);
   const jm = path.match(/^\/api\/member\/spaces\/([a-z0-9-]+)\/join$/);
   if (jm && method === 'POST') return requestJoin(request, env, await viewer(request, env), jm[1]);
+  throw new HttpError(404, 'Not found.');
+}
+
+// Community blogs (members and the owner) and who can be tagged.
+async function blogApi(request, env, url) {
+  const { pathname: path } = url;
+  const method = request.method;
+  if (method !== 'GET') checkOrigin(request, url);
+  const v = await viewer(request, env);
+  if (path === '/api/people' && method === 'GET') return people(env, v, url);
+  const nb = path.match(/^\/api\/blog\/([a-z0-9-]+)\/posts$/);
+  if (nb && method === 'POST') return createPost(request, env, v, nb[1]);
+  const pm = path.match(/^\/api\/blog\/posts\/([a-z0-9-]+)$/);
+  if (pm && method === 'PATCH') return editPost(request, env, v, pm[1]);
+  if (pm && method === 'DELETE') return deletePost(env, v, pm[1]);
   throw new HttpError(404, 'Not found.');
 }
 
