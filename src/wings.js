@@ -17,6 +17,8 @@ import { renderChords, hasChords } from './chords.js';
 import { mediaEmbed } from './media.js';
 import { commentsBlock, commentsOf, canComment } from './comments.js';
 import { render, socials, WING_INFO, KIND_LABEL, LOCK, icon, fmtDate, badge, entryPath, spacePath, wingOf } from './site.js';
+import { blogPath, openPostCount } from './posts.js';
+import { creditsLine, memberBlock } from './tagged.js';
 
 const SPACE_LABEL = { book: 'ספר', series: 'סדרה', genre: 'ז\'אנר', collection: 'אוסף' };
 
@@ -48,24 +50,32 @@ async function lockedCount(env, acc, spaceIds) {
 }
 
 // Where this viewer stands with the community that guards `spaceId`.
-function communityBox(v, spaceId, path) {
+// `open` is how many of its blog posts are open to everyone (worth a link for outsiders).
+export function communityBox(v, spaceId, path, open = 0) {
   const { acc } = v;
   const target = acc.byId.get(communityOf(acc.byId, spaceId));
   if (!target) return '';
   const name = target.parentId ? target.title : `קהילת ה${target.title}`;
   const label = target.kind === 'book' ? `קוראי הבטא של ${target.title}` : name;
+  const blog = blogPath(acc, target);
+  const toBlog = path === blog ? '' : `<a class="btn small" href="${blog}">בלוג הקהילה</a>`;
   if (acc.owner) {
-    return `<div class="community-box"><p><strong>${e(label)}</strong>. כאן רואים את מה שפתוח לקהילה.</p><a class="btn small" href="/studio#space/${e(target.id)}">ניהול הקהילה</a></div>`;
+    return `<div class="community-box"><p><strong>${e(label)}</strong>. כאן רואים את מה שפתוח לקהילה.</p>${toBlog}<a class="btn small" href="/studio#space/${e(target.id)}">ניהול הקהילה</a></div>`;
   }
-  if (acc.communities.has(target.id)) return `<div class="community-box"><p>את.ה ב<strong>${e(label)}</strong>, ורואים כאן גם את מה שפתוח רק לקהילה.</p></div>`;
-  if (acc.pending.has(target.id)) return `<div class="community-box"><p>הבקשה להצטרף ל<strong>${e(label)}</strong> מחכה לאישור.</p></div>`;
-  if (target.joinMode === 'closed') return `<div class="community-box"><p><strong>${e(label)}</strong> פתוחה בהזמנה בלבד.</p></div>`;
+  if (acc.communities.has(target.id)) return `<div class="community-box"><p>את.ה ב<strong>${e(label)}</strong>, ורואים כאן גם את מה שפתוח רק לקהילה.</p>${toBlog}</div>`;
+  const peek = open && toBlog ? `<a class="btn small" href="${blog}">מהבלוג של הקהילה</a>` : '';
+  if (acc.pending.has(target.id)) return `<div class="community-box"><p>הבקשה להצטרף ל<strong>${e(label)}</strong> מחכה לאישור.</p>${peek}</div>`;
+  if (target.joinMode === 'closed') return `<div class="community-box"><p><strong>${e(label)}</strong> פתוחה בהזמנה בלבד.</p>${peek}</div>`;
   const ask = target.kind === 'book' ? 'לבקש להיות קורא.ת בטא' : 'לבקש להצטרף';
   if (v.member) {
-    return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><button class="btn accent" type="button" data-join="${e(target.id)}">${ask}</button><span class="msg" role="status"></span></div>`;
+    return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><button class="btn accent" type="button" data-join="${e(target.id)}">${ask}</button>${peek}<span class="msg" role="status"></span></div>`;
   }
-  return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><a class="btn accent" href="/join?space=${encodeURIComponent(target.id)}&next=${encodeURIComponent(path)}">${ask}</a><a class="btn" href="/login?next=${encodeURIComponent(path)}">כבר בקהילה? כניסה</a></div>`;
+  return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><a class="btn accent" href="/join?space=${encodeURIComponent(target.id)}&next=${encodeURIComponent(path)}">${ask}</a><a class="btn" href="/login?next=${encodeURIComponent(path)}">כבר בקהילה? כניסה</a>${peek}</div>`;
 }
+
+// Public blog posts of the community guarding this space, for outsiders only.
+const openPosts = (env, v, spaceId) =>
+  v.acc.owner || v.acc.communities.has(communityOf(v.acc.byId, spaceId)) ? 0 : openPostCount(env, communityOf(v.acc.byId, spaceId));
 
 const versionTypes = (entry) => [...new Set((entry.meta?.versions ?? []).map((x) => x.label).filter(Boolean))].slice(0, 4);
 
@@ -180,7 +190,7 @@ export async function wingPage(env, v, wingId) {
   if (!wing || !acc.visible.has(wingId)) return null;
   const path = `/${wingId}`;
   const ids = descendants(acc, wingId);
-  const [items, locked] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids)]);
+  const [items, locked, open] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids), openPosts(env, v, wingId)]);
   const kids = children(acc, wingId);
   const shelf = kids.length
     ? `<section class="block"><div class="cards">${kids
@@ -201,7 +211,7 @@ export async function wingPage(env, v, wingId) {
 <div class="wrap">
   ${shelf}
   <section class="block">${grid}${lockedNote(locked)}</section>
-  ${communityBox(v, wingId, path)}
+  ${communityBox(v, wingId, path, open)}
 </div>`;
   return render(env, v, { title: wing.title, description: wing.summary || WING_INFO[wingId].what, path, wing: wingId, body, script: true });
 }
@@ -213,7 +223,7 @@ export async function spacePage(env, v, space) {
   const wing = wingOf(acc, space.id);
   const path = spacePath(acc, space);
   const ids = descendants(acc, space.id);
-  const [items, locked] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids)]);
+  const [items, locked, open] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids), openPosts(env, v, space.id)]);
   let body;
   if (space.kind === 'book') {
     const chapters = items.filter((x) => x.spaceId === space.id).sort(byOrder);
@@ -228,7 +238,7 @@ export async function spacePage(env, v, space) {
         : '<p class="empty">הפרקים בדרך.</p>';
     const beta = acc.owner || acc.communities.has(communityOf(acc.byId, space.id))
       ? communityBox(v, space.id, path)
-      : `<div class="panel tinted"><h2>להיות קורא.ת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>כל הספר נפתח, כולל פרקים חדשים כשהם עולים, ואפשר להגיב על כל פרק</li></ol>${communityBox(v, space.id, path)}</div>`;
+      : `<div class="panel tinted"><h2>להיות קורא.ת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>כל הספר נפתח, כולל פרקים חדשים כשהם עולים, ואפשר להגיב על כל פרק</li></ol>${communityBox(v, space.id, path, open)}</div>`;
     body = `<div class="wrap" data-wing="books">
   <div class="crumbs back"><a href="/${wing.id}">${e(wing.title)}</a></div>
   <section class="book-head">
@@ -253,7 +263,7 @@ export async function spacePage(env, v, space) {
 <div class="wrap">
   ${sub}
   <section class="block">${grid}${lockedNote(locked)}</section>
-  ${communityBox(v, space.id, path)}
+  ${communityBox(v, space.id, path, open)}
 </div>`;
   }
   const noindex = space.visibility !== 'public';
@@ -338,6 +348,7 @@ export async function entryPage(env, v, entry) {
   const body = `<article class="wrap article">
   <header>
     ${header}
+    ${await creditsLine(env, entry)}
   </header>
   ${main}
   ${commentsBlock(v, entry, canComment(v, entry) ? await commentsOf(env, entry.id) : [])}
@@ -402,9 +413,14 @@ export async function communityPage(env, v) {
         })
         .join('')}</div>`
     : '<p class="empty">עוד אין כאן תוכן לקהילה. בקרוב.</p>';
+  const blogs = mine.length && !acc.owner
+    ? `<p class="blog-links"><span>הבלוגים שלכם:</span>${mine.map((s) => `<a href="${blogPath(acc, s)}">${e(s.title)}</a>`).join('')}</p>`
+    : '';
   const body = `<div class="wrap block">
   <div class="section-head"><h2>${member ? `שלום ${e(member.displayName)}` : 'קהילה'}</h2></div>
   ${!acc.owner ? `<p class="lede">${mine.length ? `את.ה ב${mine.map((s) => e(s.parentId ? s.title : `קהילת ה${s.title}`)).join(', ')}.` : 'עוד לא הצטרפת לאף אגף. בכל אגף יש כפתור לבקשת הצטרפות.'}</p>` : ''}
+  ${blogs}
+  ${await memberBlock(env, v)}
   <div class="section-head" style="margin-top:32px"><h2>רק לקהילה</h2></div>
   ${items}
 </div>`;

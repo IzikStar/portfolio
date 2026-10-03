@@ -38,6 +38,7 @@
     <a href="#wing/videos" data-tab="wing/videos" data-wing="videos"><span class="dot"></span>סרטונים<span class="count" data-count="videos"></span></a>
     <span class="group">כללי</span>
     <a href="#comments" data-tab="comments">תגובות<span class="count" id="comment-count"></span></a>
+    <a href="#blog" data-tab="blog">בלוגים<span class="count" id="blog-count" title="פוסטים חדשים השבוע"></span></a>
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
     <a href="#projects" data-tab="projects">קורות חיים: פרויקטים</a>
     <a href="#settings" data-tab="settings">הגדרות</a>
@@ -242,6 +243,27 @@
       <p class="empty" id="c-empty" hidden>אין כאן תגובות.</p>
     </section>
 
+    <section id="view-blog" hidden>
+      <div class="head">
+        <h1>בלוגים</h1>
+        <a class="btn" id="b-open" target="_blank" rel="noopener" hidden>לבלוג באתר ↗</a>
+      </div>
+      <p class="hint">מה שהחברים כותבים בבלוג של כל קהילה. פוסט נשאר בתוך הקהילה עד שפותחים אותו לכולם. פוסט מוסתר רואים רק אתה ומי שכתב אותו. כדי לכתוב פוסט משלך, נכנסים לבלוג באתר.</p>
+      <div class="toolbar" style="margin-block: 12px">
+        <label class="sr-only" for="b-space">קהילה</label>
+        <select id="b-space" style="width:auto"></select>
+        <div class="filters" id="b-filters">
+          <button type="button" data-status="">הכל</button>
+          <button type="button" data-status="pinned">נעוצים</button>
+          <button type="button" data-status="public">פתוחים לכולם</button>
+          <button type="button" data-status="hidden">מוסתרים</button>
+        </div>
+      </div>
+      <p class="msg" id="b-msg" role="status"></p>
+      <ul class="people" id="b-list"></ul>
+      <p class="empty" id="b-empty" hidden>אין כאן פוסטים.</p>
+    </section>
+
     <section id="view-settings" hidden>
       <div class="head"><h1>הגדרות</h1></div>
       <div class="box">
@@ -335,6 +357,12 @@
         <p class="hint">קישור מהדרייב, מיוטיוב, או קובץ שמעלים. גרסה "לקהילה" מופיעה לשאר עם מנעול. בדרייב צריך לשתף את הקובץ ככל מי שיש לו קישור.</p>
         <div class="versions-editor" id="ed-versions"></div>
         <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden></div>
+      </fieldset>
+      <fieldset class="source-box">
+        <legend>קרדיטים</legend>
+        <p class="hint">מי עשה מה, למשל "שירה" או "עריכה". מופיע מתחת לכותרת, וגם בעמוד של החבר.</p>
+        <div class="versions-editor" id="ed-credits"></div>
+        <div class="toolbar"><button class="btn small" type="button" id="ed-add-credit">הוספת קרדיט</button></div>
       </fieldset>
       <div class="toolbar">
         <div class="md-tools" id="md-tools">

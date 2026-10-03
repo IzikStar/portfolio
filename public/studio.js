@@ -1,7 +1,7 @@
 // Studio: the owner's private workspace. Idea notebook, a studio per wing,
 // the item editor, projects, comments and the community.
 // Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
-// #projects, #project/<id>, #project-new, #comments, #community, #settings. (#edit/<id> and #articles still work.)
+// #projects, #project/<id>, #project-new, #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
@@ -126,6 +126,7 @@
     $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
     $('view-comments').hidden = view !== 'comments';
+    $('view-blog').hidden = view !== 'blog';
     $('view-settings').hidden = view !== 'settings';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
@@ -135,6 +136,7 @@
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
     else if (view === 'comments') loadComments();
+    else if (view === 'blog') loadBlog();
     else if (view === 'settings') loadSettings();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
@@ -511,6 +513,39 @@
       .map((v) => Object.fromEntries(Object.entries(v).filter(([, x]) => x)));
   $('ed-add-version').addEventListener('click', () => $('ed-versions').append(versionRow()));
 
+  // Credits: a role and a member, one row each. Members come from the community list.
+  let people = null;
+  async function loadPeople() {
+    if (people) return;
+    try {
+      people = (await call('/api/studio/community')).users.filter((u) => u.status === 'active');
+    } catch {
+      people = null;
+    }
+  }
+  function creditRow(c = {}) {
+    const who = h('select', { ariaLabel: 'מי' }, h('option', { value: '', textContent: 'בחירת חבר.ה' }), ...(people ?? []).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (${u.username})` })));
+    who.dataset.f = 'userId';
+    who.value = c.userId ?? '';
+    const role = h('input', { type: 'text', value: c.role ?? '', placeholder: 'תפקיד, למשל שירה', dir: 'auto', ariaLabel: 'תפקיד', maxLength: 40 });
+    role.dataset.f = 'role';
+    const row = h('div', { className: 'social-row' }, role, who, h('button', { className: 'btn small danger', type: 'button', textContent: 'הסרה', onclick: () => { row.remove(); changed(); } }));
+    row.addEventListener('input', changed);
+    row.addEventListener('change', changed);
+    return row;
+  }
+  const readCredits = () => {
+    const list = [...$('ed-credits').children]
+      .map((r) => Object.fromEntries([...r.querySelectorAll('[data-f]')].map((n) => [n.dataset.f, n.value.trim()])))
+      .filter((c) => c.userId);
+    return list.length ? list : undefined;
+  };
+  $('ed-add-credit').addEventListener('click', () => {
+    const row = creditRow();
+    $('ed-credits').append(row);
+    row.querySelector('input').focus();
+  });
+
   function spaceOptions(spaceId) {
     const wing = wingOf(spaceId);
     const ids = wing ? inside(wing.id) : [];
@@ -548,6 +583,7 @@
     $('ed-key').value = entry?.meta?.key ?? '';
     $('ed-comments').checked = entry?.meta?.comments !== false;
     $('ed-versions').replaceChildren(...(entry?.meta?.versions ?? []).map(versionRow));
+    $('ed-credits').replaceChildren(...(entry?.meta?.credits ?? []).map(creditRow));
     modeFor($('ed-kind').value);
     reflect(entry);
   }
@@ -565,6 +601,7 @@
   }
 
   async function openEditor(id, defaults = {}) {
+    await loadPeople();
     editor.entry = null;
     editor.dirty = false;
     editor.defaults = defaults;
@@ -594,6 +631,7 @@
       key: $('ed-key').value.trim() || undefined,
       versions: readVersions(),
       comments: $('ed-comments').checked ? undefined : false,
+      credits: readCredits(),
     };
     delete meta.synced;
     for (const k of Object.keys(meta)) if (meta[k] === undefined) delete meta[k];
@@ -1172,7 +1210,7 @@
         'span',
         { className: 'actions' },
         h('button', { className: `btn small ${open ? 'primary' : ''}`, type: 'button', textContent: open ? 'טופל' : 'פתיחה מחדש', onclick: () => send(`/api/studio/comments/${c.id}`, 'PATCH', { status: open ? 'resolved' : 'open' }).then(loadComments, report('c-msg')) }),
-        h('a', { className: 'btn small', href: `#item/${c.entryId}`, textContent: 'לעריכה' }),
+        h('a', { className: 'btn small', href: c.entry.kind === 'post' ? '#blog' : `#item/${c.entryId}`, textContent: c.entry.kind === 'post' ? 'לבלוגים' : 'לעריכה' }),
         h('button', { className: 'btn small danger', type: 'button', textContent: 'מחיקה', onclick: () => confirm('למחוק את התגובה?') && call(`/api/comments/${c.id}`, { method: 'DELETE' }).then(loadComments, report('c-msg')) }),
       ),
       c.quote ? h('span', { className: 'note quote', dir: 'auto', textContent: c.quote }) : null,
@@ -1185,6 +1223,80 @@
     if (!b) return;
     comments.filter = b.dataset.status;
     loadComments();
+  });
+
+  // ---------- community blogs ----------
+  const blog = { status: '', space: '' };
+  const communityLabel = (x) => (x.parentId ? x.title : `קהילת ה${x.title}`);
+
+  async function loadBlog() {
+    const pick = $('b-space');
+    if (!pick.options.length) {
+      pick.replaceChildren(
+        h('option', { value: '', textContent: 'כל הקהילות' }),
+        ...state.spaces.filter((x) => !x.parentId || x.ownCommunity).map((x) => h('option', { value: x.id, textContent: communityLabel(x) })),
+      );
+    }
+    pick.value = blog.space;
+    const where = state.byId.get(blog.space);
+    $('b-open').hidden = !where;
+    if (where) $('b-open').href = `${pathOf(where)}/blog`;
+    for (const b of $('b-filters').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.status === blog.status));
+    try {
+      const data = await call(`/api/studio/posts?${new URLSearchParams({ space: blog.space, status: blog.status })}`);
+      showBlogCount(data.week);
+      $('b-list').replaceChildren(...data.posts.map(postRow));
+      $('b-empty').hidden = data.posts.length > 0;
+      say('b-msg', '');
+    } catch (err) {
+      report('b-msg')(err);
+    }
+  }
+
+  function showBlogCount(n) {
+    $('blog-count').textContent = n || '';
+  }
+
+  function postRow(p) {
+    const where = state.byId.get(p.spaceId);
+    const mod = (change) => send(`/api/studio/posts/${p.id}`, 'PATCH', change).then(loadBlog, report('b-msg'));
+    const hidden = p.status === 'hidden';
+    return h(
+      'li',
+      {},
+      p.path ? h('a', { className: 'who', href: p.path, target: '_blank', rel: 'noopener', dir: 'auto', textContent: p.title }) : h('span', { className: 'who', dir: 'auto', textContent: p.title }),
+      h(
+        'span',
+        { className: 'meta', dir: 'auto' },
+        where ? h('span', { textContent: communityLabel(where) }) : null,
+        h('span', { textContent: p.author }),
+        p.comments ? h('span', { textContent: `${p.comments} תגובות` }) : null,
+        p.pinned ? h('span', { className: 'badge', textContent: 'נעוץ' }) : null,
+        p.public ? h('span', { className: 'badge', textContent: 'פתוח לכולם' }) : null,
+        hidden ? h('span', { className: 'badge', textContent: 'מוסתר' }) : null,
+        h('time', { textContent: fmt(p.createdAt) }),
+      ),
+      h(
+        'span',
+        { className: 'actions' },
+        h('button', { className: 'btn small', type: 'button', textContent: p.pinned ? 'ביטול נעיצה' : 'נעיצה', onclick: () => mod({ pinned: !p.pinned }) }),
+        h('button', { className: 'btn small', type: 'button', textContent: p.public ? 'רק לקהילה' : 'פתיחה לכולם', onclick: () => mod({ public: !p.public }) }),
+        h('button', { className: 'btn small', type: 'button', textContent: hidden ? 'החזרה' : 'הסתרה', onclick: () => mod({ hidden: !hidden }) }),
+        h('button', { className: 'btn small danger', type: 'button', textContent: 'מחיקה', onclick: () => confirm('למחוק את הפוסט, עם כל התגובות עליו?') && call(`/api/blog/posts/${p.id}`, { method: 'DELETE' }).then(loadBlog, report('b-msg')) }),
+      ),
+      p.excerpt ? h('span', { className: 'note', dir: 'auto', textContent: p.excerpt }) : null,
+    );
+  }
+
+  $('b-filters').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    blog.status = b.dataset.status;
+    loadBlog();
+  });
+  $('b-space').addEventListener('change', () => {
+    blog.space = $('b-space').value;
+    loadBlog();
   });
 
   // ---------- settings ----------
@@ -1262,6 +1374,7 @@
     route();
     call('/api/studio/community').then(({ users }) => showPendingCount(users.filter((u) => u.status === 'pending').length), () => {});
     call('/api/studio/comments?status=open').then(({ open }) => showCommentCount(open), () => {});
+    call('/api/studio/posts?status=pinned').then(({ week }) => showBlogCount(week), () => {});
   }
   start();
 })();
