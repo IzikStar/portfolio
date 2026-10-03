@@ -36,8 +36,7 @@
       'open.video': 'לצפייה',
       'open.link': 'לפתיחה',
       'about.p1':
-        'אני מפתח Full-Stack עם ניסיון בפרודקשן ב־TypeScript, React, NestJS, Java ו־PostgreSQL. אני אוהב את החלקים שמתחת למכסה המנוע: אימות והרשאות, אלגוריתמים, ובדיקות שמאפשרות לשנות קוד בלי לפחד.',
-      'about.p2': 'אני גם יוצר בעוד תחומים, וכנראה בגלל זה אכפת לי איך דברים מרגישים לאדם שמשתמש בהם.',
+        'אני מפתח Full-Stack. בשנתיים האחרונות כתבתי קוד שרץ בפרודקשן בחיל האוויר, בעיקר ב־TypeScript, React, NestJS, Java ו־PostgreSQL. הכי נהניתי לעבוד על התחברות והרשאות, על אלגוריתמים ועל בדיקות. חוץ מקוד אני גם כותב, מנגן, מדבב ועושה עוד כל מיני שטויות 🤪',
       'contact.copy': 'העתקת כתובת',
       'contact.copied': 'הועתק',
       footer: 'נבנה ביד עם HTML, CSS ו־Cloudflare Workers.',
@@ -80,8 +79,7 @@
       'open.video': 'Watch',
       'open.link': 'Open',
       'about.p1':
-        'I am a full-stack developer with production experience in TypeScript, React, NestJS, Java and PostgreSQL. I like the parts under the hood: authentication and permissions, algorithms, and tests that let you change code without fear.',
-      'about.p2': 'I also make things in other fields, which is probably why I care about how things feel to the person using them.',
+        'I\'m a full-stack developer. For the last two years I wrote production code in the Israeli Air Force, mostly in TypeScript, React, NestJS, Java and PostgreSQL. The parts I enjoyed most were login and permissions, algorithms and tests. Outside code I also write, play music, do voice acting and all sorts of other nonsense 🤪',
       'contact.copy': 'Copy address',
       'contact.copied': 'Copied',
       footer: 'Hand-built with HTML, CSS and Cloudflare Workers.',
@@ -216,10 +214,6 @@
     {
       when: { he: '2024 עד 2026', en: '2024 to 2026' },
       what: { he: 'מפתח Full-Stack, חיל האוויר', en: 'Full-stack developer, Israeli Air Force' },
-      detail: {
-        he: 'אימות בארכיטקטורת 8 שירותים, אלגוריתמים, תשתית רגרסיה',
-        en: 'Auth across 8 services, algorithms, a regression framework',
-      },
     },
     {
       when: { he: 'דצמבר 2026', en: 'December 2026' },
@@ -282,7 +276,7 @@
     );
     document.getElementById('stack').replaceChildren(...STACK.map((s) => el('li', { text: s })));
     document.getElementById('timeline').replaceChildren(
-      ...TIMELINE.map((x) => el('li', {}, el('span', { class: 'when', text: pick(x.when) }), el('strong', { text: pick(x.what) }), el('span', { text: pick(x.detail) }))),
+      ...TIMELINE.map((x) => el('li', {}, el('span', { class: 'when', text: pick(x.when) }), el('strong', { text: pick(x.what) }), x.detail ? el('span', { text: pick(x.detail) }) : null)),
     );
   }
 
