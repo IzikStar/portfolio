@@ -25,3 +25,12 @@ id = "d30f95f26d0b475c97a2c6171e2ea1a4"
 
 [observability]
 enabled = true
+
+# Worker Previews (builds of branches other than main). The block is required for
+# preview builds; bindings are not inherited, so previews get their own empty KV
+# namespace and never touch the live site's media.
+[previews]
+
+[[previews.kv_namespaces]]
+binding = "MEDIA"
+id = "a570d681fd104ef1b2b2e3e679d9be17"
