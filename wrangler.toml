@@ -30,6 +30,10 @@ binding = "DB"
 database_name = "izikstar-platform"
 database_id = "1812a536-0ea5-46b0-bfdf-9536d9baf84e"
 
+# Refresh projects from their sources (GitHub, web pages) every day at 03:00 UTC.
+[triggers]
+crons = ["0 3 * * *"]
+
 [observability]
 enabled = true
 

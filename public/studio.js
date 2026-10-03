@@ -69,7 +69,7 @@
   function route() {
     const hash = location.hash.slice(1) || 'ideas';
     const [view, id] = hash.split('/');
-    const tab = view === 'edit' || view === 'new' ? 'articles' : view;
+    const tab = view === 'edit' || view === 'new' ? 'articles' : view === 'project' || view === 'project-new' ? 'projects' : view;
     for (const a of document.querySelectorAll('.tabs a')) {
       if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
@@ -77,22 +77,28 @@
     $('view-ideas').hidden = view !== 'ideas';
     $('view-articles').hidden = view !== 'articles';
     $('view-community').hidden = view !== 'community';
+    $('view-projects').hidden = view !== 'projects';
+    $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'edit' && view !== 'new';
     if (view === 'ideas') loadIdeas();
     else if (view === 'articles') loadArticles();
     else if (view === 'community') loadCommunity();
+    else if (view === 'projects') loadProjects();
+    else if (view === 'project-new') openProject(null);
+    else if (view === 'project' && id) openProject(id);
     else if (view === 'new') openEditor(null);
     else if (view === 'edit' && id) openEditor(id);
     else location.hash = '#ideas';
   }
   let current = location.hash;
   window.addEventListener('hashchange', () => {
-    if (editor.dirty && !confirm('יש שינויים שלא נשמרו. לצאת בכל זאת?')) {
+    if ((editor.dirty || project.dirty) && !confirm('יש שינויים שלא נשמרו. לצאת בכל זאת?')) {
       history.replaceState(null, '', current);
       return;
     }
     editor.flush.cancel();
     editor.dirty = false;
+    project.dirty = false;
     current = location.hash;
     route();
   });
@@ -334,6 +340,11 @@
     });
   }
   document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !$('view-project').hidden) {
+      e.preventDefault();
+      saveProject().catch(() => {});
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !$('view-edit').hidden) {
       e.preventDefault();
       editor.flush.cancel();
@@ -341,7 +352,7 @@
     }
   });
   window.addEventListener('beforeunload', (e) => {
-    if (editor.dirty) e.preventDefault();
+    if (editor.dirty || project.dirty) e.preventDefault();
   });
 
   $('publish').addEventListener('click', async () => {
@@ -400,6 +411,235 @@
     ta.setRangeText(out, s, t, 'select');
     ta.dispatchEvent(new Event('input'));
     ta.focus();
+  });
+
+  // ---------- projects ----------
+  const project = { entry: null, dirty: false };
+
+  async function loadProjects() {
+    try {
+      const [a, b] = await Promise.all([call('/api/studio/entries?kind=project'), call('/api/studio/entries?kind=work')]);
+      const all = [...a.entries, ...b.entries];
+      const onCv = all.filter((p) => p.meta?.cv?.show).sort((x, y) => (x.meta.cv.order ?? 999) - (y.meta.cv.order ?? 999));
+      const rest = all.filter((p) => !p.meta?.cv?.show);
+      $('import-cv').hidden = all.some((p) => p.source === 'import');
+      $('projects-empty').hidden = all.length > 0;
+      $('projects').replaceChildren(...[...onCv, ...rest].map((p) => projectRow(p, onCv)));
+    } catch (err) {
+      report('projects-msg')(err);
+    }
+  }
+
+  function projectRow(p, onCv) {
+    const s = p.meta?.synced ?? {};
+    const src = p.meta?.source ? (p.meta.source.repo ?? new URL(p.meta.source.url).host) : null;
+    const i = onCv.indexOf(p);
+    const move = (d) => async () => {
+      const list = [...onCv];
+      const j = i + d;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      try {
+        await Promise.all(list.map((x, k) => (x.meta.cv.order === k + 1 ? null : send(`/api/studio/entries/${x.id}`, 'PATCH', { meta: { ...x.meta, cv: { show: true, order: k + 1 } } }))));
+      } finally {
+        loadProjects();
+      }
+    };
+    return h(
+      'li',
+      {},
+      h('a', { className: 'title', href: `#project/${p.id}`, dir: 'auto', textContent: p.title || s.name || 'ללא שם' }),
+      i >= 0
+        ? h('span', { className: 'order' }, h('button', { className: 'btn small', type: 'button', textContent: '↑', title: 'למעלה', onclick: move(-1) }), h('button', { className: 'btn small', type: 'button', textContent: '↓', title: 'למטה', onclick: move(1) }))
+        : h('span'),
+      h(
+        'div',
+        { className: 'meta' },
+        i >= 0 ? h('span', { className: 'badge vis-public', textContent: `קורות חיים #${i + 1}` }) : null,
+        h('span', { className: `badge ${p.status === 'draft' ? 'draft' : 'vis-public'}`, textContent: p.status === 'draft' ? 'טיוטה' : 'פורסם' }),
+        h('span', { className: `badge vis-${p.visibility}`, textContent: VIS[p.visibility] }),
+        src ? h('span', { dir: 'ltr', textContent: src }) : null,
+        p.meta?.syncError ? h('span', { className: 'msg err', textContent: 'הרענון נכשל' }) : s.syncedAt ? h('time', { textContent: `רוענן ${fmt(s.syncedAt)}` }) : null,
+      ),
+    );
+  }
+
+  $('new-project').addEventListener('click', () => (location.hash = '#project-new'));
+  $('import-cv').addEventListener('click', async () => {
+    try {
+      const { created } = await send('/api/studio/import-cv', 'POST');
+      say('projects-msg', `יובאו ${created} פרויקטים`, 'ok');
+      loadProjects();
+    } catch (err) {
+      report('projects-msg')(err);
+    }
+  });
+  $('sync-all').addEventListener('click', async () => {
+    say('projects-msg', 'מרענן...');
+    const [a, b] = await Promise.all([call('/api/studio/entries?kind=project'), call('/api/studio/entries?kind=work')]).catch(() => [{ entries: [] }, { entries: [] }]);
+    const withSource = [...a.entries, ...b.entries].filter((p) => p.meta?.source);
+    let ok = 0;
+    for (const p of withSource) {
+      await send(`/api/studio/entries/${p.id}/sync`, 'POST').then(() => ok++, () => {});
+    }
+    say('projects-msg', `רוענו ${ok} מתוך ${withSource.length}`, ok === withSource.length ? 'ok' : 'err');
+    loadProjects();
+  });
+
+  const LINKS = { code: 'p-link-code', live: 'p-link-live', playGame: 'p-link-play' };
+
+  function factsToText(facts) {
+    return (facts ?? []).map((f) => [f.he, f.en, typeof f.v === 'object' ? f.v.he : f.v, typeof f.v === 'object' ? f.v.en : f.v].join(' | ')).join('\n');
+  }
+  function textToFacts(text) {
+    return text
+      .split('\n')
+      .map((l) => l.split('|').map((x) => x.trim()))
+      .filter((p) => p[0])
+      .map(([he, en, vhe, ven]) => ({ he, en: en || he, v: ven && ven !== vhe ? { he: vhe ?? '', en: ven } : vhe ?? '' }));
+  }
+
+  function showSynced(entry) {
+    const s = entry?.meta?.synced;
+    const rows = [];
+    if (entry?.meta?.syncError) rows.push(h('span', { className: 'err', textContent: `הרענון האחרון נכשל: ${entry.meta.syncError}` }));
+    if (s) {
+      rows.push(h('span', { textContent: `רוענן ${fmt(s.syncedAt)}${s.pushedAt ? ` · עדכון אחרון במקור ${fmt(s.pushedAt)}` : ''}${s.stars ? ` · ★ ${s.stars}` : ''}` }));
+      if (s.description) rows.push(h('span', { dir: 'auto', textContent: `תיאור מהמקור: ${s.description}` }));
+      const tags = s.topics?.length ? s.topics : s.languages;
+      if (tags?.length) rows.push(h('span', { dir: 'ltr', textContent: tags.join(', ') }));
+      if (s.homepage) rows.push(h('span', { dir: 'ltr', textContent: s.homepage }));
+      if (s.readme) rows.push(h('span', { textContent: `README: ${s.readme.length.toLocaleString()} תווים` }));
+    }
+    $('p-synced').replaceChildren(...rows);
+  }
+
+  function fillProject(entry) {
+    const m = entry?.meta ?? {};
+    $('p-title').value = entry?.title ?? '';
+    $('p-title-en').value = m.en?.title ?? '';
+    $('p-summary').value = entry?.summary ?? '';
+    $('p-summary-en').value = m.en?.summary ?? '';
+    $('p-tag').value = m.tag ?? '';
+    $('p-tag-en').value = m.en?.tag ?? '';
+    $('p-kind').value = entry?.kind ?? 'project';
+    $('p-source').value = m.source ? (m.source.repo ?? m.source.url) : '';
+    for (const [k, id] of Object.entries(LINKS)) $(id).value = (m.links ?? []).find((l) => l.k === k)?.href ?? '';
+    $('p-image').value = m.image ?? '';
+    $('p-tags').value = (entry?.tags ?? []).join(', ');
+    $('p-note').value = m.note ?? '';
+    $('p-note-en').value = m.en?.note ?? '';
+    $('p-facts').value = factsToText(m.facts);
+    $('p-visibility').value = entry?.visibility ?? 'public';
+    $('p-state').value = entry?.status ?? 'draft';
+    $('p-cv').checked = Boolean(m.cv?.show);
+    $('p-body').value = entry?.body ?? '';
+    $('p-delete').hidden = !entry;
+    $('p-view').hidden = !(entry?.status === 'published' && entry.slug);
+    if (entry?.slug) $('p-view').href = `/work/${encodeURIComponent(entry.slug)}`;
+    showSynced(entry);
+    $('p-status').textContent = entry ? `נשמר ${fmt(entry.updatedAt)}` : 'פרויקט חדש';
+    project.dirty = false;
+  }
+
+  async function openProject(id) {
+    project.entry = null;
+    fillProject(null);
+    if (!id) return $('p-title').focus();
+    try {
+      project.entry = await call(`/api/studio/entries/${id}`);
+      fillProject(project.entry);
+    } catch (err) {
+      if (!(err instanceof AuthError)) $('p-status').textContent = err.message;
+    }
+  }
+
+  function parseSourceInput(v) {
+    v = v.trim();
+    if (!v) return null;
+    const gh = v.match(/^(?:https?:\/\/github\.com\/)?([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/);
+    if (gh) return { type: 'github', repo: `${gh[1]}/${gh[2]}` };
+    return { type: 'url', url: v };
+  }
+
+  function collectProject() {
+    const old = project.entry?.meta ?? {};
+    const links = Object.entries(LINKS)
+      .map(([k, id]) => ({ k, href: $(id).value.trim() }))
+      .filter((l) => l.href);
+    const cvShow = $('p-cv').checked;
+    const meta = {
+      ...old,
+      en: { title: $('p-title-en').value.trim(), summary: $('p-summary-en').value.trim(), tag: $('p-tag-en').value.trim(), note: $('p-note-en').value.trim() },
+      tag: $('p-tag').value.trim(),
+      note: $('p-note').value.trim(),
+      source: parseSourceInput($('p-source').value),
+      links,
+      image: $('p-image').value.trim(),
+      facts: textToFacts($('p-facts').value),
+      cv: { show: cvShow, order: old.cv?.order ?? 999 },
+    };
+    delete meta.synced;
+    delete meta.syncError;
+    return {
+      kind: $('p-kind').value,
+      title: $('p-title').value,
+      summary: $('p-summary').value,
+      tags: $('p-tags').value,
+      visibility: $('p-visibility').value,
+      status: $('p-state').value,
+      body: $('p-body').value,
+      meta,
+    };
+  }
+
+  async function saveProject() {
+    const body = collectProject();
+    $('p-status').textContent = 'שומר...';
+    try {
+      if (project.entry) {
+        project.entry = await send(`/api/studio/entries/${project.entry.id}`, 'PATCH', { ...body, baseUpdatedAt: project.entry.updatedAt });
+      } else {
+        if (!body.title.trim() && !body.meta.source) throw new Error('צריך שם או מקור');
+        if (!body.title.trim()) body.title = body.meta.source.repo?.split('/')[1] ?? '';
+        project.entry = await send('/api/studio/entries', 'POST', body);
+        history.replaceState(null, '', `#project/${project.entry.id}`);
+        current = location.hash;
+      }
+      fillProject(project.entry);
+      return project.entry;
+    } catch (err) {
+      if (!(err instanceof AuthError)) $('p-status').textContent = err.message;
+      throw err;
+    }
+  }
+
+  $('p-save').addEventListener('click', () => saveProject().catch(() => {}));
+  $('view-project').addEventListener('input', () => {
+    project.dirty = true;
+    $('p-status').textContent = 'לא נשמר';
+  });
+  $('p-sync').addEventListener('click', async () => {
+    try {
+      const entry = await saveProject();
+      $('p-status').textContent = 'מרענן מהמקור...';
+      project.entry = await send(`/api/studio/entries/${entry.id}/sync`, 'POST');
+      fillProject(project.entry);
+      $('p-status').textContent = 'רוענן מהמקור';
+    } catch (err) {
+      if (!(err instanceof AuthError)) $('p-status').textContent = err.message;
+      if (project.entry) openProject(project.entry.id).then(() => ($('p-status').textContent = err.message));
+    }
+  });
+  $('p-delete').addEventListener('click', async () => {
+    if (!project.entry || !confirm('למחוק את הפרויקט?')) return;
+    try {
+      await call(`/api/studio/entries/${project.entry.id}`, { method: 'DELETE' });
+      project.dirty = false;
+      location.hash = '#projects';
+    } catch (err) {
+      if (!(err instanceof AuthError)) $('p-status').textContent = err.message;
+    }
   });
 
   // ---------- community ----------

@@ -38,6 +38,7 @@
     <nav class="tabs" aria-label="סטודיו">
       <a href="#ideas" data-tab="ideas">רעיונות</a>
       <a href="#articles" data-tab="articles">מאמרים</a>
+      <a href="#projects" data-tab="projects">פרויקטים</a>
       <a href="#community" data-tab="community">קהילה <span id="pending-count"></span></a>
     </nav>
 
@@ -64,6 +65,84 @@
       </div>
       <ol class="rows-table" id="articles"></ol>
       <p class="empty" id="articles-empty" hidden>עוד אין מאמרים.</p>
+    </section>
+
+    <section id="view-projects" hidden>
+      <div class="toolbar" style="margin-bottom: 1rem">
+        <button class="btn primary" type="button" id="new-project">פרויקט חדש</button>
+        <button class="btn" type="button" id="import-cv" hidden>ייבוא הפרויקטים מקורות החיים</button>
+        <button class="btn" type="button" id="sync-all">רענון כולם מהמקור</button>
+        <span class="msg" id="projects-msg" role="status"></span>
+      </div>
+      <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים בעמוד הראשי לפי הסדר כאן. כל פרויקט ציבורי מופיע גם ב־/work.</p>
+      <ol class="rows-table" id="projects"></ol>
+      <p class="empty" id="projects-empty" hidden>עוד אין פרויקטים. אפשר לייבא את מה שכבר מופיע בקורות החיים.</p>
+    </section>
+
+    <section id="view-project" class="editor" hidden>
+      <div class="toolbar">
+        <a class="btn small" href="#projects">כל הפרויקטים</a>
+        <span class="status" id="p-status" role="status"></span>
+      </div>
+      <div class="settings">
+        <label class="field">שם<input type="text" id="p-title" dir="auto" class="title-input"></label>
+        <label class="field">Name (English)<input type="text" id="p-title-en" dir="ltr"></label>
+      </div>
+      <div class="settings">
+        <label class="field">תיאור קצר<textarea id="p-summary" rows="3" dir="auto"></textarea></label>
+        <label class="field">Short description (English)<textarea id="p-summary-en" rows="3" dir="ltr"></textarea></label>
+      </div>
+      <div class="settings">
+        <label class="field">תווית <small>למשל "TypeScript · אלגוריתמים"</small><input type="text" id="p-tag" dir="auto"></label>
+        <label class="field">Label (English)<input type="text" id="p-tag-en" dir="ltr"></label>
+        <label class="field">סוג
+          <select id="p-kind"><option value="project">פרויקט קוד</option><option value="work">יצירה</option></select>
+        </label>
+      </div>
+
+      <fieldset class="source-box">
+        <legend>מקור</legend>
+        <div class="toolbar">
+          <input class="grow" type="text" id="p-source" dir="ltr" placeholder="IzikStar/repo, קישור ל־GitHub או כתובת אתר">
+          <button class="btn" type="button" id="p-sync">רענון מהמקור</button>
+        </div>
+        <div class="synced" id="p-synced"></div>
+        <p class="hint">שדה שמילאת כאן גובר על מה שנמשך מהמקור. שדה ריק מתמלא מהמקור.</p>
+      </fieldset>
+
+      <div class="settings">
+        <label class="field">קישור לקוד<input type="text" id="p-link-code" dir="ltr" placeholder="https://github.com/..."></label>
+        <label class="field">אתר חי<input type="text" id="p-link-live" dir="ltr" placeholder="https://..."></label>
+        <label class="field">קישור למשחק<input type="text" id="p-link-play" dir="ltr" placeholder="https://..."></label>
+      </div>
+      <div class="settings">
+        <label class="field">תמונה <small>כתובת של תמונה</small><input type="text" id="p-image" dir="ltr"></label>
+        <label class="field">טכנולוגיות / תגיות <small>מופרדות בפסיק</small><input type="text" id="p-tags" dir="auto"></label>
+      </div>
+      <div class="settings">
+        <label class="field">הערה <small>למשל "הקוד יפורסם בהמשך"</small><input type="text" id="p-note" dir="auto"></label>
+        <label class="field">Note (English)<input type="text" id="p-note-en" dir="ltr"></label>
+      </div>
+      <label class="field">נתונים <small>כשאין תמונה. שורה לכל נתון: תווית | Label | ערך | Value</small>
+        <textarea id="p-facts" rows="3" dir="auto"></textarea>
+      </label>
+      <div class="settings">
+        <label class="field">מי רואה
+          <select id="p-visibility"><option value="private">רק אני</option><option value="members">חברי הקהילה</option><option value="public">כולם</option></select>
+        </label>
+        <label class="field">מצב
+          <select id="p-state"><option value="draft">טיוטה</option><option value="published">פורסם</option></select>
+        </label>
+        <label class="field check-field"><span><input type="checkbox" id="p-cv"> בקורות החיים</span></label>
+      </div>
+      <label class="field">תיאור מלא <small>Markdown. ריק = ה־README מהמקור</small>
+        <textarea id="p-body" class="body-input" dir="auto" style="min-height: 30vh"></textarea>
+      </label>
+      <div class="toolbar">
+        <button class="btn primary" type="button" id="p-save">שמירה</button>
+        <a class="btn" id="p-view" target="_blank" rel="noopener" hidden>צפייה באתר</a>
+        <button class="btn danger" type="button" id="p-delete">מחיקה</button>
+      </div>
     </section>
 
     <section id="view-community" class="community" hidden>

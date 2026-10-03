@@ -57,6 +57,21 @@ function cleanTags(value) {
   return [...seen];
 }
 
+// A project's source: a GitHub repo or a web page.
+function cleanSource(src) {
+  if (src == null || src === '') return null;
+  if (src.type === 'github' && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(src.repo ?? '') && !src.repo.includes('..')) return { type: 'github', repo: src.repo };
+  if (src.type === 'url') {
+    try {
+      const u = new URL(src.url);
+      if (u.protocol === 'https:' || u.protocol === 'http:') return { type: 'url', url: u.href };
+    } catch {
+      // fall through
+    }
+  }
+  throw new HttpError(400, 'The source must be owner/repo, a GitHub link or a web address.');
+}
+
 function pick(value, allowed, field) {
   if (!allowed.includes(value)) throw new HttpError(400, `Unknown ${field}.`);
   return value;
@@ -74,9 +89,11 @@ function applyFields(entry, body) {
   if ('pinned' in body) entry.pinned = Boolean(body.pinned);
   if ('meta' in body) {
     if (typeof body.meta !== 'object' || body.meta === null || Array.isArray(body.meta)) throw new HttpError(400, 'meta must be an object.');
-    const text = JSON.stringify(body.meta);
-    if (text.length > 4000) throw new HttpError(400, 'meta is too large.');
-    entry.meta = body.meta;
+    // "synced" is written only by source sync, never by the client.
+    const { synced: _ignored, ...rest } = body.meta;
+    rest.source = cleanSource(rest.source);
+    if (JSON.stringify(rest).length > 20_000) throw new HttpError(400, 'meta is too large.');
+    entry.meta = entry.meta?.synced ? { ...rest, synced: entry.meta.synced } : rest;
   }
   if ('slug' in body) entry.slug = slugify(body.slug) || null;
 
@@ -137,6 +154,13 @@ async function writeOnce(env, entry, insert) {
   }
 }
 
+// Save an entry the server changed itself (source sync, imports).
+export async function saveEntry(env, entry, insert = false) {
+  entry.updatedAt = new Date().toISOString();
+  await write(env, entry, insert);
+  return entry;
+}
+
 export async function getEntry(env, id) {
   const d = await db(env);
   return fromRow(await d.prepare('SELECT * FROM entries WHERE id = ?').bind(id).first());
@@ -186,7 +210,7 @@ export async function studioCreate(request, env, source = 'studio') {
   };
   if (!('kind' in body)) throw new HttpError(400, 'Say what kind of item this is.');
   applyFields(entry, body);
-  if (!entry.title && !entry.body.trim()) throw new HttpError(400, 'Write something first.');
+  if (!entry.title && !entry.body.trim() && !entry.meta.source) throw new HttpError(400, 'Write something first.');
   await write(env, entry, true);
   return json(entry, 201);
 }

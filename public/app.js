@@ -90,7 +90,9 @@
     },
   };
 
-  const PROJECTS = [
+  // Fallback list, used until the projects are imported into the studio
+  // (then /api/cv-projects is the source and this list can go).
+  let PROJECTS = [
     {
       name: { he: 'טובים', en: 'Tovim' },
       tag: { he: 'Full-Stack · באוויר', en: 'Full-stack · Live' },
@@ -257,6 +259,7 @@
         else if (p.links.every((l) => l.k !== 'code')) links.append(el('span', { text: t('privateCode') }));
         const media = p.img
           ? el('img', { src: p.img, alt: `${pick(p.name)} screenshot`, loading: 'lazy' })
+          : !p.facts?.length ? null
           : el('dl', { class: 'facts' }, ...p.facts.map((f) => el('div', {}, el('dt', { text: f[lang] }), el('dd', { text: pick(f.v) }))));
         return el(
           'article',
@@ -480,6 +483,21 @@
     renderMedia();
   }
 
+  async function loadProjects() {
+    try {
+      const res = await fetch('api/cv-projects', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const { projects } = await res.json();
+      if (Array.isArray(projects) && projects.length) {
+        PROJECTS = projects;
+        renderProjects();
+      }
+    } catch {
+      // keep the built-in list
+    }
+  }
+
   applyLang();
   load();
+  loadProjects();
 })();

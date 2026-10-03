@@ -156,3 +156,26 @@
 .bar .mark { white-space: nowrap; }
 @media (max-width: 560px) { .bar nav.always { gap: 0.3rem 0.9rem; } }
 .page > .lede { color: var(--muted); font-size: var(--step-1); margin-bottom: 1.5rem; }
+
+/* ---------- studio: projects ---------- */
+.hint { color: var(--muted); font-size: var(--step--1); }
+.source-box { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem 1rem; display: grid; gap: 0.7rem; margin: 0; }
+.source-box legend { font-weight: 600; padding-inline: 0.4rem; }
+.synced { display: grid; gap: 0.25rem; font-size: var(--step--1); color: var(--muted); }
+.synced .err { color: var(--signal); }
+.check-field { align-content: end; }
+.check-field span { display: flex; gap: 0.5rem; align-items: center; font-weight: 500; padding-block: 0.6rem; }
+.rows-table .order { display: inline-flex; gap: 0.25rem; }
+
+/* ---------- /work ---------- */
+.work-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: 1.25rem; }
+.work-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.work-card img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-bottom: 1px solid var(--line); }
+.work-card .body { padding: 1.1rem 1.2rem 1.3rem; display: grid; gap: 0.6rem; align-content: start; }
+.work-card h2 { font-family: var(--display); font-size: var(--step-1); line-height: 1.25; }
+.work-card h2 a { color: var(--ink); text-decoration: none; }
+.work-card h2 a:hover { color: var(--accent); }
+.work-card p { color: var(--muted); font-size: var(--step--1); }
+.work-card .tag, .article .tag { font-family: var(--mono); font-size: 0.75rem; color: var(--signal); text-transform: uppercase; letter-spacing: 0.04em; }
+.article .links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-weight: 500; }
+.article .hero-img { border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: 2rem; }
