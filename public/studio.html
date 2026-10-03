@@ -116,7 +116,14 @@
         <label class="field">קישור למשחק<input type="text" id="p-link-play" dir="ltr" placeholder="https://..."></label>
       </div>
       <div class="settings">
-        <label class="field">תמונה <small>כתובת של תמונה</small><input type="text" id="p-image" dir="ltr"></label>
+        <div class="field">
+          <label for="p-image">תמונה <small>כתובת, או העלאה מהמחשב</small></label>
+          <div class="toolbar">
+            <input class="grow" type="text" id="p-image" dir="ltr">
+            <button class="btn small" type="button" id="p-upload">העלאה</button>
+            <input type="file" id="p-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </div>
+        </div>
         <label class="field">טכנולוגיות / תגיות <small>מופרדות בפסיק</small><input type="text" id="p-tags" dir="auto"></label>
       </div>
       <div class="settings">
@@ -208,6 +215,8 @@
           <button class="btn small" type="button" data-md="quote" title="ציטוט">❝</button>
           <button class="btn small" type="button" data-md="list" title="רשימה">•</button>
           <button class="btn small" type="button" data-md="link" title="קישור">🔗</button>
+          <button class="btn small" type="button" id="ed-upload" title="העלאת תמונה או קובץ">📎 קובץ</button>
+          <input type="file" id="ed-file" accept="image/png,image/jpeg,image/webp,image/gif,audio/*,video/*,application/pdf" hidden>
         </div>
         <button class="btn small" type="button" id="toggle-preview">הסתרת תצוגה מקדימה</button>
       </div>

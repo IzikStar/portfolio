@@ -413,6 +413,38 @@
     ta.focus();
   });
 
+  // ---------- files ----------
+  async function upload(entryId, file) {
+    const form = new FormData();
+    form.set('entryId', entryId);
+    form.set('file', file);
+    return call('/api/studio/files', { method: 'POST', body: form });
+  }
+
+  $('ed-upload').addEventListener('click', () => $('ed-file').click());
+  $('ed-file').addEventListener('change', async () => {
+    const file = $('ed-file').files[0];
+    $('ed-file').value = '';
+    if (!file) return;
+    try {
+      // Files belong to a saved item, so save a new article first.
+      if (!editor.entry) {
+        if (!$('ed-title').value.trim()) $('ed-title').value = file.name.replace(/\.[^.]+$/, '');
+        editor.flush.cancel();
+        await save();
+      }
+      status(`מעלה ${file.name}...`);
+      const f = await upload(editor.entry.id, file);
+      const alt = f.name.replace(/[\[\]]/g, '');
+      const snippet = f.kind === 'image' ? `![${alt}](${f.url})` : `[${alt}](${f.url})`;
+      const ta = $('ed-body');
+      ta.setRangeText(`${snippet}\n`, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input'));
+    } catch (err) {
+      if (!(err instanceof AuthError)) status(err.message, 'err');
+    }
+  });
+
   // ---------- projects ----------
   const project = { entry: null, dirty: false };
 
@@ -615,6 +647,21 @@
   }
 
   $('p-save').addEventListener('click', () => saveProject().catch(() => {}));
+  $('p-upload').addEventListener('click', () => $('p-file').click());
+  $('p-file').addEventListener('change', async () => {
+    const file = $('p-file').files[0];
+    $('p-file').value = '';
+    if (!file) return;
+    try {
+      const entry = project.entry ?? (await saveProject());
+      $('p-status').textContent = `מעלה ${file.name}...`;
+      const f = await upload(entry.id, file);
+      $('p-image').value = f.url;
+      await saveProject();
+    } catch (err) {
+      if (!(err instanceof AuthError)) $('p-status').textContent = err.message;
+    }
+  });
   $('view-project').addEventListener('input', () => {
     project.dirty = true;
     $('p-status').textContent = 'לא נשמר';
