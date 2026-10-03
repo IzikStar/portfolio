@@ -4,7 +4,8 @@
 // people who may see its entry.
 import { db } from './db.js';
 import { HttpError, json } from './http.js';
-import { getEntry, visibleTo } from './entries.js';
+import { getEntry } from './entries.js';
+import { canSee, isPublicEntry } from './spaces.js';
 import { MAX_FILE_BYTES, fileKind } from './limits.js';
 import { serveBytes } from './bytes.js';
 
@@ -50,17 +51,16 @@ export async function deleteFilesOf(env, entryId) {
   await d.prepare('DELETE FROM files WHERE entry_id = ?').bind(entryId).run();
 }
 
-export async function serveFile(request, env, role, id) {
+export async function serveFile(request, env, acc, id) {
   const d = await db(env);
   const row = await d.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
   if (!row) return null;
   const entry = await getEntry(env, row.entry_id);
   if (!entry) return null;
-  const open = entry.status === 'published' && visibleTo(role).includes(entry.visibility);
-  if (role !== 'owner' && !open) return null;
+  if (!canSee(acc, entry)) return null;
   const { value } = await env.MEDIA.getWithMetadata(`blob:${id}`, 'arrayBuffer');
   if (!value) return null;
-  const isPublic = open && entry.visibility === 'public';
+  const isPublic = isPublicEntry(acc, entry);
   // Public files can sit in any cache; the rest stay private to the viewer.
   const cache = isPublic ? 'public, max-age=86400' : 'private, max-age=300';
   const res = serveBytes(request, value, row.type, cache);

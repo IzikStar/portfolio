@@ -165,6 +165,7 @@ export async function importCv(env) {
       {
         id: crypto.randomUUID(),
         kind: 'project',
+        spaceId: 'software',
         slug,
         title: p.title,
         summary: p.summary,

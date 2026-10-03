@@ -2,7 +2,7 @@
 // Routes (hash): #ideas, #articles, #new, #edit/<id>.
 (() => {
   const $ = (id) => document.getElementById(id);
-  const VIS = { private: 'רק אני', members: 'לקהילה', public: 'ציבורי' };
+  const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
   const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const fmt = (iso) => (iso ? dateFmt.format(new Date(iso)) : '');
 

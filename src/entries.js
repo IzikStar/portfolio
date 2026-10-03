@@ -1,24 +1,22 @@
 // Entries: every piece of content on the platform (ideas, articles, projects,
 // works). The owner manages them from the studio; visitors only ever get what
 // their role may see. The same shape is what the future connector API serves.
-import { db, KINDS, VISIBILITY, STATUS } from './db.js';
+import { db, KINDS, VISIBILITY, STATUS, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { renderMarkdown, excerpt } from './markdown.js';
+import { entryFilter, canSee } from './spaces.js';
 
 const MAX_BODY = 200_000;
 
-// Which visibilities a viewer may read. Members come with the community slice.
-export function visibleTo(role) {
-  if (role === 'owner') return VISIBILITY;
-  if (role === 'member') return ['members', 'public'];
-  return ['public'];
-}
+// Where a new item goes when the studio does not say: the wing for its kind.
+const HOME = { ...Object.fromEntries(WINGS.map((w) => [w.kind, w.id])), work: 'videos', humor: 'humor' };
 
 function fromRow(r) {
   if (!r) return null;
   return {
     id: r.id,
     kind: r.kind,
+    spaceId: r.space_id ?? null,
     slug: r.slug,
     title: r.title,
     summary: r.summary,
@@ -96,6 +94,7 @@ function applyFields(entry, body) {
     entry.meta = entry.meta?.synced ? { ...rest, synced: entry.meta.synced } : rest;
   }
   if ('slug' in body) entry.slug = slugify(body.slug) || null;
+  if ('spaceId' in body) entry.spaceId = body.spaceId ? String(body.spaceId) : null;
 
   if (entry.status === 'published') {
     if (!entry.title) throw new HttpError(400, 'Give it a title before publishing.');
@@ -126,23 +125,26 @@ async function write(env, entry, insert) {
 
 async function writeOnce(env, entry, insert) {
   const d = await db(env);
+  if (entry.spaceId && !(await d.prepare('SELECT id FROM spaces WHERE id = ?').bind(entry.spaceId).first())) {
+    throw new HttpError(400, 'That wing or space does not exist.');
+  }
   const row = [
-    entry.kind, entry.slug, entry.title, entry.summary, entry.body, entry.visibility, entry.status,
+    entry.kind, entry.spaceId ?? null, entry.slug, entry.title, entry.summary, entry.body, entry.visibility, entry.status,
     JSON.stringify(entry.tags), JSON.stringify(entry.meta), entry.pinned ? 1 : 0, entry.updatedAt, entry.publishedAt,
   ];
   try {
     if (insert) {
       await d
         .prepare(
-          `INSERT INTO entries (kind, slug, title, summary, body, visibility, status, tags, meta, pinned, updated_at, published_at, id, source, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO entries (kind, space_id, slug, title, summary, body, visibility, status, tags, meta, pinned, updated_at, published_at, id, source, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(...row, entry.id, entry.source, entry.createdAt)
         .run();
     } else {
       await d
         .prepare(
-          `UPDATE entries SET kind = ?, slug = ?, title = ?, summary = ?, body = ?, visibility = ?, status = ?, tags = ?, meta = ?,
+          `UPDATE entries SET kind = ?, space_id = ?, slug = ?, title = ?, summary = ?, body = ?, visibility = ?, status = ?, tags = ?, meta = ?,
            pinned = ?, updated_at = ?, published_at = ? WHERE id = ?`,
         )
         .bind(...row, entry.id)
@@ -171,9 +173,14 @@ export async function getEntry(env, id) {
 export async function studioList(env, url) {
   const d = await db(env);
   const kind = url.searchParams.get('kind');
+  const space = url.searchParams.get('space');
   const q = cleanText(url.searchParams.get('q'), 100);
   const where = [];
   const args = [];
+  if (space) {
+    where.push('space_id = ?');
+    args.push(space);
+  }
   if (kind) {
     where.push('kind = ?');
     args.push(pick(kind, KINDS, 'kind'));
@@ -194,6 +201,7 @@ export async function studioCreate(request, env, source = 'studio') {
   const entry = {
     id: crypto.randomUUID(),
     kind: 'idea',
+    spaceId: null,
     slug: null,
     title: '',
     summary: '',
@@ -210,6 +218,7 @@ export async function studioCreate(request, env, source = 'studio') {
   };
   if (!('kind' in body)) throw new HttpError(400, 'Say what kind of item this is.');
   applyFields(entry, body);
+  if (!('spaceId' in body)) entry.spaceId = HOME[entry.kind] ?? null;
   if (!entry.title && !entry.body.trim() && !entry.meta.source) throw new HttpError(400, 'Write something first.');
   await write(env, entry, true);
   return json(entry, 201);
@@ -243,52 +252,57 @@ export async function preview(request) {
 }
 
 // ---------- visitors ----------
+// acc is what access() in spaces.js worked out for this viewer.
 
-export async function listVisible(env, role, kind, limit = 100) {
+export async function listVisible(env, acc, kind, limit = 100) {
   const d = await db(env);
-  const vis = visibleTo(role);
+  const f = entryFilter(acc);
+  const { results } = await d
+    .prepare(`SELECT * FROM entries WHERE kind = ? AND ${f.sql} ORDER BY pinned DESC, published_at DESC LIMIT ?`)
+    .bind(kind, ...f.args, limit)
+    .all();
+  return results.map(fromRow);
+}
+
+// What one space shows: its own items and, for a wing, everything below it.
+export async function listInSpace(env, acc, spaceIds, limit = 300) {
+  const d = await db(env);
+  const f = entryFilter(acc);
   const { results } = await d
     .prepare(
-      `SELECT * FROM entries WHERE kind = ? AND status = 'published' AND visibility IN (${vis.map(() => '?').join(', ')})
-       ORDER BY pinned DESC, published_at DESC LIMIT ?`,
+      `SELECT * FROM entries WHERE kind != 'idea' AND space_id IN (SELECT value FROM json_each(?)) AND ${f.sql}
+       ORDER BY pinned DESC, COALESCE(json_extract(meta, '$.order'), 1e9), published_at DESC LIMIT ?`,
     )
-    .bind(kind, ...vis, limit)
+    .bind(JSON.stringify(spaceIds), ...f.args, limit)
     .all();
   return results.map(fromRow);
 }
 
 // Everything published that this viewer may see, newest first (ideas never).
-export async function listFeed(env, role, limit = 100) {
+export async function listFeed(env, acc, limit = 100) {
   const d = await db(env);
-  const vis = visibleTo(role);
+  const f = entryFilter(acc);
   const { results } = await d
-    .prepare(
-      `SELECT * FROM entries WHERE kind != 'idea' AND status = 'published' AND visibility IN (${vis.map(() => '?').join(', ')})
-       ORDER BY published_at DESC LIMIT ?`,
-    )
-    .bind(...vis, limit)
+    .prepare(`SELECT * FROM entries WHERE kind != 'idea' AND ${f.sql} ORDER BY COALESCE(published_at, updated_at) DESC LIMIT ?`)
+    .bind(...f.args, limit)
     .all();
   return results.map(fromRow);
 }
 
-export async function findVisible(env, role, kind, slug) {
+export async function findVisible(env, acc, kind, slug) {
   const d = await db(env);
-  const row = await d.prepare(`SELECT * FROM entries WHERE kind = ? AND slug = ?`).bind(kind, slug).first();
-  const entry = fromRow(row);
-  if (!entry) return null;
-  if (role === 'owner') return entry;
-  if (entry.status !== 'published' || !visibleTo(role).includes(entry.visibility)) return null;
-  return entry;
+  const entry = fromRow(await d.prepare(`SELECT * FROM entries WHERE kind = ? AND slug = ?`).bind(kind, slug).first());
+  return entry && canSee(acc, entry) ? entry : null;
 }
 
 export function card(entry) {
-  const { id, kind, slug, title, visibility, tags, publishedAt, updatedAt } = entry;
-  return { id, kind, slug, title, visibility, tags, publishedAt, updatedAt, summary: entry.summary || excerpt(entry.body) };
+  const { id, kind, spaceId, slug, title, visibility, tags, publishedAt, updatedAt } = entry;
+  return { id, kind, spaceId, slug, title, visibility, tags, publishedAt, updatedAt, summary: entry.summary || excerpt(entry.body) };
 }
 
-export async function publicList(env, role, url) {
+export async function publicList(env, acc, isPublic, url) {
   const kind = url.searchParams.get('kind') || 'article';
   if (!KINDS.includes(kind) || kind === 'idea') throw new HttpError(400, 'Unknown kind.');
-  const entries = await listVisible(env, role, kind);
-  return json({ entries: entries.map(card) }, 200, { 'Cache-Control': role === 'public' ? 'public, max-age=60' : 'private, no-store' });
+  const entries = await listVisible(env, acc, kind);
+  return json({ entries: entries.map(card) }, 200, { 'Cache-Control': isPublic ? 'public, max-age=60' : 'private, no-store' });
 }

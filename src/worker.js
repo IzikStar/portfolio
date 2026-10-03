@@ -19,6 +19,7 @@ import { writingIndex, writingPage, communityPage, workIndex, workPage } from '.
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { serveBytes } from './bytes.js';
+import { access, listSpaces, requestJoin, studioSpaces, createSpace, updateSpace, deleteSpace, spaceMembers, decideMember } from './spaces.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 
@@ -59,7 +60,7 @@ async function pages(request, env, url) {
   if (path === '/community') return communityPage(env, await viewer(request, env));
   if (path === '/work') return workIndex(env, await viewer(request, env));
   const f = path.match(/^\/files\/([a-z0-9-]+)$/);
-  if (f) return (await serveFile(request, env, (await viewer(request, env)).role, f[1])) ?? notFound(request, env);
+  if (f) return (await serveFile(request, env, (await viewer(request, env)).acc, f[1])) ?? notFound(request, env);
   const m = path.match(/^\/(writing|work)\/([^/]+)$/);
   if (m) {
     let slug;
@@ -74,11 +75,16 @@ async function pages(request, env, url) {
   return null;
 }
 
-// Who is asking: the owner, a signed-in member, or the public.
+// Who is asking (the owner, a signed-in member, or the public) and what they may open.
 async function viewer(request, env) {
-  if (await isOwner(request, env)) return { role: 'owner', member: null };
-  const member = await currentMember(request, env);
-  return member ? { role: 'member', member } : { role: 'public', member: null };
+  let v;
+  if (await isOwner(request, env)) v = { role: 'owner', member: null };
+  else {
+    const member = await currentMember(request, env);
+    v = member ? { role: 'member', member } : { role: 'public', member: null };
+  }
+  v.acc = await access(env, v);
+  return v;
 }
 
 async function notFound(request, env) {
@@ -99,7 +105,11 @@ async function api(request, env, url) {
   }
 
   if (path === '/api/cv-projects' && method === 'GET') return cvProjects(env);
-  if (path === '/api/entries' && method === 'GET') return publicList(env, (await viewer(request, env)).role, url);
+  if (path === '/api/entries' && method === 'GET') {
+    const v = await viewer(request, env);
+    return publicList(env, v.acc, v.role === 'public', url);
+  }
+  if (path === '/api/spaces' && method === 'GET') return listSpaces(env, (await viewer(request, env)).acc);
   if (path.startsWith('/api/studio/')) return studio(request, env, url);
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
 
@@ -143,6 +153,13 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
+  if (path === '/api/studio/spaces' && method === 'GET') return studioSpaces(env);
+  if (path === '/api/studio/spaces' && method === 'POST') return createSpace(request, env);
+  const sp = path.match(/^\/api\/studio\/spaces\/([a-z0-9-]+)(\/members)?$/);
+  if (sp && !sp[2] && method === 'PATCH') return updateSpace(request, env, sp[1]);
+  if (sp && !sp[2] && method === 'DELETE') return deleteSpace(env, sp[1]);
+  if (sp && sp[2] && method === 'GET') return spaceMembers(env, sp[1]);
+  if (sp && sp[2] && method === 'PATCH') return decideMember(request, env, sp[1]);
   if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
   if (path === '/api/studio/files' && method === 'POST') return uploadFile(request, env);
   const fm = path.match(/^\/api\/studio\/files\/([a-z0-9-]+)$/);
@@ -182,6 +199,8 @@ async function memberApi(request, env, url) {
   if (path === '/api/member/login' && method === 'POST') return memberLogin(request, env);
   if (path === '/api/member/logout' && method === 'POST') return memberLogout();
   if (path === '/api/member/me' && method === 'GET') return me(request, env);
+  const jm = path.match(/^\/api\/member\/spaces\/([a-z0-9-]+)\/join$/);
+  if (jm && method === 'POST') return requestJoin(request, env, await viewer(request, env), jm[1]);
   throw new HttpError(404, 'Not found.');
 }
 
