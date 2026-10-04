@@ -7,6 +7,7 @@
 //   MEDIA          KV namespace
 //   DB             D1 database (platform entries, members, invites)
 //   ADMIN_PASSWORD secret, the only way into the studio
+//   ANTHROPIC_API_KEY secret, optional: the writing partner on the ideas page (src/muse.js)
 
 import { HttpError, json, checkOrigin } from './http.js';
 import { login, logout, isOwner, requireOwner } from './auth.js';
@@ -24,6 +25,7 @@ import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
 import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
+import { museIdea, dropMuse, getPulse, runPulse, seePulse, runWeekly, museCron } from './muse.js';
 import { communityRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
 
@@ -38,6 +40,8 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncAll(env).then((r) => console.log('source sync', r)));
     ctx.waitUntil(importLegacyOnce(env).then((r) => r && console.log('legacy import', r)));
+    // The ideas page's writing partner: the week's parasha draft, new directions.
+    ctx.waitUntil(museCron(env).then((r) => r && console.log('muse', r)));
   },
 
   async fetch(request, env, ctx) {
@@ -177,6 +181,14 @@ async function studio(request, env, url) {
   // The idea notebook (see src/ideas.js).
   if (path === '/api/studio/ideas' && method === 'GET') return listIdeas(env);
   if (path === '/api/studio/ideas' && method === 'POST') return captureIdea(request, env);
+  // The writing partner on the ideas page (see src/muse.js).
+  if (path === '/api/studio/ideas/pulse' && method === 'GET') return getPulse(env);
+  if (path === '/api/studio/ideas/pulse' && method === 'POST') return runPulse(env);
+  if (path === '/api/studio/ideas/pulse/seen' && method === 'POST') return seePulse(env);
+  if (path === '/api/studio/ideas/weekly' && method === 'POST') return runWeekly(env);
+  const mu = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)\/muse$/);
+  if (mu && method === 'POST') return museIdea(request, env, mu[1]);
+  if (mu && method === 'DELETE') return dropMuse(request, env, mu[1]);
   const gi = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)(\/grow)?$/);
   if (gi && !gi[2] && method === 'PATCH') return updateIdea(request, env, gi[1]);
   if (gi && gi[2] && method === 'POST') return growIdea(request, env, gi[1]);

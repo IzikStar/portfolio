@@ -84,6 +84,24 @@
 .board .actions { gap: 8px; }
 .spark-text { font-family: var(--display); font-size: clamp(21px, 2.6vw, 27px); line-height: 1.35; overflow-wrap: anywhere; }
 .resurface .idea { background: var(--ground); }
+.muse-board { --tint: color-mix(in srgb, var(--accent) 8%, var(--raised)); }
+.muse-text, .muse-out, .muse-saved .say { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.muse-text:empty { display: none; }
+.muse-board .muse-text { max-height: 24rem; overflow: auto; }
+.muse-board.fresh { border-color: var(--accent); }
+.muse-board.folded .muse-text { max-height: 4.8em; overflow: hidden; }
+.idea.open .text { max-height: none; }
+.idea .more { justify-self: start; font: inherit; font-size: 14px; background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.idea .muse-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.idea .muse-ask { display: flex; gap: 6px; }
+.idea .muse-ask input { flex: 1; min-width: 0; }
+.idea .muse-out { background: var(--ground); border-radius: 12px; padding: 12px; font-size: 15px; }
+.idea .muse-out:empty { display: none; }
+.idea .muse-saved { display: grid; gap: 6px; }
+.idea .muse-saved details { background: var(--ground); border-radius: 12px; padding: 8px 12px; }
+.idea .muse-saved summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+.idea .muse-saved .say { font-size: 15px; margin: 8px 0; }
+.idea .weekly { font-size: 14px; color: var(--accent); }
 
 .idea-filters { display: grid; gap: 10px; }
 .filters .n { font-size: 12px; opacity: 0.7; margin-inline-start: 6px; }

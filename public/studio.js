@@ -49,6 +49,31 @@
     return data;
   }
   const send = (path, method, body) => call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+  // The writing partner answers as a stream of plain text (src/muse.js). The
+  // text shows as it arrives; a last line starting with ⟂ says how it ended.
+  async function stream(path, body, onText) {
+    const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        showLogin('הכניסה פגה. צריך להיכנס שוב.');
+        throw new AuthError();
+      }
+      throw new Error(data.error || `שגיאה ${res.status}`);
+    }
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let text = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += value;
+      onText(text.split('\n\n⟂')[0]);
+    }
+    const [answer, end = ''] = text.split('\n\n⟂');
+    if (end.startsWith('refusal')) throw new Error('העוזר לא הסכים לענות על זה. אפשר לנסח אחרת.');
+    if (end.startsWith('error')) throw new Error(end.slice(6) || 'העוזר נתקע באמצע.');
+    return { text: answer.trim(), cut: end.startsWith('cut') };
+  }
   const report = (id) => (err) => {
     if (!(err instanceof AuthError)) say(id, err.message, 'err');
   };
@@ -239,7 +264,7 @@
 
   async function loadIdeas() {
     try {
-      const [{ ideas }] = await Promise.all([call('/api/studio/ideas'), ideasView.sparks ? null : loadSparks()]);
+      const [{ ideas }] = await Promise.all([call('/api/studio/ideas'), ideasView.sparks ? null : loadSparks(), loadMuse()]);
       ideasView.list = ideas;
       if (!ideasView.spark) nextSpark();
       if (!ideas.some((i) => i.id === ideasView.oldId)) nextOld();
@@ -458,23 +483,160 @@
       area.focus();
     };
 
+    // The writing partner on this idea: new directions, writing the next part,
+    // questions; or his own request. The answer stays on the idea.
+    const MUSE = { directions: 'כיוונים חדשים', write: 'תכתוב איתי', questions: 'שאלות שיקדמו' };
+    const muse = () => {
+      const out = h('div', { className: 'muse-out', dir: 'auto' });
+      const askInput = h('input', { type: 'text', dir: 'auto', placeholder: 'או לבקש משהו משלך (למשל: תהפוך את זה לפזמון)', ariaLabel: 'בקשה לעוזר' });
+      const buttons = [];
+      const run = async (mode) => {
+        buttons.forEach((b) => (b.disabled = true));
+        msg.textContent = 'חושב...';
+        msg.className = 'msg';
+        out.textContent = '';
+        try {
+          const { cut } = await stream(`/api/studio/ideas/${idea.id}/muse`, { mode, ask: askInput.value }, (t) => {
+            out.textContent = t;
+            if (t) msg.textContent = '';
+          });
+          msg.textContent = cut ? 'התשובה נקטעה באמצע. מה שהגיע נשמר.' : '';
+          const fresh = (await call('/api/studio/ideas')).ideas.find((x) => x.id === idea.id);
+          if (fresh) replaceIdea(fresh);
+        } catch (err) {
+          fail(err);
+          buttons.forEach((b) => (b.disabled = false));
+        }
+      };
+      for (const [mode, label] of Object.entries(MUSE)) buttons.push(act(label, () => run(mode), mode === 'directions' ? 'accent' : ''));
+      const go = act('לשלוח', () => (askInput.value.trim() ? run('ask') : askInput.focus()), 'primary');
+      buttons.push(go);
+      askInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') go.click();
+      });
+      panel.replaceChildren(
+        h('div', { className: 'muse-modes' }, ...buttons.filter((b) => b !== go)),
+        h('div', { className: 'muse-ask' }, askInput, go),
+        out,
+        h('div', { className: 'actions' }, act('סגירה', close)),
+      );
+    };
+    const saved = (idea.meta.muse ?? []).slice().reverse();
+    const savedBox = saved.length
+      ? h(
+          'div',
+          { className: 'muse-saved' },
+          ...saved.map((m, i) => {
+            const d = h(
+              'details',
+              {},
+              h('summary', { textContent: `${MUSE[m.mode] ?? m.ask ?? 'בקשה'} · ${when(m.at)}` }),
+              m.ask && m.mode !== 'ask' ? h('p', { className: 'hint', dir: 'auto', textContent: m.ask }) : null,
+              h('div', { className: 'say', dir: 'auto', textContent: m.text }),
+              h(
+                'div',
+                { className: 'actions' },
+                act('להוסיף כמחשבה', () => tend({ note: m.text })),
+                act('הסרה', () => confirm('להסיר את התשובה הזאת?') && send(`/api/studio/ideas/${idea.id}/muse`, 'DELETE', { at: m.at }).then(replaceIdea, fail), 'danger'),
+              ),
+            );
+            if (m.mode === 'ask') d.querySelector('summary').textContent = `${m.ask.slice(0, 60)} · ${when(m.at)}`;
+            d.open = i === 0 && Date.now() - Date.parse(m.at) < 10 * 60_000;
+            return d;
+          }),
+        )
+      : null;
+    const weekly = idea.meta.weekly
+      ? h('p', { className: 'weekly', dir: 'auto', textContent: `טיוטה שבועית ל${idea.meta.weekly.hebrew}. מחכה שתשלים אותה לפני שבת, ואז "לפתח לטיוטה" שולח אותה לדברי תורה.` })
+      : null;
+
     const notes = idea.meta.notes ?? [];
     node.append(
       ...[
         h('div', { className: 'idea-top' }, wingPick, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
         idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
+        weekly,
         idea.body.trim() ? h('div', { className: 'text', dir: 'auto', textContent: idea.body }) : null,
+        idea.body.length > 500 ? h('button', { className: 'quiet more', type: 'button', textContent: 'להמשיך לקרוא', onclick: (e) => {
+          node.classList.add('open');
+          e.target.remove();
+        } }) : null,
         idea.files.length ? h('div', { className: 'files' }, ...idea.files.map(fileView)) : null,
         idea.meta.spark ? h('p', { className: 'from-spark', dir: 'auto', textContent: `מתוך ניצוץ: ${idea.meta.spark}` }) : null,
         notes.length ? h('ul', { className: 'notes' }, ...notes.map((n) => h('li', { dir: 'auto' }, n.text, h('time', { dateTime: n.at, textContent: when(n.at) })))) : null,
         idea.tags.length ? h('ul', { className: 'chips' }, ...idea.tags.map((t) => h('li', { textContent: `#${t}` }))) : null,
-        h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('לפתח לטיוטה', grow)),
+        savedBox,
+        h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('עוזר כתיבה', muse), act('לפתח לטיוטה', grow)),
         panel,
         msg,
       ].filter(Boolean),
     );
     return node;
   }
+
+  // ---------- new directions (the writing partner reads the notebook) ----------
+  const museView = { pulse: null, newSince: 0, ready: false };
+  async function loadMuse() {
+    try {
+      Object.assign(museView, await call('/api/studio/ideas/pulse'));
+    } catch {
+      return;
+    }
+    drawMuse();
+  }
+  function drawMuse() {
+    const { pulse, newSince, ready } = museView;
+    $('muse-board').hidden = false;
+    $('muse-board').classList.toggle('fresh', Boolean(pulse && !pulse.seen));
+    $('muse-when').textContent = pulse ? `${when(pulse.at)}, מתוך ${pulse.count} רעיונות` : '';
+    $('muse-text').textContent = ready
+      ? pulse?.text ?? 'כאן יופיע מה חדש אצלך: כיוונים יצירתיים שאתה פותח, חוטים שחוזרים. הבדיקה רצה לבד פעם ביום כשנכנסים רעיונות חדשים.'
+      : 'עוזר הכתיבה עוד לא מחובר: צריך להוסיף ב-Cloudflare סוד בשם ANTHROPIC_API_KEY.';
+    $('muse-run').textContent = newSince ? `לקרוא את ${newSince === 1 ? 'הרעיון החדש' : `${newSince} הרעיונות החדשים`}` : 'לקרוא שוב את החודש האחרון';
+    $('muse-run').disabled = !ready;
+    $('muse-weekly').disabled = !ready;
+    $('muse-seen').hidden = !(pulse && !pulse.seen);
+    // Once read, the pulse folds to its first lines.
+    $('muse-board').classList.toggle('folded', Boolean(pulse?.seen) && !museView.unfold);
+    $('muse-more').hidden = !$('muse-board').classList.contains('folded');
+  }
+  $('muse-run').addEventListener('click', async () => {
+    $('muse-run').disabled = true;
+    say('muse-msg', 'קורא את המחברת...');
+    try {
+      await stream('/api/studio/ideas/pulse', {}, (t) => {
+        $('muse-text').textContent = t;
+        if (t) say('muse-msg', '');
+      });
+      say('muse-msg', '');
+      await loadMuse();
+    } catch (err) {
+      report('muse-msg')(err);
+      $('muse-run').disabled = false;
+    }
+  });
+  $('muse-more').addEventListener('click', () => {
+    museView.unfold = true;
+    drawMuse();
+  });
+  $('muse-seen').addEventListener('click', async () => {
+    await send('/api/studio/ideas/pulse/seen', 'POST').catch(() => {});
+    if (museView.pulse) museView.pulse.seen = true;
+    drawMuse();
+  });
+  $('muse-weekly').addEventListener('click', async () => {
+    $('muse-weekly').disabled = true;
+    say('muse-msg', 'כותב טיוטה על הפרשה...');
+    try {
+      const idea = await send('/api/studio/ideas/weekly', 'POST');
+      ideasView.list.unshift({ files: [], ...idea });
+      say('muse-msg', 'הטיוטה מחכה למעלה, נעוצה.', 'ok');
+      drawIdeas();
+    } catch (err) {
+      report('muse-msg')(err);
+    }
+    $('muse-weekly').disabled = !museView.ready;
+  });
 
   // ---------- an old idea comes back ----------
   function oldPool() {
