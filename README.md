@@ -21,6 +21,7 @@ Personal site of Itschak Shteren: full-stack developer, musician, writer, voice 
   - `/writing` and `/writing/:slug` are rendered on the server. Raw HTML in Markdown is shown as text and only http(s), mailto and same-site links survive.
 - Uploaded files are stored in Workers KV (one value per file, 25 MB max; bigger videos go on YouTube and are added as links).
 - The owner's password is a Worker secret (`ADMIN_PASSWORD`). Changing it logs out every session.
+- The ideas page has a writing partner (`src/muse.js`, Claude Fable 5.1 through the Messages API with server-side fallbacks on): on any idea it opens new directions, writes the next part or asks questions; every day the cron reads the new ideas and names new creative directions; each week it leaves a half-written draft about the week's parasha (from Hebcal), pinned in the notebook. It needs an `ANTHROPIC_API_KEY` secret; without one the studio says so and the cron skips it.
 
 ## Develop
 
