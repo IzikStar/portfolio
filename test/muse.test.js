@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import worker from '../src/worker.js';
 import { FakeD1 } from './fake-d1.js';
-import { MODEL } from '../src/muse.js';
+import { DEFAULT_MODEL } from '../src/muse.js';
 
 const ORIGIN = 'https://site.test';
 let env;
@@ -13,7 +13,7 @@ const realFetch = globalThis.fetch;
 // An SSE stream the way the Messages API sends it: thinking first, then text.
 function sse(text, stopReason) {
   const events = [
-    { type: 'message_start', message: { model: MODEL } },
+    { type: 'message_start', message: { model: DEFAULT_MODEL } },
     { type: 'content_block_start', index: 0, content_block: { type: 'thinking' } },
     { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hm' } },
     { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } },
@@ -73,7 +73,7 @@ const ideas = async (cookie) => (await (await call(cookie, '/api/studio/ideas'))
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
 describe('the writing partner on one idea', () => {
-  it('streams the answer, sends the idea to Fable with fallbacks on, and keeps the answer on the idea', async () => {
+  it('streams the answer, sends the idea to the default model with fallbacks on, and keeps the answer on the idea', async () => {
     const o = await owner();
     const idea = await capture(o, 'שיר על רכבת לילה', 'music');
     const res = await call(o, `/api/studio/ideas/${idea.id}/muse`, 'POST', { mode: 'directions' });
@@ -85,7 +85,7 @@ describe('the writing partner on one idea', () => {
     const [{ headers, body }] = sent;
     expect(headers['anthropic-beta']).toBe('server-side-fallback-2026-07-01');
     expect(headers['x-api-key']).toBe('sk-test');
-    expect(body).toMatchObject({ model: 'claude-fable-5-1', fallbacks: 'default', stream: true, output_config: { effort: 'high' } });
+    expect(body).toMatchObject({ model: 'claude-opus-5-5', fallbacks: 'default', stream: true, output_config: { effort: 'high' } });
     expect('thinking' in body).toBe(false);
     expect(body.messages[0].content).toContain('שיר על רכבת לילה');
     expect(body.messages[0].content).toContain('מוזיקה');
@@ -110,6 +110,39 @@ describe('the writing partner on one idea', () => {
 
     const res = await call(o, `/api/studio/ideas/${idea.id}/muse`, 'DELETE', { at: saved.meta.muse[0].at });
     expect((await res.json()).meta.muse.map((m) => m.mode)).toEqual(['questions']);
+  });
+
+  it('uses the model he picks, for every call or for one', async () => {
+    const o = await owner();
+    const idea = await capture(o, 'משהו');
+    expect((await call(o, '/api/studio/muse/model', 'PUT', { model: 'gpt' })).status).toBe(400);
+    expect((await call(o, '/api/studio/muse/model', 'PUT', { model: 'claude-fable-5-1' })).status).toBe(200);
+    expect((await (await call(o, '/api/studio/ideas/pulse')).json()).model).toBe('claude-fable-5-1');
+    await (await call(o, `/api/studio/ideas/${idea.id}/muse`, 'POST', { mode: 'write' })).text();
+    expect(sent[0].body.model).toBe('claude-fable-5-1');
+    // Haiku has no effort setting and no server-side fallbacks.
+    await (await call(o, `/api/studio/ideas/${idea.id}/muse`, 'POST', { mode: 'write', model: 'claude-haiku-4-5-20251001' })).text();
+    expect(sent[1].body.model).toBe('claude-haiku-4-5-20251001');
+    expect('output_config' in sent[1].body || 'fallbacks' in sent[1].body).toBe(false);
+    expect(sent[1].headers['anthropic-beta']).toBe(undefined);
+    await settle();
+    expect((await ideas(o))[0].meta.muse.map((m) => m.model)).toEqual(['claude-fable-5-1', 'claude-haiku-4-5-20251001']);
+  });
+
+  it("knows each wing's craft: a music idea can ask for rhyme and meter, a book idea cannot", async () => {
+    const o = await owner();
+    const song = await capture(o, 'שיר על רכבת', 'music');
+    const book = await capture(o, 'פרק בגרגמיץ', 'books');
+    await (await call(o, `/api/studio/ideas/${song.id}/muse`, 'POST', { mode: 'rhyme' })).text();
+    expect(sent[0].body.messages[0].content).toMatch(/^זה שיר: מילים ללחן/);
+    expect(sent[0].body.messages[0].content).toContain('חרוז');
+    expect(sent[0].body.output_config.effort).toBe('medium');
+    await (await call(o, `/api/studio/ideas/${book.id}/muse`, 'POST', { mode: 'rhyme' })).text();
+    expect(sent[1].body.messages[0].content).toContain('עורך ספרות');
+    expect(sent[1].body.messages[0].content).toContain('תפתח לי כיוונים חדשים');
+    const labels = await (await call(o, '/api/studio/ideas/pulse')).json();
+    expect(labels.wingModes.music).toMatchObject({ rhyme: 'חרוז ומשקל', chorus: 'פזמון' });
+    expect(labels.modes).toEqual({ directions: 'כיוונים חדשים', write: 'תכתוב איתי', questions: 'שאלות שיקדמו' });
   });
 
   it('says so on a refusal and keeps nothing', async () => {

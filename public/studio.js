@@ -164,7 +164,7 @@
     if (view === 'edit' && id) return void (location.hash = `#item/${id}`);
     if (!state.spaces.length) await loadSpaces().catch(() => {});
     let tab = view;
-    if (view === 'wing') tab = `wing/${id}`;
+    if (view === 'wing' || (view === 'ideas' && WING_KINDS[id])) tab = `wing/${id}`;
     else if (view === 'space' || view === 'new') tab = `wing/${wingOf(id)?.id}`;
     else if (view === 'project' || view === 'project-new') tab = 'projects';
     else if (view === 'group') tab = 'communities';
@@ -185,7 +185,7 @@
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'item' && view !== 'new';
-    if (view === 'ideas') loadIdeas();
+    if (view === 'ideas') openNotebook(WING_KINDS[id] ? id : '');
     else if (view === 'wing' && WING_KINDS[id]) openWing(id);
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
@@ -227,7 +227,7 @@
   const WING_IDS = Object.keys(WING_NAME);
   const DAY = 86_400_000;
   const SAVED = ['נשמר.', 'נכנס למחברת.', 'תפוס.', 'רשום.'];
-  const ideasView = { list: [], sparks: null, wing: '', tag: '', spark: null, oldId: null, pending: null, answering: '' };
+  const ideasView = { list: [], sparks: null, wing: '', tag: '', spark: null, oldId: null, pending: null, answering: '', scope: '' };
   const shortDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short' });
   const longDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric' });
   const when = (iso) => (new Date(iso).getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(new Date(iso));
@@ -262,12 +262,48 @@
     return y === 1 ? 'לפני שנה' : y === 2 ? 'לפני שנתיים' : `לפני ${y} שנים`;
   }
 
+  // A wing's notebook (#ideas/<wing>) is the same page kept to that wing:
+  // what is written there belongs to it, its sparks, its own writing helpers.
+  const PLACEHOLDER = {
+    '': 'מה עובר לך בראש?',
+    music: 'שורה, לחן, אקורד שתפס...',
+    books: 'סצנה, דמות, חור בעלילה...',
+    sketches: 'מצב מצחיק, דמות, שורת סיום...',
+    humor: 'קטע לדבב, קול, שורה...',
+    torah: 'פסוק שהפריע, קושיה...',
+    articles: 'טענה, משהו שמציק לך...',
+    software: 'כלי שהיית רוצה שיהיה...',
+    videos: 'הוק, שוט, משהו שרק מצלמה יכולה להראות...',
+  };
+  function openNotebook(scope) {
+    ideasView.scope = scope;
+    ideasView.wing = '';
+    const page = $('view-ideas');
+    if (scope) page.dataset.wing = scope;
+    else delete page.dataset.wing;
+    $('ideas-title').textContent = scope ? `המחברת של ${WING_NAME[scope]}` : 'רעיונות';
+    $('ideas-wing-link').hidden = !scope;
+    $('ideas-wing-link').href = `#wing/${scope}`;
+    $('capture-text').placeholder = PLACEHOLDER[scope] ?? PLACEHOLDER[''];
+    $('capture-wing').value = scope;
+    $('capture-wing').hidden = Boolean(scope);
+    $('spark-wing').value = scope;
+    $('spark-wing').hidden = Boolean(scope);
+    $('idea-wings').hidden = Boolean(scope);
+    $('ideas-empty').textContent = scope ? `המחברת של ${WING_NAME[scope]} ריקה. הניצוץ למעלה מחכה.` : 'עוד אין כאן כלום. מה שתזרוק למעלה נשמר כאן, רק אצלך.';
+    ideasView.spark = null;
+    ideasView.oldId = null;
+    loadIdeas();
+  }
+  // The ideas this page shows: all of them, or the wing's.
+  const scoped = () => (ideasView.scope ? ideasView.list.filter((i) => i.meta.wing === ideasView.scope) : ideasView.list);
+
   async function loadIdeas() {
     try {
       const [{ ideas }] = await Promise.all([call('/api/studio/ideas'), ideasView.sparks ? null : loadSparks(), loadMuse()]);
       ideasView.list = ideas;
       if (!ideasView.spark) nextSpark();
-      if (!ideas.some((i) => i.id === ideasView.oldId)) nextOld();
+      if (!scoped().some((i) => i.id === ideasView.oldId)) nextOld();
       drawIdeas();
     } catch (err) {
       report('capture-msg')(err);
@@ -290,7 +326,8 @@
 
   function drawIdeas() {
     // Same order as the server: pinned first, then whatever was touched last.
-    const all = ideasView.list.sort((a, b) => b.pinned - a.pinned || b.updatedAt.localeCompare(a.updatedAt));
+    ideasView.list.sort((a, b) => b.pinned - a.pinned || b.updatedAt.localeCompare(a.updatedAt));
+    const all = scoped();
     drawPulse(all);
     drawFilters(all);
     const q = $('idea-search').value.trim().toLowerCase();
@@ -423,6 +460,10 @@
       };
       wingSel.addEventListener('change', fill);
       fill();
+      // Came back from being an item: start from where it was.
+      const was = idea.meta.was;
+      if (was && [...spaceSel.options].some((o) => o.value === was.spaceId)) spaceSel.value = was.spaceId;
+      if (was && [...kindSel.options].some((o) => o.value === was.kind)) kindSel.value = was.kind;
       const field = (label, input) => h('label', { className: 'field' }, label, input);
       const go = act('לפתוח טיוטה', async () => {
         try {
@@ -485,10 +526,11 @@
 
     // The writing partner on this idea: new directions, writing the next part,
     // questions; or his own request. The answer stays on the idea.
-    const MUSE = { directions: 'כיוונים חדשים', write: 'תכתוב איתי', questions: 'שאלות שיקדמו' };
+    const MUSE = { ...(museView.modes ?? { directions: 'כיוונים חדשים', write: 'תכתוב איתי', questions: 'שאלות שיקדמו' }), ...(museView.wingModes?.[wing] ?? {}) };
     const muse = () => {
       const out = h('div', { className: 'muse-out', dir: 'auto' });
       const askInput = h('input', { type: 'text', dir: 'auto', placeholder: 'או לבקש משהו משלך (למשל: תהפוך את זה לפזמון)', ariaLabel: 'בקשה לעוזר' });
+      const modelSel = modelPick(museView.model);
       const buttons = [];
       const run = async (mode) => {
         buttons.forEach((b) => (b.disabled = true));
@@ -496,7 +538,7 @@
         msg.className = 'msg';
         out.textContent = '';
         try {
-          const { cut } = await stream(`/api/studio/ideas/${idea.id}/muse`, { mode, ask: askInput.value }, (t) => {
+          const { cut } = await stream(`/api/studio/ideas/${idea.id}/muse`, { mode, ask: askInput.value, model: modelSel.value }, (t) => {
             out.textContent = t;
             if (t) msg.textContent = '';
           });
@@ -517,6 +559,7 @@
       panel.replaceChildren(
         h('div', { className: 'muse-modes' }, ...buttons.filter((b) => b !== go)),
         h('div', { className: 'muse-ask' }, askInput, go),
+        h('label', { className: 'muse-model' }, 'מודל', modelSel),
         out,
         h('div', { className: 'actions' }, act('סגירה', close)),
       );
@@ -537,6 +580,19 @@
                 'div',
                 { className: 'actions' },
                 act('להוסיף כמחשבה', () => tend({ note: m.text })),
+                act('לרעיון חדש', async () => {
+                  const form = new FormData();
+                  form.set('text', m.text);
+                  form.set('wing', wing ?? '');
+                  form.set('spark', (idea.title || idea.body).split('\n')[0].slice(0, 200));
+                  try {
+                    const fresh = await call('/api/studio/ideas', { method: 'POST', body: form });
+                    ideasView.list.splice(Math.max(0, ideasView.list.findIndex((x) => !x.pinned)), 0, fresh);
+                    drawIdeas();
+                  } catch (err) {
+                    fail(err);
+                  }
+                }),
                 act('הסרה', () => confirm('להסיר את התשובה הזאת?') && send(`/api/studio/ideas/${idea.id}/muse`, 'DELETE', { at: m.at }).then(replaceIdea, fail), 'danger'),
               ),
             );
@@ -546,6 +602,9 @@
           }),
         )
       : null;
+    const was = idea.meta.was
+      ? h('p', { className: 'from-spark', dir: 'auto', textContent: `היה ${KIND[idea.meta.was.kind] ?? ''}${state.byId.get(idea.meta.was.spaceId) ? ` ב${state.byId.get(idea.meta.was.spaceId).title}` : ''} · חזר למחברת ${when(idea.meta.was.at)}` })
+      : null;
     const weekly = idea.meta.weekly
       ? h('p', { className: 'weekly', dir: 'auto', textContent: `טיוטה שבועית ל${idea.meta.weekly.hebrew}. מחכה שתשלים אותה לפני שבת, ואז "לפתח לטיוטה" שולח אותה לדברי תורה.` })
       : null;
@@ -553,7 +612,7 @@
     const notes = idea.meta.notes ?? [];
     node.append(
       ...[
-        h('div', { className: 'idea-top' }, wingPick, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
+        h('div', { className: 'idea-top' }, wingPick, wing && !ideasView.scope ? h('a', { className: 'to-notebook', href: `#ideas/${wing}`, textContent: 'למחברת ←' }) : null, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
         idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
         weekly,
         idea.body.trim() ? h('div', { className: 'text', dir: 'auto', textContent: idea.body }) : null,
@@ -563,6 +622,7 @@
         } }) : null,
         idea.files.length ? h('div', { className: 'files' }, ...idea.files.map(fileView)) : null,
         idea.meta.spark ? h('p', { className: 'from-spark', dir: 'auto', textContent: `מתוך ניצוץ: ${idea.meta.spark}` }) : null,
+        was,
         notes.length ? h('ul', { className: 'notes' }, ...notes.map((n) => h('li', { dir: 'auto' }, n.text, h('time', { dateTime: n.at, textContent: when(n.at) })))) : null,
         idea.tags.length ? h('ul', { className: 'chips' }, ...idea.tags.map((t) => h('li', { textContent: `#${t}` }))) : null,
         savedBox,
@@ -575,7 +635,12 @@
   }
 
   // ---------- new directions (the writing partner reads the notebook) ----------
-  const museView = { pulse: null, newSince: 0, ready: false };
+  const museView = { pulse: null, newSince: 0, ready: false, model: '', models: [] };
+  const modelPick = (value) => {
+    const sel = h('select', { ariaLabel: 'מודל' }, ...museView.models.map((m) => h('option', { value: m.id, textContent: `${m.label} · ${m.note}` })));
+    sel.value = value;
+    return sel;
+  };
   async function loadMuse() {
     try {
       Object.assign(museView, await call('/api/studio/ideas/pulse'));
@@ -586,7 +651,7 @@
   }
   function drawMuse() {
     const { pulse, newSince, ready } = museView;
-    $('muse-board').hidden = false;
+    $('muse-board').hidden = Boolean(ideasView.scope);
     $('muse-board').classList.toggle('fresh', Boolean(pulse && !pulse.seen));
     $('muse-when').textContent = pulse ? `${when(pulse.at)}, מתוך ${pulse.count} רעיונות` : '';
     $('muse-text').textContent = ready
@@ -596,6 +661,17 @@
     $('muse-run').disabled = !ready;
     $('muse-weekly').disabled = !ready;
     $('muse-seen').hidden = !(pulse && !pulse.seen);
+    const sel = modelPick(museView.model);
+    sel.id = 'muse-model';
+    sel.addEventListener('change', async () => {
+      try {
+        museView.model = (await send('/api/studio/muse/model', 'PUT', { model: sel.value })).model;
+        say('muse-msg', 'מעכשיו העוזר עובד עם המודל הזה.', 'ok');
+      } catch (err) {
+        report('muse-msg')(err);
+      }
+    });
+    $('muse-model-slot').replaceChildren(...(museView.models.length ? [sel] : []));
     // Once read, the pulse folds to its first lines.
     $('muse-board').classList.toggle('folded', Boolean(pulse?.seen) && !museView.unfold);
     $('muse-more').hidden = !$('muse-board').classList.contains('folded');
@@ -641,8 +717,8 @@
   // ---------- an old idea comes back ----------
   function oldPool() {
     const age = (i) => Date.now() - Date.parse(i.createdAt);
-    const waiting = ideasView.list.filter((i) => age(i) > 14 * DAY && !i.pinned);
-    return waiting.length ? waiting : ideasView.list.filter((i) => age(i) > 2 * DAY);
+    const waiting = scoped().filter((i) => age(i) > 14 * DAY && !i.pinned);
+    return waiting.length ? waiting : scoped().filter((i) => age(i) > 2 * DAY);
   }
   function nextOld() {
     const pool = oldPool();
@@ -745,7 +821,7 @@
       ideasView.pending = null;
       $('capture-text').value = '';
       $('capture-tags').value = '';
-      $('capture-wing').value = '';
+      $('capture-wing').value = ideasView.scope;
       clearAnswering();
       const at = ideasView.list.findIndex((x) => !x.pinned);
       ideasView.list.splice(at < 0 ? ideasView.list.length : at, 0, idea);
@@ -897,6 +973,13 @@
     $('w-kind').replaceChildren(...WING_KINDS[id].map((k) => h('option', { value: k, textContent: KIND[k] })));
     $('w-kind').hidden = WING_KINDS[id].length < 2;
     $('w-settings').href = `#space/${id}`;
+    $('w-notebook').href = `#ideas/${id}`;
+    call('/api/studio/ideas')
+      .then(({ ideas }) => {
+        const n = ideas.filter((i) => i.meta.wing === id).length;
+        $('w-notebook-count').textContent = n ? String(n) : '';
+      })
+      .catch(() => {});
     $('w-view').href = `/${id}`;
     $('w-new-space').hidden = id === 'software' || id === 'articles' || id === 'torah';
     await loadSpaces().catch(report('w-msg'));
@@ -2461,6 +2544,23 @@
     if (editor.entry.kind === 'project' || editor.entry.kind === 'work') return void (location.hash = `#project/${editor.entry.id}`);
     fill(editor.entry);
     status(`עבר ל${state.byId.get(editor.entry.spaceId)?.title ?? ''} · ${KIND[editor.entry.kind] ?? ''}`);
+  });
+
+  // Back into the notebook: private again, with everything it has.
+  $('ed-to-idea').addEventListener('click', async () => {
+    editor.flush.cancel();
+    if (!editor.entry) return void status('עוד אין מה להחזיר', 'err');
+    const live = editor.entry.status === 'published';
+    if (!confirm(live ? 'להחזיר לרעיונות? זה יורד מהאתר ונהיה פרטי, עם כל הטקסט, הגרסאות והקבצים.' : 'להחזיר לרעיונות? זה נשמר במחברת עם כל הטקסט, הגרסאות והקבצים.')) return;
+    try {
+      if (editor.dirty) await save();
+      const back = await send(`/api/studio/entries/${editor.entry.id}/to-idea`, 'POST');
+      editor.dirty = false;
+      editor.entry = null;
+      location.hash = back.meta.wing ? `#ideas/${back.meta.wing}` : '#ideas';
+    } catch (err) {
+      status(err.message, 'err');
+    }
   });
 
   // Marking several items in a wing or space list and moving them together.

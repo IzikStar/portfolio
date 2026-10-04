@@ -24,8 +24,8 @@ import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './f
 import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
-import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
-import { museIdea, dropMuse, getPulse, runPulse, seePulse, runWeekly, museCron } from './muse.js';
+import { listIdeas, captureIdea, updateIdea, growIdea, backToIdea, getSparks, saveSparks } from './ideas.js';
+import { museIdea, dropMuse, getPulse, runPulse, seePulse, runWeekly, museCron, saveModel } from './muse.js';
 import { communityRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
 
@@ -186,12 +186,15 @@ async function studio(request, env, url) {
   if (path === '/api/studio/ideas/pulse' && method === 'POST') return runPulse(env);
   if (path === '/api/studio/ideas/pulse/seen' && method === 'POST') return seePulse(env);
   if (path === '/api/studio/ideas/weekly' && method === 'POST') return runWeekly(env);
+  if (path === '/api/studio/muse/model' && method === 'PUT') return saveModel(request, env);
   const mu = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)\/muse$/);
   if (mu && method === 'POST') return museIdea(request, env, mu[1]);
   if (mu && method === 'DELETE') return dropMuse(request, env, mu[1]);
   const gi = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)(\/grow)?$/);
   if (gi && !gi[2] && method === 'PATCH') return updateIdea(request, env, gi[1]);
   if (gi && gi[2] && method === 'POST') return growIdea(request, env, gi[1]);
+  const bi = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/to-idea$/);
+  if (bi && method === 'POST') return backToIdea(env, bi[1]);
   if (path === '/api/studio/sparks' && method === 'GET') return getSparks(env);
   if (path === '/api/studio/sparks' && method === 'PUT') return saveSparks(request, env);
   if (path === '/api/studio/entries/move' && method === 'POST') return moveEntries(request, env);

@@ -199,3 +199,24 @@ describe('sparks', () => {
     expect((await (await call(o, '/api/studio/sparks')).json()).sparks).toEqual(DEFAULT_SPARKS);
   });
 });
+
+describe('back to an idea', () => {
+  it('takes a grown item back into the notebook, private, remembering where it was', async () => {
+    const o = await owner();
+    const idea = await (await capture(o, { text: 'שיר על רכבת\nבית ראשון', spark: 'שיר שכולו שאלות' })).json();
+    const song = await (await call(o, `/api/studio/ideas/${idea.id}/grow`, 'POST', { spaceId: 'music', kind: 'song' })).json();
+    await call(o, `/api/studio/entries/${song.id}`, 'PATCH', { status: 'published', visibility: 'public' });
+
+    const res = await call(o, `/api/studio/entries/${song.id}/to-idea`, 'POST');
+    expect(res.status).toBe(200);
+    const back = await res.json();
+    expect(back).toMatchObject({ id: idea.id, kind: 'idea', spaceId: null, slug: null, status: 'draft', visibility: 'private', title: 'שיר על רכבת' });
+    expect(back.meta).toMatchObject({ wing: 'music', spark: 'שיר שכולו שאלות', was: { kind: 'song', spaceId: 'music', status: 'published' } });
+    expect(back.meta.idea).toBeUndefined();
+    expect((await ideas(o)).map((i) => i.id)).toEqual([idea.id]);
+    expect((await req('/music')).status).toBe(200);
+
+    expect((await call(o, `/api/studio/entries/${song.id}/to-idea`, 'POST')).status).toBe(400);
+    expect((await call(null, `/api/studio/entries/${song.id}/to-idea`, 'POST')).status).toBe(401);
+  });
+});

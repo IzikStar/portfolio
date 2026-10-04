@@ -54,7 +54,8 @@
   <main class="studio">
     <section id="view-ideas" class="ideas-page" hidden>
       <div class="ideas-head">
-        <h1>רעיונות</h1>
+        <h1 id="ideas-title">רעיונות</h1>
+        <a class="btn small" id="ideas-wing-link" hidden>לעמוד האגף בסטודיו</a>
         <div class="pulse" id="pulse" hidden>
           <span id="pulse-text"></span>
           <span class="week" id="pulse-week" aria-hidden="true"></span>
@@ -85,6 +86,7 @@
         <div class="board-head">
           <span class="kicker">כיוונים חדשים</span>
           <span class="age" id="muse-when"></span>
+          <label class="muse-model-slot"><span class="sr-only">המודל של העוזר</span><span id="muse-model-slot"></span></label>
         </div>
         <div class="muse-text" id="muse-text" dir="auto"></div>
         <div class="actions">
@@ -146,7 +148,8 @@
         <h1 id="w-title"></h1>
         <label class="sr-only" for="w-kind">סוג פריט</label>
         <select id="w-kind" style="width:auto"></select>
-        <button class="btn accent" type="button" id="w-new">פריט חדש</button>
+        <a class="btn accent notebook-link" id="w-notebook">המחברת <span class="count" id="w-notebook-count"></span></a>
+        <button class="btn" type="button" id="w-new">פריט חדש</button>
         <button class="btn" type="button" id="w-new-space">ספר, סדרה או אוסף חדש</button>
         <a class="btn" id="w-settings">הגדרות האגף</a>
         <a class="btn" id="w-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
@@ -476,6 +479,7 @@
       <div class="toolbar">
         <a class="btn small" id="ed-back" href="#ideas">חזרה</a>
         <button class="btn small" type="button" id="ed-move">העברה לאגף או סוג אחר</button>
+        <button class="btn small" type="button" id="ed-to-idea" title="חוזר למחברת הרעיונות, פרטי, עם כל מה שיש בו">להחזיר לרעיונות</button>
         <button class="btn small" type="button" id="ed-page-toggle" aria-pressed="false">איך זה ייראה באתר</button>
         <span class="status" id="save-status" role="status"></span>
       </div>
