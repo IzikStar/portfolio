@@ -17,15 +17,28 @@ export async function uploadFile(request, env) {
   const form = await request.formData();
   const file = form.get('file');
   const entryId = String(form.get('entryId') ?? '');
+  checkFile(file);
+  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  return json(await attachFile(env, entryId, file), 201);
+}
+
+// Throws unless `file` is something we can store and serve; says how we store it.
+export function checkFile(file) {
   if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Choose a file.');
+  // A recorder's type can carry a codec ("audio/webm;codecs=opus"); keep the plain type.
+  const plain = file.type.split(';')[0].trim();
   // Cubase projects and archives are kept by name as opaque bytes, whatever
   // type the browser guessed; everything else must be a type we show safely.
-  const download = !fileKind(file.type) && downloadKind(file.name);
-  const type = download ? DOWNLOAD_TYPE : file.type;
+  const download = !fileKind(plain) && downloadKind(file.name);
+  const type = download ? DOWNLOAD_TYPE : plain;
   if (!fileKind(type) && !download) throw new HttpError(400, 'Unsupported file type. Use an image (PNG, JPG, WebP, GIF), audio, video, PDF, or a Cubase project (.cpr, .bak, .zip).');
   if (file.size > MAX_FILE_BYTES) throw new HttpError(413, 'The file is over 25 MB. Upload it to YouTube or Drive and link to it instead.');
-  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  return { type, download };
+}
 
+// Store the bytes and the row for an entry that exists.
+export async function attachFile(env, entryId, file) {
+  const { type, download } = checkFile(file);
   const id = crypto.randomUUID();
   const name = String(file.name || 'file').slice(0, 200);
   await env.MEDIA.put(`blob:${id}`, await file.arrayBuffer(), { metadata: { type } });
@@ -34,13 +47,15 @@ export async function uploadFile(request, env) {
     .prepare('INSERT INTO files (id, entry_id, name, type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
     .bind(id, entryId, name, type, file.size, new Date().toISOString())
     .run();
-  return json({ id, url: `/files/${id}`, name, type, kind: kindOf(type), ...(download ? { project: download } : {}), size: file.size }, 201);
+  return { ...fileInfo({ id, name, type, size: file.size }), ...(download ? { project: download } : {}) };
 }
+
+export const fileInfo = (f) => ({ id: f.id, url: `/files/${f.id}`, name: f.name, type: f.type, kind: kindOf(f.type), size: f.size });
 
 export async function listFiles(env, entryId) {
   const d = await db(env);
   const { results } = await d.prepare('SELECT * FROM files WHERE entry_id = ? ORDER BY created_at').bind(entryId).all();
-  return json({ files: results.map((f) => ({ id: f.id, url: `/files/${f.id}`, name: f.name, type: f.type, kind: kindOf(f.type), size: f.size })) });
+  return json({ files: results.map(fileInfo) });
 }
 
 export async function deleteFile(env, id) {

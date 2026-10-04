@@ -27,6 +27,7 @@ import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './f
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
+import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
 import { blogRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
 
@@ -177,6 +178,14 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'GET') return studioList(env, url);
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
+  // The idea notebook (see src/ideas.js).
+  if (path === '/api/studio/ideas' && method === 'GET') return listIdeas(env);
+  if (path === '/api/studio/ideas' && method === 'POST') return captureIdea(request, env);
+  const gi = path.match(/^\/api\/studio\/ideas\/([a-z0-9-]+)(\/grow)?$/);
+  if (gi && !gi[2] && method === 'PATCH') return updateIdea(request, env, gi[1]);
+  if (gi && gi[2] && method === 'POST') return growIdea(request, env, gi[1]);
+  if (path === '/api/studio/sparks' && method === 'GET') return getSparks(env);
+  if (path === '/api/studio/sparks' && method === 'PUT') return saveSparks(request, env);
   if (path === '/api/studio/entries/move' && method === 'POST') return moveEntries(request, env);
   if (path === '/api/studio/preview-page' && method === 'POST') return previewPage(request, env);
   if (path === '/api/studio/link-info' && method === 'POST') return linkInfo(request, env);
