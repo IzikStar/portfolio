@@ -75,7 +75,7 @@ describe('a wing', () => {
     const anon = await page('/music');
     expect(anon.text).toContain('Open song');
     expect(anon.text).not.toContain('Demo only');
-    expect(anon.text).toContain('עוד 1 פריטים פתוחים רק לקהילה');
+    expect(anon.text).toContain('עוד פריט אחד פתוח רק לקהילה');
     expect(anon.text).toContain('/join?space=music');
     expect(anon.res.headers.get('Cache-Control')).toBe('public, max-age=60');
 
@@ -107,7 +107,7 @@ describe('a book', () => {
     expect(anon.text).toContain('Gargamitz');
     expect(anon.text).toContain('href="/books/gargamitz/one"');
     expect(anon.text).not.toContain('/books/gargamitz/two');
-    expect(anon.text).toContain('עוד 1 פרקים');
+    expect(anon.text).toContain('עוד פרק אחד');
     expect((await page('/books/gargamitz/two')).text).toBe('asset:/404.html');
 
     const reader = await member(o, 'reader');

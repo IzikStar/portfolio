@@ -210,7 +210,7 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || res.status);
         btn.hidden = true;
-        if (msg) msg.textContent = data.status === 'active' ? 'כבר בפנים. מרעננים...' : 'הבקשה נשלחה. אחרי האישור הכל ייפתח כאן.';
+        if (msg) msg.textContent = data.status === 'active' ? 'כבר בפנים. מרעננים...' : 'הבקשה נשלחה. אחרי שאאשר, הכל ייפתח כאן.';
         if (data.status === 'active') location.reload();
       } catch {
         btn.disabled = false;

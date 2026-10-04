@@ -76,11 +76,11 @@ export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
     const target = communityOf(acc.byId, entry.spaceId);
     const space = acc.byId.get(target);
     if (!space) return '';
-    const name = space.parentId ? space.title : `קהילת ה${space.title}`;
+    const name = space.kind === 'book' ? `קוראי הבטא של ${space.title}` : space.parentId ? space.title : `קהילת ה${space.title}`;
     if (v.role === 'public') {
-      return `<section class="comments closed"><p>${e(name)} מגיבים כאן. <a href="/join?space=${encodeURIComponent(target)}">בקשת הצטרפות</a> · <a href="/login">כניסה</a></p></section>`;
+      return `<section class="comments closed"><p>התגובות כאן פתוחות ל${e(name)}. <a href="/join?space=${encodeURIComponent(target)}">בקשת הצטרפות</a> · <a href="/login">כניסה</a></p></section>`;
     }
-    if (acc.pending.has(target)) return `<section class="comments closed"><p>הבקשה שלך להצטרף ל${e(name)} מחכה לאישור. אחרי האישור אפשר להגיב כאן.</p></section>`;
+    if (acc.pending.has(target)) return `<section class="comments closed"><p>הבקשה שלכם להצטרף ל${e(name)} מחכה לאישור. אחרי שאאשר אותה, אפשר להגיב כאן.</p></section>`;
     if (space.joinMode === 'closed') return '';
     return `<section class="comments closed"><p>התגובות כאן פתוחות ל${e(name)}.</p><button class="btn small" type="button" data-join="${e(target)}">בקשת הצטרפות</button><p class="msg" role="status"></p></section>`;
   }
@@ -89,10 +89,10 @@ export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
   for (const c of comments) if (c.replyTo) kids.set(c.replyTo, [...(kids.get(c.replyTo) ?? []), c]);
   return `<section class="comments" id="comments" data-comments="${e(entry.id)}"${entry.kind === 'post' ? ' data-on="post"' : ''}>
   <h2>תגובות${comments.length ? ` <small>${comments.length}</small>` : ''}</h2>
-  ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על הכל, או ללחוץ על הסימן ליד פסקה כדי להגיב עליה.</p>'}
+  ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על כל הטקסט, או על פסקה אחת דרך הסימן שלידה.</p>'}
   <form class="comment-form" data-comment-form>
     <div class="target" hidden><span></span><button type="button" class="link" data-clear-target>ביטול</button></div>
-    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבת? @ ושם מתייג מישהו מהקהילה" data-people="${e(entry.spaceId)}" required></textarea></label>
+    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבתם? @ ושם מתייג מישהו מהקהילה" data-people="${e(entry.spaceId)}" required></textarea></label>
     <div class="actions"><button class="btn accent small" type="submit">שליחה</button><p class="msg" role="status"></p></div>
   </form>
 </section>`;

@@ -4,7 +4,7 @@
 // #projects, #project/<id>, #project-new, #cv (studio-cv.js), #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
-  const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
+  const VIS = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
   const KIND = {
     song: 'שיר', chapter: 'פרק', sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', torah: 'דבר תורה',
     article: 'מאמר', project: 'פרויקט', work: 'יצירה', video: 'סרטון', idea: 'רעיון',
@@ -42,7 +42,7 @@
     const res = await fetch(path, { credentials: 'same-origin', ...opts });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && !path.endsWith('/login')) {
-      showLogin('פג תוקף הכניסה. צריך להיכנס שוב.');
+      showLogin('הכניסה פגה. צריך להיכנס שוב.');
       throw new AuthError();
     }
     if (!res.ok) throw new Error(data.error || `שגיאה ${res.status}`);
@@ -662,8 +662,8 @@
       'li',
       {},
       h('input', { type: 'checkbox', className: 'pick', value: e.id, ariaLabel: `בחירת ${e.title || 'פריט'}` }),
-      h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'ללא כותרת' }),
-      path ? h('a', { className: 'btn small', href: path, target: '_blank', textContent: 'צפייה' }) : h('span'),
+      h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'בלי כותרת' }),
+      path ? h('a', { className: 'btn small', href: path, target: '_blank', textContent: 'באתר ↗' }) : h('span'),
       h(
         'div',
         { className: 'meta' },
@@ -719,7 +719,7 @@
           'a',
           { className: 'space-card', href: `#space/${x.id}` },
           h('span', { className: 't', dir: 'auto', textContent: x.title }),
-          h('span', { className: 'meta' }, h('span', { textContent: SPACE_KIND[x.kind] ?? '' }), h('span', { textContent: `${x.entries} פריטים` }), x.members ? h('span', { textContent: `${x.members} בקהילה` }) : null, x.requests ? h('span', { className: 'badge vis-community', textContent: `${x.requests} בקשות` }) : null, h('span', { className: `badge vis-${x.visibility}`, textContent: VIS[x.visibility] })),
+          h('span', { className: 'meta' }, h('span', { textContent: SPACE_KIND[x.kind] ?? '' }), h('span', { textContent: x.entries === 1 ? 'פריט אחד' : `${x.entries} פריטים` }), x.members ? h('span', { textContent: `${x.members} בקהילה` }) : null, x.requests ? h('span', { className: 'badge vis-community', textContent: `${x.requests} בקשות` }) : null, h('span', { className: `badge vis-${x.visibility}`, textContent: VIS[x.visibility] })),
         ),
       ),
     );
@@ -925,7 +925,7 @@
     }
   }
   function creditRow(c = {}) {
-    const who = h('select', { ariaLabel: 'מי' }, h('option', { value: '', textContent: 'בחירת חבר.ה' }), ...(people ?? []).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (${u.username})` })));
+    const who = h('select', { ariaLabel: 'מי' }, h('option', { value: '', textContent: 'מי מהקהילה?' }), ...(people ?? []).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (${u.username})` })));
     who.dataset.f = 'userId';
     who.value = c.userId ?? '';
     const role = h('input', { type: 'text', value: c.role ?? '', placeholder: 'תפקיד, למשל שירה', dir: 'auto', ariaLabel: 'תפקיד', maxLength: 40 });
@@ -1278,7 +1278,7 @@
     return h(
       'li',
       {},
-      h('a', { className: 'title', href: `#project/${p.id}`, dir: 'auto', textContent: p.title || s.name || 'ללא שם' }),
+      h('a', { className: 'title', href: `#project/${p.id}`, dir: 'auto', textContent: p.title || s.name || 'בלי שם' }),
       i >= 0
         ? h('span', { className: 'order' }, h('button', { className: 'btn small', type: 'button', textContent: '↑', title: 'למעלה', onclick: move(-1) }), h('button', { className: 'btn small', type: 'button', textContent: '↓', title: 'למטה', onclick: move(1) }))
         : h('span'),
@@ -1676,7 +1676,7 @@
         { className: 'meta', dir: 'auto' },
         where ? h('span', { textContent: communityLabel(where) }) : null,
         h('span', { textContent: p.author }),
-        p.comments ? h('span', { textContent: `${p.comments} תגובות` }) : null,
+        p.comments ? h('span', { textContent: p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות` }) : null,
         p.pinned ? h('span', { className: 'badge', textContent: 'נעוץ' }) : null,
         p.public ? h('span', { className: 'badge', textContent: 'פתוח לכולם' }) : null,
         hidden ? h('span', { className: 'badge', textContent: 'מוסתר' }) : null,
@@ -1758,7 +1758,7 @@
             'li',
             {},
             h('a', { className: 'who', href: `#item/${x.id}`, dir: 'auto', textContent: x.title }),
-            h('span', { className: 'meta' }, h('span', { textContent: KIND[x.kind] }), h('span', { className: 'badge', textContent: x.status === 'published' ? 'ציבורי' : 'טיוטה פרטית' })),
+            h('span', { className: 'meta' }, h('span', { textContent: KIND[x.kind] }), h('span', { className: 'badge', textContent: x.status === 'published' ? 'לכולם' : 'טיוטה פרטית' })),
           ),
         ),
       );
@@ -1880,7 +1880,7 @@
 
   // ---------- project files (Cubase, zip) ----------
   const PROJECT_KIND = { cubase: 'קיובייס', zip: 'ZIP', other: 'אחר' };
-  const PROJECT_VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'כולם' };
+  const PROJECT_VIS = { private: 'רק אני', community: 'הקהילה', members: 'כל החברים', public: 'כולם' };
   const projectKindOf = (name) => (/\.(cpr|bak)$/i.test(name) ? 'cubase' : /\.zip$/i.test(name) ? 'zip' : null);
   let projectTarget = null;
 
@@ -1998,7 +1998,7 @@
     const count = h('span', { className: 'hint' });
     const msg = h('p', { className: 'msg', id: msgId, role: 'status' });
     const made = h('ul', { className: 'batch-made' });
-    const folder = h('a', { className: 'btn small', target: '_blank', rel: 'noopener', textContent: 'פתיחת התיקייה בדרייב ↗', hidden: true });
+    const folder = h('a', { className: 'btn small', target: '_blank', rel: 'noopener', textContent: 'התיקייה בדרייב ↗', hidden: true });
     const asVersions = h('button', { className: 'btn small', type: 'button', textContent: 'להוסיף כגרסאות לפריט הזה', hidden: !versions });
     const asItems = h('button', { className: 'btn small accent', type: 'button', textContent: 'פריט טיוטה לכל קישור' });
     const known = new Map(); // url -> what the server read from it

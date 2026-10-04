@@ -42,7 +42,7 @@ export async function previewPage(request, env) {
     v.acc = await access(env, v);
   } else if (body.as === 'community') {
     // A member who belongs to every community: what the item's community sees.
-    v = { role: 'member', member: { id: 'preview', displayName: 'חבר.ת קהילה' } };
+    v = { role: 'member', member: { id: 'preview', displayName: 'מישהו מהקהילה' } };
     v.acc = { ...owner, owner: false, member: true, pending: new Set() };
   } else {
     v = { role: 'owner', member: null, acc: owner };

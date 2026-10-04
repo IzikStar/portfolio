@@ -76,15 +76,15 @@ export async function memberBlock(env, v) {
     ? `<ul class="tagged">${tagged
         .map((t) => `<li><span class="mention" dir="auto">${e(t.by)}</span> ${t.what} <a href="${e(t.href)}" dir="auto">${e(t.title)}</a><time datetime="${e(t.at)}">${e(fmtDate(t.at))}</time></li>`)
         .join('')}</ul>`
-    : '<p class="empty">עוד אף אחד לא תייג אותך. כשמישהו יכתוב עליך @ בתגובה או בפוסט, זה יופיע כאן.</p>';
+    : '<p class="empty">עוד אף אחד לא תייג אתכם. כשמישהו יכתוב @ ואת השם שלכם בתגובה או בפוסט, זה יופיע כאן.</p>';
   const mine = credited
     .map((x) => ({ x, href: entryPath(v.acc, x), roles: creditsOf(x).filter((c) => c.userId === v.member.id).map((c) => c.role).filter(Boolean) }))
     .filter((c) => c.href);
   const credits = mine.length
-    ? `<div class="section-head" style="margin-top:32px"><h2>הקרדיטים שלך</h2></div>
+    ? `<div class="section-head" style="margin-top:32px"><h2>הקרדיטים שלכם</h2></div>
   <ul class="tagged">${mine.map((c) => `<li><a href="${e(c.href)}" dir="auto">${e(c.x.title)}</a>${c.roles.length ? `<span class="role">${e(c.roles.join(', '))}</span>` : ''}</li>`).join('')}</ul>`
     : '';
-  return `<div class="section-head" style="margin-top:32px"><h2>תייגו אותך</h2></div>
+  return `<div class="section-head" style="margin-top:32px"><h2>תייגו אתכם</h2></div>
   ${tags}
   ${credits}`;
 }

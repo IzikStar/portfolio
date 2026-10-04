@@ -186,7 +186,7 @@ describe('tagging members', () => {
 
     // The tagged member sees it on their page; the outsider sees nothing.
     const yp = await page('/community', yossi.cookie);
-    expect(yp.text).toContain('תייגו אותך');
+    expect(yp.text).toContain('תייגו אתכם');
     expect(yp.text).toContain(`/music/tune#c-${c.id}`);
     expect((await page('/community', reader.cookie)).text).not.toContain('/music/tune');
 
@@ -221,7 +221,7 @@ describe('tagging members', () => {
     expect(song.meta.credits).toEqual([{ role: 'שירה', userId: dana.id }]);
     expect((await page('/music/credited')).text).toContain('שירה: <span class="mention" dir="auto">Dana</span>');
     const mine = await page('/community', dana.cookie);
-    expect(mine.text).toContain('הקרדיטים שלך');
+    expect(mine.text).toContain('הקרדיטים שלכם');
     expect(mine.text).toContain('href="/music/credited"');
   });
 });
