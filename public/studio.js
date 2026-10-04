@@ -164,28 +164,408 @@
   });
 
   // ---------- ideas ----------
+  // The notebook: one-tap capture (text, a voice memo, a photo), a spark to
+  // start from, an old idea that comes back, and every idea by wing or tag.
+  // The whole list is loaded once and filtered here, so it stays quick on a phone.
+  const WING_NAME = {
+    music: 'מוזיקה', books: 'ספרים', sketches: 'מערכונים', humor: 'דיבובים והומור',
+    torah: 'דברי תורה', articles: 'מאמרים', software: 'תוכנה', videos: 'סרטונים',
+  };
+  const WING_IDS = Object.keys(WING_NAME);
+  const DAY = 86_400_000;
+  const SAVED = ['נשמר.', 'נכנס למחברת.', 'תפוס.', 'רשום.'];
+  const ideasView = { list: [], sparks: null, wing: '', tag: '', spark: null, oldId: null, pending: null, answering: '' };
+  const shortDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short' });
+  const longDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric' });
+  const when = (iso) => (new Date(iso).getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(new Date(iso));
+  const pickOne = (list, not) => {
+    const pool = list.length > 1 ? list.filter((x) => x !== not) : list;
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  };
+  const pressed = (n, on) => {
+    n.setAttribute('aria-pressed', String(Boolean(on)));
+    return n;
+  };
+  const wingOptions = (sel, first) =>
+    sel.replaceChildren(h('option', { value: '', textContent: first }), ...WING_IDS.map((w) => h('option', { value: w, textContent: WING_NAME[w] })));
+  wingOptions($('capture-wing'), 'לאיזה אגף? (לא חייב)');
+  wingOptions($('spark-wing'), 'מכל האגפים');
+
+  // "לפני שבועיים", "לפני 3 חודשים": how long an idea has been waiting.
+  function ago(iso) {
+    const days = Math.floor((Date.now() - Date.parse(iso)) / DAY);
+    if (days < 1) return 'היום';
+    if (days < 2) return 'אתמול';
+    if (days < 14) return `לפני ${days} ימים`;
+    if (days < 56) {
+      const w = Math.round(days / 7);
+      return w === 2 ? 'לפני שבועיים' : `לפני ${w} שבועות`;
+    }
+    if (days < 345) {
+      const m = Math.round(days / 30.4);
+      return m === 2 ? 'לפני חודשיים' : `לפני ${m} חודשים`;
+    }
+    const y = Math.max(1, Math.round(days / 365));
+    return y === 1 ? 'לפני שנה' : y === 2 ? 'לפני שנתיים' : `לפני ${y} שנים`;
+  }
+
   async function loadIdeas() {
-    const q = $('idea-search').value.trim();
     try {
-      const { entries } = await call(`/api/studio/entries?kind=idea${q ? `&q=${encodeURIComponent(q)}` : ''}`);
-      $('ideas').replaceChildren(...entries.map(ideaCard));
-      $('ideas-empty').hidden = entries.length > 0 || Boolean(q);
+      const [{ ideas }] = await Promise.all([call('/api/studio/ideas'), ideasView.sparks ? null : loadSparks()]);
+      ideasView.list = ideas;
+      if (!ideasView.spark) nextSpark();
+      if (!ideas.some((i) => i.id === ideasView.oldId)) nextOld();
+      drawIdeas();
     } catch (err) {
       report('capture-msg')(err);
     }
   }
-  $('idea-search').addEventListener('input', debounce(loadIdeas, 250));
 
-  async function capture() {
-    const body = $('capture-text').value.trim();
-    if (!body) return;
+  // Server answers carry no files; keep the ones we already have.
+  function replaceIdea(idea) {
+    const i = ideasView.list.findIndex((x) => x.id === idea.id);
+    if (i >= 0) ideasView.list[i] = { files: ideasView.list[i].files, ...idea };
+    drawIdeas();
+  }
+  function dropIdea(id) {
+    ideasView.list = ideasView.list.filter((x) => x.id !== id);
+    if (ideasView.oldId === id) nextOld();
+    drawIdeas();
+  }
+
+  const haystack = (i) => [i.title, i.body, i.meta.spark, ...i.tags, ...(i.meta.notes ?? []).map((n) => n.text)].join('\n').toLowerCase();
+
+  function drawIdeas() {
+    // Same order as the server: pinned first, then whatever was touched last.
+    const all = ideasView.list.sort((a, b) => b.pinned - a.pinned || b.updatedAt.localeCompare(a.updatedAt));
+    drawPulse(all);
+    drawFilters(all);
+    const q = $('idea-search').value.trim().toLowerCase();
+    const { wing, tag } = ideasView;
+    const shown = all.filter(
+      (i) =>
+        (!wing || (wing === 'none' ? !i.meta.wing : wing === 'pinned' ? i.pinned : i.meta.wing === wing)) &&
+        (!tag || i.tags.includes(tag)) &&
+        (!q || haystack(i).includes(q)),
+    );
+    $('ideas').replaceChildren(...shown.map((i) => ideaCard(i)));
+    if (all.length && !shown.length) $('ideas').append(h('p', { className: 'empty', textContent: 'עם הסינון הזה אין כלום.' }));
+    $('ideas-empty').hidden = all.length > 0;
+    drawOld();
+  }
+
+  // This week (from Sunday), one dot per day. Counts, never a streak.
+  function drawPulse(all) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    const days = Array(7).fill(0);
+    for (const i of all) {
+      const d = new Date(i.createdAt);
+      if (d >= start) days[d.getDay()]++;
+    }
+    const n = days.reduce((a, b) => a + b, 0);
+    $('pulse').hidden = !all.length;
+    $('pulse-text').textContent = n === 0 ? 'שבוע חדש, הדף פתוח.' : n === 1 ? 'השבוע זרקת לכאן רעיון אחד.' : `השבוע זרקת לכאן ${n} רעיונות.`;
+    $('pulse-week').replaceChildren(
+      ...days.map((c, d) => h('span', { className: [c ? 'on' : '', d === now.getDay() ? 'today' : '', d > now.getDay() ? 'later' : ''].join(' ').trim(), textContent: 'אבגדהוש'[d] })),
+    );
+  }
+
+  function drawFilters(all) {
+    const chip = (label, n, on, onclick, wing) => {
+      const b = pressed(h('button', { type: 'button', onclick }, label, h('span', { className: 'n', textContent: String(n) })), on);
+      if (wing) b.dataset.wing = wing;
+      return b;
+    };
+    const pick = (value) => () => {
+      ideasView.wing = ideasView.wing === value ? '' : value;
+      drawIdeas();
+    };
+    const count = (f) => all.filter(f).length;
+    const wings = [chip('הכל', all.length, !ideasView.wing, pick(''))];
+    const pins = count((i) => i.pinned);
+    if (pins) wings.push(chip('נעוצים', pins, ideasView.wing === 'pinned', pick('pinned')));
+    for (const w of WING_IDS) {
+      const n = count((i) => i.meta.wing === w);
+      if (n || ideasView.wing === w) wings.push(chip(WING_NAME[w], n, ideasView.wing === w, pick(w), w));
+    }
+    const loose = count((i) => !i.meta.wing);
+    if (loose && loose < all.length) wings.push(chip('בלי אגף', loose, ideasView.wing === 'none', pick('none')));
+    $('idea-wings').replaceChildren(...(all.length ? wings : []));
+
+    const tags = new Map();
+    for (const i of all) for (const t of i.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+    if (ideasView.tag && !tags.has(ideasView.tag)) ideasView.tag = '';
+    const top = [...tags].sort((a, b) => b[1] - a[1]).slice(0, 24);
+    $('idea-tags').replaceChildren(
+      ...top.map(([t, n]) =>
+        chip(`#${t}`, n, ideasView.tag === t, () => {
+          ideasView.tag = ideasView.tag === t ? '' : t;
+          drawIdeas();
+        }),
+      ),
+    );
+  }
+  $('idea-search').addEventListener('input', debounce(drawIdeas, 120));
+
+  function fileView(f) {
+    if (f.kind === 'audio') return h('audio', { controls: true, preload: 'none', src: f.url });
+    if (f.kind === 'video') return h('video', { controls: true, preload: 'none', src: f.url });
+    if (f.kind === 'image') return h('a', { href: f.url, target: '_blank' }, h('img', { src: f.url, alt: f.name, loading: 'lazy' }));
+    return h('a', { href: f.url, target: '_blank', dir: 'auto', textContent: f.name });
+  }
+
+  function ideaCard(idea) {
+    const wing = idea.meta.wing;
+    const node = h('article', { className: `idea${idea.pinned ? ' pinned' : ''}` });
+    if (wing) node.dataset.wing = wing;
+    const msg = h('small', { className: 'msg' });
+    const panel = h('div', { className: 'panel' });
+    const act = (label, fn, cls = '') => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn });
+    const fail = (err) => {
+      if (!(err instanceof AuthError)) {
+        msg.textContent = err.message;
+        msg.className = 'msg err';
+      }
+    };
+    const tend = (body) => send(`/api/studio/ideas/${idea.id}`, 'PATCH', body).then(replaceIdea, fail);
+    const close = () => panel.replaceChildren();
+
+    const wingPick = h('select', { className: 'wing-pick', title: 'לאיזה אגף זה הולך' }, h('option', { value: '', textContent: 'בלי אגף' }), ...WING_IDS.map((w) => h('option', { value: w, textContent: WING_NAME[w] })));
+    wingPick.value = wing ?? '';
+    wingPick.addEventListener('change', () => tend({ wing: wingPick.value }));
+    const pin = pressed(
+      h('button', {
+        className: 'quiet pin-toggle',
+        type: 'button',
+        textContent: idea.pinned ? '★' : '☆',
+        title: idea.pinned ? 'נעוץ למעלה. ללחוץ כדי לשחרר' : 'לנעוץ למעלה',
+        ariaLabel: 'נעוץ למעלה',
+        onclick: () => send(`/api/studio/entries/${idea.id}`, 'PATCH', { pinned: !idea.pinned }).then(replaceIdea, fail),
+      }),
+      idea.pinned,
+    );
+
+    const addNote = () => {
+      const area = h('textarea', { dir: 'auto', rows: 3, placeholder: 'מה עוד חשבת על זה?', ariaLabel: 'מחשבה נוספת' });
+      const add = act('להוסיף', () => (area.value.trim() ? tend({ note: area.value }) : area.focus()), 'primary');
+      area.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) add.click();
+      });
+      panel.replaceChildren(area, h('div', { className: 'actions' }, add, act('ביטול', close)));
+      area.focus();
+    };
+
+    const grow = () => {
+      const wingSel = h('select', {}, ...WING_IDS.map((w) => h('option', { value: w, textContent: WING_NAME[w] })));
+      wingSel.value = wing ?? 'articles';
+      const spaceSel = h('select');
+      const kindSel = h('select');
+      const fill = () => {
+        const w = wingSel.value;
+        const spaces = inside(w).map((id) => state.byId.get(id)).filter(Boolean);
+        if (!spaces.length) spaces.push({ id: w, parentId: null });
+        spaceSel.replaceChildren(...spaces.map((x) => h('option', { value: x.id, textContent: x.parentId ? x.title : 'האגף עצמו' })));
+        kindSel.replaceChildren(...WING_KINDS[w].map((k) => h('option', { value: k, textContent: KIND[k] })));
+      };
+      wingSel.addEventListener('change', fill);
+      fill();
+      const field = (label, input) => h('label', { className: 'field' }, label, input);
+      const go = act('לפתוח טיוטה', async () => {
+        try {
+          const e = await send(`/api/studio/ideas/${idea.id}/grow`, 'POST', { spaceId: spaceSel.value, kind: kindSel.value });
+          window.scrollTo(0, 0);
+          location.hash = e.kind === 'project' || e.kind === 'work' ? `#project/${e.id}` : `#item/${e.id}`;
+        } catch (err) {
+          fail(err);
+        }
+      }, 'accent');
+      panel.replaceChildren(
+        h('p', { className: 'hint', textContent: 'הרעיון יוצא מהמחברת ונהיה טיוטה פרטית, עם הטקסט, המחשבות, התמונות וההקלטות שלו.' }),
+        h('div', { className: 'grow-fields' }, field('אגף', wingSel), field('איפה בתוכו', spaceSel), field('מה זה יהיה', kindSel)),
+        h('div', { className: 'actions' }, go, act('ביטול', close)),
+      );
+    };
+
+    const edit = () => {
+      const area = h('textarea', { value: idea.body, dir: 'auto', ariaLabel: 'הרעיון' });
+      const tagInput = h('input', { type: 'text', value: idea.tags.join(', '), dir: 'auto', placeholder: 'תגיות, מופרדות בפסיק', ariaLabel: 'תגיות' });
+      const fileInput = h('input', { type: 'file', accept: 'image/*,audio/*,video/*,application/pdf,.cpr,.bak,.zip', hidden: true });
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        fileInput.value = '';
+        if (!file) return;
+        msg.textContent = `מעלה את ${file.name}...`;
+        msg.className = 'msg';
+        try {
+          const f = await upload(idea.id, await shrink(file));
+          replaceIdea({ ...idea, files: [...idea.files, f] });
+        } catch (err) {
+          fail(err);
+        }
+      });
+      const removeFile = (f) => async () => {
+        if (!confirm(`להסיר את ${f.name}?`)) return;
+        try {
+          await call(`/api/studio/files/${f.id}`, { method: 'DELETE' });
+          replaceIdea({ ...idea, files: idea.files.filter((x) => x.id !== f.id) });
+        } catch (err) {
+          fail(err);
+        }
+      };
+      const rows = [
+        ...idea.files.map((f) => h('li', {}, h('span', { dir: 'auto', textContent: f.name }), act('הסרה', removeFile(f), 'danger'))),
+        ...(idea.meta.notes ?? []).map((n) => h('li', {}, h('span', { dir: 'auto', textContent: n.text }), act('הסרה', () => confirm('להסיר את המחשבה הזאת?') && tend({ dropNote: n.at }), 'danger'))),
+      ];
+      const save = act('שמירה', () => send(`/api/studio/entries/${idea.id}`, 'PATCH', { body: area.value, tags: tagInput.value }).then(replaceIdea, fail), 'primary');
+      const del = act('מחיקה', () => confirm('למחוק את הרעיון? אין דרך חזרה.') && call(`/api/studio/entries/${idea.id}`, { method: 'DELETE' }).then(() => dropIdea(idea.id), fail), 'danger');
+      node.replaceChildren(
+        area,
+        tagInput,
+        rows.length ? h('ul', { className: 'edit-list' }, ...rows) : null,
+        h('div', { className: 'actions' }, save, act('לצרף קובץ', () => fileInput.click()), act('ביטול', drawIdeas), del),
+        fileInput,
+        msg,
+      );
+      area.focus();
+    };
+
+    const notes = idea.meta.notes ?? [];
+    node.append(
+      ...[
+        h('div', { className: 'idea-top' }, wingPick, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
+        idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
+        idea.body.trim() ? h('div', { className: 'text', dir: 'auto', textContent: idea.body }) : null,
+        idea.files.length ? h('div', { className: 'files' }, ...idea.files.map(fileView)) : null,
+        idea.meta.spark ? h('p', { className: 'from-spark', dir: 'auto', textContent: `מתוך ניצוץ: ${idea.meta.spark}` }) : null,
+        notes.length ? h('ul', { className: 'notes' }, ...notes.map((n) => h('li', { dir: 'auto' }, n.text, h('time', { dateTime: n.at, textContent: when(n.at) })))) : null,
+        idea.tags.length ? h('ul', { className: 'chips' }, ...idea.tags.map((t) => h('li', { textContent: `#${t}` }))) : null,
+        h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('לפתח לטיוטה', grow)),
+        panel,
+        msg,
+      ].filter(Boolean),
+    );
+    return node;
+  }
+
+  // ---------- an old idea comes back ----------
+  function oldPool() {
+    const age = (i) => Date.now() - Date.parse(i.createdAt);
+    const waiting = ideasView.list.filter((i) => age(i) > 14 * DAY && !i.pinned);
+    return waiting.length ? waiting : ideasView.list.filter((i) => age(i) > 2 * DAY);
+  }
+  function nextOld() {
+    const pool = oldPool();
+    ideasView.oldId = pickOne(pool, pool.find((i) => i.id === ideasView.oldId))?.id ?? null;
+  }
+  function drawOld() {
+    const idea = ideasView.list.find((i) => i.id === ideasView.oldId);
+    $('resurface').hidden = !idea;
+    if (!idea) return;
+    $('resurface-age').textContent = `מ${ago(idea.createdAt)}`;
+    $('resurface-card').replaceChildren(ideaCard(idea));
+    $('resurface-next').hidden = oldPool().length < 2;
+  }
+  $('resurface-next').addEventListener('click', () => {
+    nextOld();
+    drawOld();
+  });
+
+  // ---------- sparks ----------
+  async function loadSparks() {
+    ideasView.sparks = (await call('/api/studio/sparks')).sparks;
+  }
+  function nextSpark() {
+    const w = $('spark-wing').value;
+    const pool = (ideasView.sparks ?? []).filter((s) => !w || s.wing === w || s.wing === 'any');
+    ideasView.spark = pickOne(pool, ideasView.spark);
+    const s = ideasView.spark;
+    $('spark-text').textContent = s ? s.text : 'לאגף הזה עוד אין ניצוצות. אפשר לכתוב כמה למטה, ב"הניצוצות שלי".';
+    if (s && s.wing !== 'any') $('spark').dataset.wing = s.wing;
+    else delete $('spark').dataset.wing;
+    $('spark-write').disabled = !s;
+  }
+  $('spark-wing').addEventListener('change', nextSpark);
+  $('spark-next').addEventListener('click', nextSpark);
+  $('spark-write').addEventListener('click', () => {
+    const s = ideasView.spark;
+    if (!s) return;
+    ideasView.answering = s.text;
+    $('capture-spark-text').textContent = s.text;
+    $('capture-spark').hidden = false;
+    if (s.wing !== 'any') $('capture-wing').value = s.wing;
+    $('capture').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    $('capture-text').focus({ preventScroll: true });
+  });
+  function clearAnswering() {
+    ideasView.answering = '';
+    $('capture-spark').hidden = true;
+  }
+  $('capture-spark-clear').addEventListener('click', clearAnswering);
+
+  function drawSparkEditor() {
+    $('spark-groups').replaceChildren(
+      ...['any', ...WING_IDS].map((w) => {
+        const lines = (ideasView.sparks ?? []).filter((s) => s.wing === w).map((s) => s.text);
+        const ta = h('textarea', { value: lines.join('\n'), dir: 'auto', rows: Math.min(8, Math.max(3, lines.length + 1)) });
+        ta.dataset.wing = w;
+        return h('label', { className: 'field' }, w === 'any' ? 'לכל דבר' : WING_NAME[w], ta);
+      }),
+    );
+  }
+  $('spark-editor').addEventListener('toggle', () => {
+    if ($('spark-editor').open) drawSparkEditor();
+  });
+  async function saveSparks(list) {
     try {
-      await send('/api/studio/entries', 'POST', { kind: 'idea', body, tags: $('capture-tags').value });
-      $('capture-text').value = '';
-      say('capture-msg', 'נשמר', 'ok');
-      loadIdeas();
+      const { sparks, own } = await send('/api/studio/sparks', 'PUT', { sparks: list });
+      ideasView.sparks = sparks;
+      drawSparkEditor();
+      nextSpark();
+      say('sparks-msg', own ? 'נשמר.' : 'חזרה הרשימה המקורית.', 'ok');
     } catch (err) {
-      report('capture-msg')(err);
+      report('sparks-msg')(err);
+    }
+  }
+  $('sparks-save').addEventListener('click', () =>
+    saveSparks(
+      [...$('spark-groups').querySelectorAll('textarea')].flatMap((ta) =>
+        ta.value.split('\n').map((t) => t.trim()).filter(Boolean).map((text) => ({ wing: ta.dataset.wing, text })),
+      ),
+    ),
+  );
+  $('sparks-reset').addEventListener('click', () => confirm('לחזור לניצוצות המקוריים? מה שכתבת כאן יימחק.') && saveSparks([]));
+
+  // ---------- capture ----------
+  // A file that failed to save (no signal, say) waits in ideasView.pending
+  // and goes with the next "שמירה".
+  async function capture(file = ideasView.pending) {
+    const text = $('capture-text').value;
+    if (!text.trim() && !file) return void $('capture-text').focus();
+    const form = new FormData();
+    form.set('text', text);
+    form.set('wing', $('capture-wing').value);
+    form.set('tags', $('capture-tags').value);
+    if (ideasView.answering) form.set('spark', ideasView.answering);
+    if (file) form.set('file', file, file.name);
+    $('capture-save').disabled = true;
+    say('capture-msg', file ? 'שומר...' : '');
+    try {
+      const idea = await call('/api/studio/ideas', { method: 'POST', body: form });
+      ideasView.pending = null;
+      $('capture-text').value = '';
+      $('capture-tags').value = '';
+      $('capture-wing').value = '';
+      clearAnswering();
+      const at = ideasView.list.findIndex((x) => !x.pinned);
+      ideasView.list.splice(at < 0 ? ideasView.list.length : at, 0, idea);
+      drawIdeas();
+      say('capture-msg', pickOne(SAVED), 'ok');
+    } catch (err) {
+      if (file) ideasView.pending = file;
+      if (!(err instanceof AuthError)) say('capture-msg', file ? `לא נשמר (${err.message}). הקובץ מחכה כאן, "שמירה" תנסה שוב.` : err.message, 'err');
+    } finally {
+      $('capture-save').disabled = false;
     }
   }
   $('capture').addEventListener('submit', (e) => {
@@ -199,66 +579,77 @@
     }
   });
 
-  function ideaCard(idea) {
-    const text = h('div', { className: 'text', dir: 'auto', textContent: idea.body });
-    const tags = idea.tags.length ? h('ul', { className: 'chips' }, ...idea.tags.map((t) => h('li', { textContent: t }))) : null;
-    const msg = h('small', { className: 'msg' });
-    const node = h('article', { className: `idea${idea.pinned ? ' pinned' : ''}` });
-
-    const act = (label, fn, cls = '') => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn });
-    const fail = (err) => {
-      if (!(err instanceof AuthError)) {
-        msg.textContent = err.message;
-        msg.className = 'msg err';
-      }
-    };
-
-    const edit = () => {
-      const area = h('textarea', { value: idea.body, dir: 'auto' });
-      const tagInput = h('input', { type: 'text', value: idea.tags.join(', '), dir: 'auto', placeholder: 'תגיות' });
-      const save = act('שמירה', async () => {
-        try {
-          await send(`/api/studio/entries/${idea.id}`, 'PATCH', { body: area.value, tags: tagInput.value });
-          loadIdeas();
-        } catch (err) {
-          fail(err);
-        }
-      }, 'primary');
-      node.replaceChildren(area, tagInput, h('div', { className: 'actions' }, save, act('ביטול', loadIdeas)), msg);
-      area.focus();
-    };
-
-    const toArticle = async () => {
-      // Without a title, the idea's first line becomes the title and leaves the body.
-      const [first, ...rest] = idea.body.split('\n');
-      const change = idea.title
-        ? { kind: 'article' }
-        : { kind: 'article', title: first.replace(/^#+\s*/, '').slice(0, 120), body: rest.join('\n').trim() };
-      try {
-        await send(`/api/studio/entries/${idea.id}`, 'PATCH', { ...change, spaceId: 'articles' });
-        location.hash = `#item/${idea.id}`;
-      } catch (err) {
-        fail(err);
-      }
-    };
-
-    node.append(
-      ...[idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
-      text,
-      tags,
-      h('div', { className: 'meta' }, h('time', { textContent: fmt(idea.updatedAt) })),
-      h(
-        'div',
-        { className: 'actions' },
-        act(idea.pinned ? 'ביטול נעיצה' : 'נעיצה', () => send(`/api/studio/entries/${idea.id}`, 'PATCH', { pinned: !idea.pinned }).then(loadIdeas, fail)),
-        act('עריכה', edit),
-        act('להפוך למאמר', toArticle),
-        act('מחיקה', () => confirm('למחוק את הרעיון?') && call(`/api/studio/entries/${idea.id}`, { method: 'DELETE' }).then(loadIdeas, fail), 'danger'),
-      ),
-      msg,
-    ].filter(Boolean));
-    return node;
+  // A phone photo can be 5 MB or HEIC; send a JPEG of at most 2000px instead.
+  async function shrink(file) {
+    const fine = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type);
+    if (!file.type.startsWith('image/') || file.type === 'image/gif' || (fine && file.size < 1_500_000)) return file;
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const c = h('canvas', { width: Math.round(bmp.width * scale), height: Math.round(bmp.height * scale) });
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      return blob ? new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' }) : file;
+    } catch {
+      return file;
+    }
   }
+  $('photo-btn').addEventListener('click', () => $('photo').click());
+  $('photo').addEventListener('change', async () => {
+    const file = $('photo').files[0];
+    $('photo').value = '';
+    if (!file) return;
+    say('capture-msg', 'מכין את התמונה...');
+    capture(await shrink(file));
+  });
+
+  // Voice memo: tap to record, tap again and it is saved (with any text typed).
+  const rec = { mr: null, timer: 0, t0: 0 };
+  const REC_MAX_MS = 30 * 60 * 1000; // about 15 MB at 64 kbps, well under the 25 MB cap
+  const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+  function recUi(on) {
+    pressed($('rec'), on).classList.toggle('recording', on);
+    $('rec-label').textContent = on ? `עצירה ושמירה ${clock(Date.now() - rec.t0)}` : 'הקלטה';
+  }
+  async function toggleRec() {
+    if (rec.mr) return rec.mr.stop();
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      return say('capture-msg', 'הדפדפן הזה לא מקליט. אפשר להקליט בטלפון ולצרף את הקובץ דרך "עריכה".', 'err');
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return say('capture-msg', 'אין גישה למיקרופון. צריך לאשר אותה בדפדפן.', 'err');
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported?.(t));
+    const mr = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 64000 } : {});
+    const chunks = [];
+    mr.addEventListener('dataavailable', (e) => e.data.size && chunks.push(e.data));
+    mr.addEventListener('stop', () => {
+      stream.getTracks().forEach((t) => t.stop());
+      clearInterval(rec.timer);
+      rec.mr = null;
+      recUi(false);
+      const mime = mr.mimeType || type || 'audio/webm';
+      const blob = new Blob(chunks, { type: mime });
+      if (!blob.size) return say('capture-msg', 'לא נקלט כלום. עוד פעם?', 'err');
+      const ext = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm';
+      const d = new Date();
+      const name = `הקלטה ${d.getDate()}.${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}.${ext}`;
+      capture(new File([blob], name, { type: mime }));
+    });
+    mr.start(1000);
+    rec.mr = mr;
+    rec.t0 = Date.now();
+    rec.timer = setInterval(() => {
+      if (Date.now() - rec.t0 > REC_MAX_MS) mr.stop();
+      else recUi(true);
+    }, 500);
+    recUi(true);
+    say('capture-msg', '');
+  }
+  $('rec').addEventListener('click', toggleRec);
 
   // ---------- a wing's studio ----------
   const wingView = { id: null, filter: null };
