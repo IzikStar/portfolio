@@ -231,7 +231,8 @@
   const haystack = (i) => [i.title, i.body, i.meta.spark, ...i.tags, ...(i.meta.notes ?? []).map((n) => n.text)].join('\n').toLowerCase();
 
   function drawIdeas() {
-    const all = ideasView.list;
+    // Same order as the server: pinned first, then whatever was touched last.
+    const all = ideasView.list.sort((a, b) => b.pinned - a.pinned || b.updatedAt.localeCompare(a.updatedAt));
     drawPulse(all);
     drawFilters(all);
     const q = $('idea-search').value.trim().toLowerCase();
@@ -332,8 +333,9 @@
       h('button', {
         className: 'quiet pin-toggle',
         type: 'button',
-        textContent: idea.pinned ? 'נעוץ' : 'לנעוץ',
-        title: idea.pinned ? 'לשחרר מלמעלה' : 'להשאיר למעלה',
+        textContent: idea.pinned ? '★' : '☆',
+        title: idea.pinned ? 'נעוץ למעלה. ללחוץ כדי לשחרר' : 'לנעוץ למעלה',
+        ariaLabel: 'נעוץ למעלה',
         onclick: () => send(`/api/studio/entries/${idea.id}`, 'PATCH', { pinned: !idea.pinned }).then(replaceIdea, fail),
       }),
       idea.pinned,
