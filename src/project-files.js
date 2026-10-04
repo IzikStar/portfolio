@@ -4,7 +4,7 @@
 // | 'other', and visibility is 'private' | 'community' | 'members' | 'public'.
 // These are working files, so a missing visibility means the owner only.
 import { escapeHtml as e, safeUrl } from './markdown.js';
-import { canSee } from './spaces.js';
+import { canSee, inAny } from './spaces.js';
 
 const KINDS = ['cubase', 'zip', 'other'];
 const VISIBILITY = ['private', 'community', 'members', 'public'];
@@ -31,12 +31,12 @@ export function mayDownload(acc, entry, p) {
   if (!canSee(acc, entry)) return false;
   if (p.visibility === 'public') return true;
   if (p.visibility === 'members') return acc.member;
-  if (p.visibility === 'community') return Boolean(entry.spaceId && acc.communities.has(entry.spaceId));
+  if (p.visibility === 'community') return inAny(acc, entry.communities);
   return false;
 }
 
 const KIND_NAME = { cubase: 'פרויקט קיובייס', zip: 'ZIP', other: 'קובץ' };
-const VIS_NAME = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
+const VIS_NAME = { private: 'רק אני', community: 'לקהילות', members: 'לחברים', public: 'לכולם' };
 
 export function projectFilesBlock(v, entry) {
   const list = projectList(entry).filter((p) => mayDownload(v.acc, entry, p));

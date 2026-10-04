@@ -21,7 +21,7 @@ export const KIND_LABEL = {
   article: 'מאמר', project: 'פרויקט', work: 'יצירה', song: 'שיר', chapter: 'פרק', torah: 'דבר תורה',
   sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', video: 'סרטון', idea: 'רעיון',
 };
-const VIS_LABEL = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
+const VIS_LABEL = { private: 'רק אני', community: 'לקהילות', members: 'לחברים', public: 'לכולם' };
 
 export const icon = (paths, size = 34) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -124,7 +124,7 @@ ${script ? '<script src="/site.js" defer></script>' : ''}
     </nav>
     <div class="who">
       ${role === 'owner' ? '<a class="btn small" href="/studio">סטודיו</a>' : ''}
-      ${member ? `<a href="/community"${here('/community')}>${e(member.displayName)}</a><a href="/login?logout=1">יציאה</a>` : ''}
+      ${member ? `<a href="/community"${here('/community')}>${e(member.displayName)}</a><a href="/login?logout=1">יציאה</a>` : `<a href="/community"${here('/community')}>קהילות</a>`}
       ${role === 'public' ? `<a class="btn small" href="/login?next=${encodeURIComponent(path)}">כניסה</a>` : ''}
     </div>
   </div>

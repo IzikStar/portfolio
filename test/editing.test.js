@@ -166,7 +166,8 @@ describe('moving items', () => {
 describe('project files', () => {
   async function setup() {
     const o = await owner();
-    const song = await entry(o, { kind: 'song', title: 'Song', slug: 'song' });
+    const fans = (await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json());
+    const song = await entry(o, { kind: 'song', title: 'Song', slug: 'song', communities: [fans.id] });
     const files = {};
     for (const [name, type] of [['mix.cpr', ''], ['stems.zip', 'application/zip'], ['mix.bak', 'application/octet-stream'], ['all.cpr', '']]) {
       const res = await upload(o, song.id, { name, type });
@@ -181,7 +182,7 @@ describe('project files', () => {
     ];
     await call(o, `/api/studio/entries/${song.id}`, 'PATCH', { meta: { projects } });
     const inside = await member(o, 'dana');
-    await call(o, '/api/studio/spaces/music/members', 'PATCH', { userId: inside.id, status: 'active' });
+    await call(o, `/api/studio/communities/${fans.id}/members`, 'PATCH', { userId: inside.id, status: 'active' });
     const outside = await member(o, 'noa');
     return { o, song, files, inside, outside };
   }
@@ -301,8 +302,10 @@ describe('studio page preview', () => {
   it('renders unsaved changes as the chosen visitor would see them', async () => {
     const o = await owner();
     const x = await entry(o, { kind: 'song', title: 'Saved title' });
+    const fans = (await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json());
     const body = {
       id: x.id,
+      communities: [fans.id],
       kind: 'song',
       spaceId: 'music',
       title: 'Unsaved title',

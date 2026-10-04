@@ -15,7 +15,8 @@ import { home, wingPage, resolve, communityPage } from './wings.js';
 import { WINGS } from './db.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
-import { access, listSpaces, requestJoin, studioSpaces, createSpace, updateSpace, deleteSpace, spaceMembers, decideMember } from './spaces.js';
+import { access, listSpaces, studioSpaces, createSpace, updateSpace, deleteSpace } from './spaces.js';
+import { requestJoin, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
 import { postComment, deleteComment, studioComments, setCommentStatus, deleteCommentsOf } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
@@ -23,7 +24,7 @@ import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
 import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
-import { blogRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
+import { communityRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
 
 // The main address. The other custom domains (and www.) redirect here;
@@ -75,6 +76,19 @@ async function pages(request, env, url, ctx) {
   const old = path.match(/^\/(writing|work)(\/.*)?$/);
   if (old) return Response.redirect(`${url.origin}/${old[1] === 'writing' ? 'articles' : 'software'}${old[2] ?? ''}`, 301);
   if (path === '/community') return communityPage(env, await viewer(request, env));
+  // A community's page and blog: /community/<slug>[/<post>].
+  const cp = path.match(/^\/community\/([^/]+)(?:\/([^/]+))?\/?$/);
+  if (cp) {
+    let slug;
+    let post;
+    try {
+      slug = decodeURIComponent(cp[1]);
+      post = cp[2] === undefined ? undefined : decodeURIComponent(cp[2]);
+    } catch {
+      return null;
+    }
+    return (await communityRoute(env, await viewer(request, env), slug, post)) ?? notFound(request, env);
+  }
   const f = path.match(/^\/files\/([a-z0-9-]+)$/);
   if (f) return (await serveFile(request, env, (await viewer(request, env)).acc, f[1])) ?? notFound(request, env);
 
@@ -87,9 +101,6 @@ async function pages(request, env, url, ctx) {
     return null;
   }
   const v = await viewer(request, env);
-  // A community's blog: /<wing>/blog[/<post>] or /<wing>/<space>/blog[/<post>].
-  const blog = await blogRoute(env, v, slugs);
-  if (blog !== undefined) return blog ?? notFound(request, env);
   if (slugs.length > 3) return null;
   const page = slugs.length === 1 ? await wingPage(env, v, slugs[0]) : await resolve(env, v, ...slugs);
   return page ?? notFound(request, env);
@@ -122,6 +133,7 @@ async function api(request, env, url, ctx) {
     return publicList(env, v.acc, v.role === 'public', url);
   }
   if (path === '/api/spaces' && method === 'GET') return listSpaces(env, (await viewer(request, env)).acc);
+  if (path === '/api/communities' && method === 'GET') return publicCommunities(env, (await viewer(request, env)).acc);
   if (path.startsWith('/api/studio/')) return studio(request, env, url);
   if (path.startsWith('/api/comments')) {
     if (method !== 'GET') checkOrigin(request, url);
@@ -176,11 +188,16 @@ async function studio(request, env, url) {
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
   if (path === '/api/studio/spaces' && method === 'GET') return studioSpaces(env);
   if (path === '/api/studio/spaces' && method === 'POST') return createSpace(request, env);
-  const sp = path.match(/^\/api\/studio\/spaces\/([a-z0-9-]+)(\/members)?$/);
-  if (sp && !sp[2] && method === 'PATCH') return updateSpace(request, env, sp[1]);
-  if (sp && !sp[2] && method === 'DELETE') return deleteSpace(env, sp[1]);
-  if (sp && sp[2] && method === 'GET') return spaceMembers(env, sp[1]);
-  if (sp && sp[2] && method === 'PATCH') return decideMember(request, env, sp[1]);
+  const sp = path.match(/^\/api\/studio\/spaces\/([a-z0-9-]+)$/);
+  if (sp && method === 'PATCH') return updateSpace(request, env, sp[1]);
+  if (sp && method === 'DELETE') return deleteSpace(env, sp[1]);
+  if (path === '/api/studio/communities' && method === 'GET') return studioCommunities(env);
+  if (path === '/api/studio/communities' && method === 'POST') return createCommunity(request, env);
+  const cm = path.match(/^\/api\/studio\/communities\/([a-z0-9-]+)(\/members)?$/);
+  if (cm && !cm[2] && method === 'PATCH') return updateCommunity(request, env, cm[1]);
+  if (cm && !cm[2] && method === 'DELETE') return deleteCommunity(env, cm[1]);
+  if (cm && cm[2] && method === 'GET') return communityMembers(env, cm[1]);
+  if (cm && cm[2] && method === 'PATCH') return decideMember(request, env, cm[1]);
   if (path === '/api/studio/comments' && method === 'GET') return studioComments(env, url, await access(env, { role: 'owner' }));
   const cs = path.match(/^\/api\/studio\/comments\/([a-z0-9-]+)$/);
   if (cs && method === 'PATCH') return setCommentStatus(request, env, cs[1]);
@@ -233,7 +250,7 @@ async function memberApi(request, env, url) {
   if (path === '/api/member/login' && method === 'POST') return memberLogin(request, env);
   if (path === '/api/member/logout' && method === 'POST') return memberLogout();
   if (path === '/api/member/me' && method === 'GET') return me(request, env);
-  const jm = path.match(/^\/api\/member\/spaces\/([a-z0-9-]+)\/join$/);
+  const jm = path.match(/^\/api\/member\/communities\/([a-z0-9-]+)\/join$/);
   if (jm && method === 'POST') return requestJoin(request, env, await viewer(request, env), jm[1]);
   throw new HttpError(404, 'Not found.');
 }

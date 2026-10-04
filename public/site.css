@@ -177,6 +177,11 @@ a { color: inherit; }
 .community-box { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 22px 26px; border-radius: 18px; background: var(--tint, var(--raised)); }
 .community-box p { flex: 1 1 260px; color: var(--soft); }
 .community-box strong { color: var(--ink); }
+.community-list { list-style: none; margin: 0; padding: 0; flex: 1 1 100%; display: grid; gap: 8px; }
+.community-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.community-list a:not(.btn) { color: var(--ink); font-weight: 500; }
+.community-box .state, .community-card .state { color: var(--soft); font-size: 0.9em; }
+.community-card .title { color: var(--ink); text-decoration: none; }
 
 /* ---------- reading ---------- */
 .article { max-width: 780px; padding-block: 48px; }

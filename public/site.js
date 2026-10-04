@@ -103,7 +103,7 @@
         const n = ++asked;
         let found = [];
         try {
-          found = (await send(`/api/people?space=${encodeURIComponent(ta.dataset.people)}&q=${encodeURIComponent(m.q)}`, 'GET')).people;
+          found = (await send(`/api/people?${ta.dataset.people}&q=${encodeURIComponent(m.q)}`, 'GET')).people;
         } catch {
           // no list this time
         }
@@ -202,7 +202,7 @@
       const msg = btn.parentElement.querySelector('.msg');
       btn.disabled = true;
       try {
-        const res = await fetch(`/api/member/spaces/${encodeURIComponent(btn.dataset.join)}/join`, {
+        const res = await fetch(`/api/member/communities/${encodeURIComponent(btn.dataset.join)}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: '{}',

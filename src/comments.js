@@ -1,12 +1,14 @@
-// Comments: the community of an item talks about it (beta readers on a
-// chapter, the music community on a song). A comment can point at one
-// paragraph; it keeps the opening words of that paragraph so the note still
-// makes sense after the text is edited. Only the item's community and the
-// owner see comments, and the owner can close or delete any of them.
+// Comments: the communities an item is opened to talk about it (beta readers
+// on a chapter, "nonsense humor" on a sketch). An item opened to no community
+// takes comments from any signed-in member who can read it. A comment can
+// point at one paragraph; it keeps the opening words of that paragraph so the
+// note still makes sense after the text is edited. Only those who may comment
+// see comments, and the owner can close or delete any of them.
 // Blog posts use the same comments: entry_id then holds the post's id.
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
-import { canSee, communityOf } from './spaces.js';
+import { canSee, inAny } from './spaces.js';
+import { outsideOf } from './communities.js';
 import { getEntry } from './entries.js';
 import { getPost, canReadPost, canCommentPost, postPath } from './posts.js';
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions } from './mentions.js';
@@ -38,7 +40,8 @@ export function canComment(v, entry) {
   if (!entry || entry.kind === 'idea' || entry.meta?.comments === false) return false;
   if (!canSee(acc, entry)) return false;
   if (acc.owner) return true;
-  return Boolean(v.member && entry.spaceId && acc.communities.has(entry.spaceId));
+  if (!v.member) return false;
+  return !entry.communities?.length || inAny(acc, entry.communities);
 }
 
 export async function commentsOf(env, entryId) {
@@ -67,23 +70,28 @@ function one(c, v, replies = []) {
 }
 
 // The comments section for an item page (or a blog post, passed as
-// { id, spaceId, kind: 'post' } with its own `can`). Visitors outside the
-// community get a line saying how to get in.
+// { id, communities, kind: 'post' } with its own `can`). Visitors who could
+// get in get a line saying how; hidden communities are never named.
 export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
   const { acc } = v;
-  if (entry.kind === 'idea' || entry.meta?.comments === false || !entry.spaceId) return '';
+  if (entry.kind === 'idea' || entry.meta?.comments === false) return '';
   if (!can) {
-    const target = communityOf(acc.byId, entry.spaceId);
-    const space = acc.byId.get(target);
-    if (!space) return '';
-    const name = space.kind === 'book' ? `קוראי הבטא של ${space.title}` : space.parentId ? space.title : `קהילת ה${space.title}`;
-    if (v.role === 'public') {
-      return `<section class="comments closed"><p>התגובות כאן פתוחות ל${e(name)}. <a href="/join?space=${encodeURIComponent(target)}">בקשת הצטרפות</a> · <a href="/login">כניסה</a></p></section>`;
+    const list = entry.communities ?? [];
+    if (!list.length) {
+      return v.role === 'public' ? '<section class="comments closed"><p>התגובות פתוחות למי שנרשם. <a href="/join">הרשמה</a> · <a href="/login">כניסה</a></p></section>' : '';
     }
-    if (acc.pending.has(target)) return `<section class="comments closed"><p>הבקשה שלכם להצטרף ל${e(name)} מחכה לאישור. אחרי שאאשר אותה, אפשר להגיב כאן.</p></section>`;
-    if (space.joinMode === 'closed') return '';
-    return `<section class="comments closed"><p>התגובות כאן פתוחות ל${e(name)}.</p><button class="btn small" type="button" data-join="${e(target)}">בקשת הצטרפות</button><p class="msg" role="status"></p></section>`;
+    const outside = outsideOf(acc, list);
+    if (!outside.length) return '';
+    const names = outside.map((c) => e(c.title)).join(', ');
+    if (outside.every((c) => acc.pending.has(c.id))) return `<section class="comments closed"><p>הבקשה שלכם להצטרף ל${names} מחכה לאישור. אחרי שאאשר אותה, אפשר להגיב כאן.</p></section>`;
+    const open = outside.find((c) => c.joinMode === 'request' && !acc.pending.has(c.id));
+    if (!open) return '';
+    if (v.role === 'public') {
+      return `<section class="comments closed"><p>התגובות כאן פתוחות ל${names}. <a href="/join?community=${encodeURIComponent(open.id)}">בקשת הצטרפות</a> · <a href="/login">כניסה</a></p></section>`;
+    }
+    return `<section class="comments closed"><p>התגובות כאן פתוחות ל${names}.</p><button class="btn small" type="button" data-join="${e(open.id)}">בקשת הצטרפות ל${e(open.title)}</button><p class="msg" role="status"></p></section>`;
   }
+  const people = entry.kind === 'post' ? `community=${entry.communities[0]}` : `entry=${entry.id}`;
   const top = comments.filter((c) => !c.replyTo);
   const kids = new Map();
   for (const c of comments) if (c.replyTo) kids.set(c.replyTo, [...(kids.get(c.replyTo) ?? []), c]);
@@ -92,7 +100,7 @@ export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
   ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על כל הטקסט, או על פסקה אחת דרך הסימן שלידה.</p>'}
   <form class="comment-form" data-comment-form>
     <div class="target" hidden><span></span><button type="button" class="link" data-clear-target>ביטול</button></div>
-    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבתם? @ ושם מתייג מישהו מהקהילה" data-people="${e(entry.spaceId)}" required></textarea></label>
+    <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבתם? @ ושם מתייג מישהו מהקהילה" data-people="${e(people)}" required></textarea></label>
     <div class="actions"><button class="btn accent small" type="submit">שליחה</button><p class="msg" role="status"></p></div>
   </form>
 </section>`;
@@ -103,7 +111,8 @@ export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
 export async function postComment(request, env, v) {
   if (v.role === 'public') throw new HttpError(401, 'Sign in first.');
   const body = await readJson(request);
-  // What is being commented on, and which community may be tagged in it.
+  // What is being commented on, and which communities may be tagged in it
+  // (null: an item open to no community, where any member may be tagged).
   let targetId;
   let community;
   if (body.postId) {
@@ -111,13 +120,13 @@ export async function postComment(request, env, v) {
     if (!post || !canReadPost(v, post)) throw new HttpError(404, 'That post no longer exists.');
     if (!canCommentPost(v, post)) throw new HttpError(403, 'Comments here are open to this community only.');
     targetId = post.id;
-    community = post.spaceId;
+    community = [post.spaceId];
   } else {
     const entry = await getEntry(env, String(body.entryId ?? ''));
     if (!entry || !canSee(v.acc, entry)) throw new HttpError(404, 'That item no longer exists.');
     if (!canComment(v, entry)) throw new HttpError(403, 'Comments here are open to this community only.');
     targetId = entry.id;
-    community = communityOf(v.acc.byId, entry.spaceId);
+    community = entry.communities.length ? entry.communities : null;
   }
   const { text, ids: tagged } = await cleanMentions(env, community, cleanText(body.body, MAX_BODY));
   if (!text.trim()) throw new HttpError(400, 'Write something first.');

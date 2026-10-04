@@ -40,6 +40,7 @@
     <span class="group">כללי</span>
     <a href="#comments" data-tab="comments">תגובות<span class="count" id="comment-count"></span></a>
     <a href="#blog" data-tab="blog">בלוגים<span class="count" id="blog-count" title="פוסטים חדשים השבוע"></span></a>
+    <a href="#communities" data-tab="communities">קהילות<span class="count" id="request-count" title="בקשות הצטרפות שמחכות"></span></a>
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
     <a href="#cv" data-tab="cv">קורות חיים</a>
     <a href="#projects" data-tab="projects">פרויקטים</a>
@@ -154,11 +155,6 @@
           <ol class="rows-table" id="w-items"></ol>
           <p class="empty" id="w-items-empty" hidden>עוד אין כאן פריטים.</p>
         </div>
-        <div class="box">
-          <h2>בקשות הצטרפות</h2>
-          <ul class="people" id="w-requests"></ul>
-          <p class="empty" id="w-requests-empty">אין בקשות פתוחות באגף הזה.</p>
-        </div>
       </div>
     </section>
 
@@ -174,13 +170,13 @@
           <select id="s-kind"><option value="book">ספר</option><option value="series">סדרה</option><option value="genre">ז'אנר</option><option value="collection">אוסף</option></select>
         </label>
         <label class="field">מי רואה את העמוד
-          <select id="s-visibility"><option value="private">רק אני</option><option value="community">הקהילה</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
+          <select id="s-visibility"><option value="private">רק אני</option><option value="community">הקהילות שבחרתי</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
         </label>
-        <label class="field">הצטרפות לקהילה
-          <select id="s-join"><option value="request">בבקשה ואישור</option><option value="closed">בהזמנה בלבד</option></select>
-        </label>
-        <label class="field check-field" id="s-own-field"><span><input type="checkbox" id="s-own"> קהילה נפרדת משלו <small>(כמו קוראי בטא של ספר)</small></span></label>
       </div>
+      <fieldset class="field comm-pick" id="s-communities">
+        <legend>קהילות <small>מי שבהן רואה את העמוד כשהוא "לקהילות", ופריט חדש כאן נפתח להן מראש</small></legend>
+        <div class="picks"></div>
+      </fieldset>
       <div class="settings" id="s-extra">
         <label class="field">כתובת <small>החלק האחרון בקישור</small><input type="text" id="s-slug" dir="auto"></label>
         <label class="field">מצב <small>למשל "בכתיבה"</small><input type="text" id="s-state" dir="auto"></label>
@@ -196,18 +192,11 @@
         <button class="btn danger" type="button" id="s-delete">מחיקה</button>
       </div>
       <details class="box batch" data-batch="space"></details>
-      <div class="two">
-        <div class="box">
-          <h2>מה יש בפנים</h2>
-          <div class="pick-bar" id="s-pickbar"></div>
-          <ol class="rows-table" id="s-items"></ol>
-          <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
-        </div>
-        <div class="box">
-          <h2 id="s-members-title">הקהילה</h2>
-          <ul class="people" id="s-members"></ul>
-          <p class="empty" id="s-members-empty">עוד אין כאן אף אחד.</p>
-        </div>
+      <div class="box">
+        <h2>מה יש בפנים</h2>
+        <div class="pick-bar" id="s-pickbar"></div>
+        <ol class="rows-table" id="s-items"></ol>
+        <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
       </div>
     </section>
 
@@ -380,6 +369,60 @@
       </div>
     </section>
 
+    <section id="view-communities" hidden>
+      <div class="head">
+        <h1>קהילות</h1>
+        <a class="btn" href="/community" target="_blank" rel="noopener">עמוד הקהילות באתר ↗</a>
+      </div>
+      <p class="hint">קהילה היא קבוצת אנשים שאתה מגדיר, בלי קשר לאגפים. כל פריט, ספר או סדרה אפשר לפתוח לקהילה אחת או כמה. לקהילה בהזמנה בלבד אי אפשר לבקש להצטרף. קהילה נסתרת לא מופיעה באתר למי שלא בתוכה, וגם מה שפתוח רק לה לא מופיע אצלו בכלל, אפילו לא עם מנעול.</p>
+      <form class="invite-form" id="g-new">
+        <label class="field">קהילה חדשה<input type="text" id="g-new-title" maxlength="120" dir="auto" placeholder="למשל: הומור נונסנס" required></label>
+        <button class="btn primary" type="submit">יצירה</button>
+      </form>
+      <p class="msg" id="g-msg" role="status"></p>
+      <ul class="people" id="g-list"></ul>
+      <p class="empty" id="g-empty" hidden>עוד אין קהילות.</p>
+    </section>
+
+    <section id="view-group" class="editor" hidden>
+      <div class="toolbar">
+        <a class="btn small" href="#communities">כל הקהילות</a>
+        <span class="status" id="g-status" role="status"></span>
+      </div>
+      <input type="text" class="title-input" id="g-title" placeholder="שם הקהילה" dir="auto" aria-label="שם הקהילה">
+      <label class="field">על הקהילה <small>מופיע בעמוד שלה ובעמוד הקהילות</small><textarea id="g-summary" rows="3" dir="auto"></textarea></label>
+      <div class="settings">
+        <label class="field">הצטרפות
+          <select id="g-join"><option value="request">אפשר לבקש, אני מאשר</option><option value="closed">בהזמנה בלבד</option></select>
+        </label>
+        <label class="field">כתובת <small>/community/...</small><input type="text" id="g-slug" dir="auto"></label>
+        <label class="field">סדר<input type="number" id="g-sort"></label>
+        <label class="field check-field"><span><input type="checkbox" id="g-hidden"> נסתרת <small>(רק מי שבפנים יודע שהיא קיימת)</small></span></label>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" type="button" id="g-save">שמירה</button>
+        <a class="btn" id="g-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <button class="btn danger" type="button" id="g-delete">מחיקה</button>
+      </div>
+      <div class="two">
+        <div class="box">
+          <h2>חברים ובקשות</h2>
+          <div class="toolbar">
+            <label class="sr-only" for="g-add">הוספת חבר</label>
+            <select id="g-add" class="grow"></select>
+            <button class="btn small" type="button" id="g-add-btn">הוספה</button>
+          </div>
+          <ul class="people" id="g-members"></ul>
+          <p class="empty" id="g-members-empty">עוד אין כאן אף אחד.</p>
+        </div>
+        <div class="box">
+          <h2>פתוח לקהילה</h2>
+          <ol class="rows-table" id="g-items"></ol>
+          <p class="empty" id="g-items-empty">עוד לא פתחת לה כלום. בעריכת כל פריט בוחרים לאילו קהילות הוא פתוח.</p>
+        </div>
+      </div>
+    </section>
+
     <section id="view-community" class="community" hidden>
       <div>
         <h2>בקשות הצטרפות</h2>
@@ -398,6 +441,10 @@
           <label class="field">בתוקף לימים <small>ריק = בלי הגבלה</small>
             <input type="text" id="inv-days" inputmode="numeric" value="14">
           </label>
+          <fieldset class="field comm-pick" id="inv-communities">
+            <legend>ישר לתוך קהילות <small>מי שנרשם בקישור נכנס אליהן בלי לבקש</small></legend>
+            <div class="picks"></div>
+          </fieldset>
           <button class="btn primary" type="submit">יצירת קישור</button>
         </form>
         <p class="msg" id="invite-msg" role="status"></p>
@@ -422,7 +469,7 @@
         <label class="field">סוג<select id="ed-kind"></select></label>
         <label class="field">איפה<select id="ed-space"></select></label>
         <label class="field">מספר / סדר <small>פרק 1, 2, 3…</small><input type="number" id="ed-order"></label>
-        <label class="field check-field"><span><input type="checkbox" id="ed-comments" checked> תגובות פתוחות לקהילה</span></label>
+        <label class="field check-field"><span><input type="checkbox" id="ed-comments" checked> תגובות פתוחות</span></label>
       </div>
       <label class="field">תקציר <small>מופיע ברשימה ובתצוגה המקדימה של קישורים</small>
         <textarea id="ed-summary" rows="2" maxlength="600" dir="auto"></textarea>
@@ -431,7 +478,7 @@
         <label class="field">מי רואה
           <select id="ed-visibility">
             <option value="private">רק אני</option>
-            <option value="community">הקהילה</option>
+            <option value="community">הקהילות שבחרתי</option>
             <option value="members">כל החברים</option>
             <option value="public">כולם</option>
           </select>
@@ -443,6 +490,10 @@
           <input type="text" id="ed-tags" dir="auto" placeholder="מופרדות בפסיק">
         </label>
       </div>
+      <fieldset class="field comm-pick" id="ed-communities">
+        <legend>קהילות <small>כש"מי רואה" הוא "הקהילות שבחרתי", רק הן רואות. בכל מקרה, הן אלה שמגיבות</small></legend>
+        <div class="picks"></div>
+      </fieldset>
       <div class="settings" id="ed-song" hidden>
         <label class="field">קאפו<input type="text" id="ed-capo" dir="ltr"></label>
         <label class="field">סולם<input type="text" id="ed-key" dir="ltr"></label>

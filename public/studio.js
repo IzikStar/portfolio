@@ -4,7 +4,7 @@
 // #projects, #project/<id>, #project-new, #cv (studio-cv.js), #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
-  const VIS = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
+  const VIS = { private: 'רק אני', community: 'לקהילות', members: 'לחברים', public: 'לכולם' };
   const KIND = {
     song: 'שיר', chapter: 'פרק', sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', torah: 'דבר תורה',
     article: 'מאמר', project: 'פרויקט', work: 'יצירה', video: 'סרטון', idea: 'רעיון',
@@ -79,18 +79,41 @@
     showLogin();
   });
 
-  // ---------- spaces (wings and what is inside them) ----------
-  const state = { spaces: [], byId: new Map() };
+  // ---------- spaces (wings and what is inside them) and communities ----------
+  const state = { spaces: [], byId: new Map(), comms: [], commById: new Map() };
   async function loadSpaces() {
-    const { spaces } = await call('/api/studio/spaces');
+    const [{ spaces }] = await Promise.all([call('/api/studio/spaces'), loadComms()]);
     state.spaces = spaces;
     state.byId = new Map(spaces.map((x) => [x.id, x]));
-    // Requests waiting in each wing, counted on the sidebar.
-    const counts = {};
-    for (const x of spaces) counts[x.wing] = (counts[x.wing] ?? 0) + x.requests;
-    for (const el of document.querySelectorAll('[data-count]')) el.textContent = counts[el.dataset.count] || '';
     return spaces;
   }
+  async function loadComms() {
+    const { communities } = await call('/api/studio/communities');
+    state.comms = communities;
+    state.commById = new Map(communities.map((c) => [c.id, c]));
+    // Join requests waiting, counted on the sidebar.
+    const n = communities.reduce((sum, c) => sum + c.requests, 0);
+    $('request-count').textContent = n || '';
+    return communities;
+  }
+
+  // A row of checkboxes, one per community, inside a fieldset with a .picks div.
+  function pickComms(box, chosen = [], onchange = null) {
+    const picks = box.querySelector('.picks');
+    picks.replaceChildren(
+      ...state.comms.map((c) =>
+        h(
+          'label',
+          { className: 'pick' },
+          h('input', { type: 'checkbox', value: c.id, checked: chosen.includes(c.id), onchange }),
+          h('span', { dir: 'auto', textContent: c.title }),
+          c.hidden ? h('small', { textContent: ' (נסתרת)' }) : null,
+        ),
+      ),
+      ...(state.comms.length ? [] : [h('a', { href: '#communities', textContent: 'עוד אין קהילות. ליצירת קהילה' })]),
+    );
+  }
+  const pickedComms = (box) => [...box.querySelectorAll('.picks input:checked')].map((i) => i.value);
   const wingOf = (id) => {
     let x = state.byId.get(id);
     while (x?.parentId) x = state.byId.get(x.parentId);
@@ -119,6 +142,7 @@
     if (view === 'wing') tab = `wing/${id}`;
     else if (view === 'space' || view === 'new') tab = `wing/${wingOf(id)?.id}`;
     else if (view === 'project' || view === 'project-new') tab = 'projects';
+    else if (view === 'group') tab = 'communities';
     for (const a of document.querySelectorAll('.studio-side [data-tab]')) {
       if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
@@ -127,6 +151,8 @@
     $('view-wing').hidden = view !== 'wing';
     $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
+    $('view-communities').hidden = view !== 'communities';
+    $('view-group').hidden = view !== 'group';
     $('view-comments').hidden = view !== 'comments';
     $('view-blog').hidden = view !== 'blog';
     $('view-settings').hidden = view !== 'settings';
@@ -138,6 +164,8 @@
     else if (view === 'wing' && WING_KINDS[id]) openWing(id);
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
+    else if (view === 'communities') loadGroups();
+    else if (view === 'group' && id) openGroup(id);
     else if (view === 'comments') loadComments();
     else if (view === 'blog') loadBlog();
     else if (view === 'settings') loadSettings();
@@ -677,14 +705,13 @@
     );
   }
 
-  function request(m, spaceId, done) {
-    const decide = (status) => send(`/api/studio/spaces/${spaceId}/members`, 'PATCH', { userId: m.userId, status }).then(done, report('w-msg'));
-    const where = state.byId.get(spaceId);
+  function request(m, communityId, done, msg = 'g-status') {
+    const decide = (status) => send(`/api/studio/communities/${communityId}/members`, 'PATCH', { userId: m.userId, status }).then(done, report(msg));
     return h(
       'li',
       {},
       h('span', { className: 'who', dir: 'auto', textContent: m.displayName }),
-      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${m.username}` }), where ? h('span', { textContent: where.parentId ? where.title : 'כל האגף' }) : null, m.accountPending ? h('span', { className: 'badge', textContent: 'חשבון חדש' }) : null, h('time', { textContent: fmt(m.createdAt) })),
+      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${m.username}` }), m.status === 'pending' ? h('span', { className: 'badge vis-community', textContent: 'מבקש להצטרף' }) : null, m.accountPending ? h('span', { className: 'badge', textContent: 'חשבון חדש' }) : null, h('time', { textContent: fmt(m.createdAt) })),
       h(
         'span',
         { className: 'actions' },
@@ -719,7 +746,7 @@
           'a',
           { className: 'space-card', href: `#space/${x.id}` },
           h('span', { className: 't', dir: 'auto', textContent: x.title }),
-          h('span', { className: 'meta' }, h('span', { textContent: SPACE_KIND[x.kind] ?? '' }), h('span', { textContent: x.entries === 1 ? 'פריט אחד' : `${x.entries} פריטים` }), x.members ? h('span', { textContent: `${x.members} בקהילה` }) : null, x.requests ? h('span', { className: 'badge vis-community', textContent: `${x.requests} בקשות` }) : null, h('span', { className: `badge vis-${x.visibility}`, textContent: VIS[x.visibility] })),
+          h('span', { className: 'meta' }, h('span', { textContent: SPACE_KIND[x.kind] ?? '' }), h('span', { textContent: x.entries === 1 ? 'פריט אחד' : `${x.entries} פריטים` }), ...x.communities.map((cid) => (state.commById.get(cid) ? h('span', { dir: 'auto', textContent: state.commById.get(cid).title }) : null)), h('span', { className: `badge vis-${x.visibility}`, textContent: VIS[x.visibility] })),
         ),
       ),
     );
@@ -741,7 +768,6 @@
     );
     $('w-filters').hidden = !kids.length;
     loadWingItems();
-    loadRequests(id, kids);
   }
 
   async function loadWingItems() {
@@ -758,18 +784,6 @@
     }
   }
   $('w-search').addEventListener('input', debounce(loadWingItems, 250));
-
-  async function loadRequests(id, kids) {
-    const targets = [state.byId.get(id), ...kids.filter((x) => x.ownCommunity)].filter(Boolean);
-    try {
-      const lists = await Promise.all(targets.map((x) => call(`/api/studio/spaces/${x.id}/members`).then((r) => r.members.filter((m) => m.status === 'pending').map((m) => [m, x.id]))));
-      const pending = lists.flat();
-      $('w-requests').replaceChildren(...pending.map(([m, sid]) => request(m, sid, () => openWing(id))));
-      $('w-requests-empty').hidden = pending.length > 0;
-    } catch (err) {
-      report('w-msg')(err);
-    }
-  }
 
   $('w-new').addEventListener('click', () => {
     const kind = $('w-kind').value;
@@ -804,9 +818,7 @@
     $('s-kind').value = x.kind;
     $('s-kind').closest('label').hidden = isWing;
     $('s-visibility').value = x.visibility;
-    $('s-join').value = x.joinMode;
-    $('s-own').checked = x.ownCommunity;
-    $('s-own-field').hidden = isWing;
+    pickComms($('s-communities'), x.communities);
     $('s-slug').value = x.slug;
     $('s-slug').closest('label').hidden = isWing;
     $('s-state').value = x.meta?.status ?? '';
@@ -819,17 +831,11 @@
     $('s-status').textContent = isWing ? 'הגדרות האגף' : `${SPACE_KIND[x.kind] ?? ''} ב${wingOf(id)?.title ?? ''}`;
     const kinds = WING_KINDS[x.wing] ?? [];
     $('s-new-item').hidden = !kinds.length || kinds[0] === 'project';
-    $('s-members-title').textContent = x.ownCommunity || isWing ? (x.kind === 'book' ? 'קוראי בטא' : 'הקהילה') : 'הקהילה (של האגף שמעליו)';
     try {
-      const [{ entries }, members] = await Promise.all([
-        call(`/api/studio/entries?space=${encodeURIComponent(id)}`),
-        x.ownCommunity || isWing ? call(`/api/studio/spaces/${id}/members`).then((r) => r.members) : Promise.resolve([]),
-      ]);
+      const { entries } = await call(`/api/studio/entries?space=${encodeURIComponent(id)}`);
       entries.sort((a, b) => (a.meta?.order ?? 1e9) - (b.meta?.order ?? 1e9) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
       $('s-items').replaceChildren(...entries.map(itemRow));
       $('s-items-empty').hidden = entries.length > 0;
-      $('s-members').replaceChildren(...members.filter((m) => m.status !== 'refused').map((m) => request(m, id, () => openSpace(id))));
-      $('s-members-empty').hidden = members.length > 0;
     } catch (err) {
       report('s-status')(err);
     }
@@ -842,11 +848,11 @@
       title: $('s-title').value,
       summary: $('s-summary').value,
       visibility: $('s-visibility').value,
-      joinMode: $('s-join').value,
+      communities: pickedComms($('s-communities')),
       sort: $('s-sort').value,
       meta: { ...x.meta, status: $('s-state').value.trim() || undefined, cover: $('s-cover').value.trim() || undefined, drive: driveMeta(x.meta?.drive, $('s-drive').value) },
     };
-    if (x.parentId) Object.assign(body, { kind: $('s-kind').value, ownCommunity: $('s-own').checked, slug: $('s-slug').value });
+    if (x.parentId) Object.assign(body, { kind: $('s-kind').value, slug: $('s-slug').value });
     try {
       await send(`/api/studio/spaces/${x.id}`, 'PATCH', body);
       say('s-status', 'נשמר', 'ok');
@@ -976,6 +982,7 @@
     $('ed-slug').value = entry?.slug ?? '';
     $('ed-tags').value = (entry?.tags ?? []).join(', ');
     $('ed-visibility').value = entry?.visibility ?? 'private';
+    pickComms($('ed-communities'), entry ? entry.communities ?? [] : (state.byId.get(d.spaceId)?.communities ?? []), changed);
     $('ed-body').value = entry?.body ?? '';
     spaceOptions(entry ? entry.spaceId : d.spaceId);
     $('ed-kind').value = entry?.kind ?? d.kind ?? $('ed-kind').value;
@@ -1046,6 +1053,7 @@
       slug: $('ed-slug').value,
       tags: $('ed-tags').value,
       visibility: $('ed-visibility').value,
+      communities: pickedComms($('ed-communities')),
       body: $('ed-body').value,
       kind: $('ed-kind').value,
       spaceId: $('ed-space').value || null,
@@ -1492,7 +1500,8 @@
 
   async function loadCommunity() {
     try {
-      const { users, invites } = await call('/api/studio/community');
+      const [{ users, invites }] = await Promise.all([call('/api/studio/community'), loadComms()]);
+      if (!$('inv-communities').querySelector('input:checked')) pickComms($('inv-communities'));
       const pending = users.filter((u) => u.status === 'pending');
       const members = users.filter((u) => u.status !== 'pending');
       showPendingCount(pending.length);
@@ -1540,7 +1549,7 @@
       'li',
       {},
       h('span', { className: 'who', dir: 'auto', textContent: inv.note || 'הזמנה' }),
-      h('span', { className: 'meta' }, h('span', { textContent: state })),
+      h('span', { className: 'meta' }, h('span', { textContent: state }), ...(inv.communities ?? []).map((cid) => h('span', { className: 'badge', dir: 'auto', textContent: state.commById.get(cid)?.title ?? '' }))),
       h(
         'span',
         { className: 'actions' },
@@ -1564,8 +1573,9 @@
   $('invite-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      const inv = await send('/api/studio/invites', 'POST', { note: $('inv-note').value, maxUses: $('inv-uses').value, days: $('inv-days').value });
+      const inv = await send('/api/studio/invites', 'POST', { note: $('inv-note').value, maxUses: $('inv-uses').value, days: $('inv-days').value, communities: pickedComms($('inv-communities')) });
       $('inv-note').value = '';
+      pickComms($('inv-communities'));
       await navigator.clipboard.writeText(`${location.origin}/join?code=${inv.code}`).then(
         () => say('invite-msg', 'הקישור נוצר והועתק', 'ok'),
         () => say('invite-msg', 'הקישור נוצר', 'ok'),
@@ -1573,6 +1583,122 @@
       loadCommunity();
     } catch (err) {
       report('invite-msg')(err);
+    }
+  });
+
+  // ---------- communities ----------
+  async function loadGroups() {
+    try {
+      const list = await loadComms();
+      $('g-list').replaceChildren(
+        ...list.map((c) =>
+          h(
+            'li',
+            {},
+            h('a', { className: 'who', href: `#group/${c.id}`, dir: 'auto', textContent: c.title }),
+            h(
+              'span',
+              { className: 'meta' },
+              h('span', { textContent: c.members === 1 ? 'חבר אחד' : `${c.members} חברים` }),
+              c.requests ? h('span', { className: 'badge vis-community', textContent: c.requests === 1 ? 'בקשה אחת' : `${c.requests} בקשות` }) : null,
+              h('span', { textContent: c.entries === 1 ? 'פריט אחד' : `${c.entries} פריטים` }),
+              c.spaces ? h('span', { textContent: c.spaces === 1 ? 'ספר או סדרה אחד' : `${c.spaces} ספרים וסדרות` }) : null,
+              h('span', { className: 'badge', textContent: c.joinMode === 'closed' ? 'בהזמנה בלבד' : 'אפשר לבקש' }),
+              c.hidden ? h('span', { className: 'badge draft', textContent: 'נסתרת' }) : null,
+            ),
+            c.summary ? h('span', { className: 'note', dir: 'auto', textContent: c.summary }) : null,
+          ),
+        ),
+      );
+      $('g-empty').hidden = list.length > 0;
+    } catch (err) {
+      report('g-msg')(err);
+    }
+  }
+
+  $('g-new').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const c = await send('/api/studio/communities', 'POST', { title: $('g-new-title').value });
+      $('g-new-title').value = '';
+      await loadComms();
+      location.hash = `#group/${c.id}`;
+    } catch (err) {
+      report('g-msg')(err);
+    }
+  });
+
+  const groupView = { id: null };
+
+  async function openGroup(id) {
+    groupView.id = id;
+    try {
+      await loadComms();
+      const c = state.commById.get(id);
+      if (!c) return void say('g-status', 'הקהילה לא נמצאה', 'err');
+      $('g-title').value = c.title;
+      $('g-summary').value = c.summary;
+      $('g-join').value = c.joinMode;
+      $('g-slug').value = c.slug;
+      $('g-sort').value = c.sort ?? 0;
+      $('g-hidden').checked = c.hidden;
+      $('g-view').href = c.path;
+      say('g-status', `${c.members} חברים${c.requests ? ` · ${c.requests} בקשות` : ''}`);
+      const [{ members }, { users }, { entries }] = await Promise.all([
+        call(`/api/studio/communities/${id}/members`),
+        call('/api/studio/community'),
+        call('/api/studio/entries'),
+      ]);
+      const shown = members.filter((m) => m.status !== 'refused');
+      $('g-members').replaceChildren(...shown.map((m) => request(m, id, () => openGroup(id))));
+      $('g-members-empty').hidden = shown.length > 0;
+      const inside = new Set(shown.map((m) => m.userId));
+      $('g-add').replaceChildren(
+        h('option', { value: '', textContent: 'הוספת חבר קיים לקהילה' }),
+        ...users.filter((u) => u.status === 'active' && !inside.has(u.id)).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (@${u.username})` })),
+      );
+      const open = entries.filter((x) => (x.communities ?? []).includes(id));
+      $('g-items').replaceChildren(...open.map(itemRow));
+      $('g-items-empty').hidden = open.length > 0;
+    } catch (err) {
+      report('g-status')(err);
+    }
+  }
+
+  $('g-save').addEventListener('click', async () => {
+    try {
+      await send(`/api/studio/communities/${groupView.id}`, 'PATCH', {
+        title: $('g-title').value,
+        summary: $('g-summary').value,
+        joinMode: $('g-join').value,
+        slug: $('g-slug').value,
+        sort: $('g-sort').value,
+        hidden: $('g-hidden').checked,
+      });
+      await openGroup(groupView.id);
+      say('g-status', 'נשמר', 'ok');
+    } catch (err) {
+      report('g-status')(err);
+    }
+  });
+  $('g-delete').addEventListener('click', async () => {
+    const c = state.commById.get(groupView.id);
+    if (!c || !confirm(`למחוק את "${c.title}"? הפריטים שפתוחים רק לה יישארו פתוחים רק לך, והבלוג שלה יימחק מהאתר.`)) return;
+    try {
+      await call(`/api/studio/communities/${c.id}`, { method: 'DELETE' });
+      location.hash = '#communities';
+    } catch (err) {
+      report('g-status')(err);
+    }
+  });
+  $('g-add-btn').addEventListener('click', async () => {
+    const userId = $('g-add').value;
+    if (!userId) return;
+    try {
+      await send(`/api/studio/communities/${groupView.id}/members`, 'PATCH', { userId, status: 'active' });
+      openGroup(groupView.id);
+    } catch (err) {
+      report('g-status')(err);
     }
   });
 
@@ -1633,20 +1759,17 @@
 
   // ---------- community blogs ----------
   const blog = { status: '', space: '' };
-  const communityLabel = (x) => (x.parentId ? x.title : `קהילת ה${x.title}`);
 
   async function loadBlog() {
     const pick = $('b-space');
     if (!pick.options.length) {
-      pick.replaceChildren(
-        h('option', { value: '', textContent: 'כל הקהילות' }),
-        ...state.spaces.filter((x) => !x.parentId || x.ownCommunity).map((x) => h('option', { value: x.id, textContent: communityLabel(x) })),
-      );
+      await loadComms().catch(() => {});
+      pick.replaceChildren(h('option', { value: '', textContent: 'כל הקהילות' }), ...state.comms.map((c) => h('option', { value: c.id, textContent: c.title })));
     }
     pick.value = blog.space;
-    const where = state.byId.get(blog.space);
+    const where = state.commById.get(blog.space);
     $('b-open').hidden = !where;
-    if (where) $('b-open').href = `${pathOf(where)}/blog`;
+    if (where) $('b-open').href = where.path;
     for (const b of $('b-filters').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.status === blog.status));
     try {
       const data = await call(`/api/studio/posts?${new URLSearchParams({ space: blog.space, status: blog.status })}`);
@@ -1664,7 +1787,7 @@
   }
 
   function postRow(p) {
-    const where = state.byId.get(p.spaceId);
+    const where = state.commById.get(p.spaceId);
     const mod = (change) => send(`/api/studio/posts/${p.id}`, 'PATCH', change).then(loadBlog, report('b-msg'));
     const hidden = p.status === 'hidden';
     return h(
@@ -1674,7 +1797,7 @@
       h(
         'span',
         { className: 'meta', dir: 'auto' },
-        where ? h('span', { textContent: communityLabel(where) }) : null,
+        where ? h('span', { dir: 'auto', textContent: where.title }) : null,
         h('span', { textContent: p.author }),
         p.comments ? h('span', { textContent: p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות` }) : null,
         p.pinned ? h('span', { className: 'badge', textContent: 'נעוץ' }) : null,

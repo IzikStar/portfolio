@@ -4,7 +4,8 @@
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { safeEqual } from './auth.js';
-import { access, addRequest, communityOf } from './spaces.js';
+import { access, knownCommunities } from './spaces.js';
+import { addRequest, addActive, knows, cleanCommunityIds } from './communities.js';
 
 export const MEMBER_COOKIE = 'member_session';
 const SESSION_DAYS = 30;
@@ -121,13 +122,11 @@ export async function join(request, env) {
     if (/UNIQUE/i.test(String(err?.message))) throw new HttpError(409, 'That username is taken.');
     throw err;
   }
-  // Signed up from a space's page (a book, a genre): ask to join its community too.
-  if (body.spaceId) {
+  // Signed up from a community's page: ask to join it too.
+  if (body.communityId) {
     const acc = await access(env, { role: 'public', member: null });
-    const target = communityOf(acc.byId, String(body.spaceId));
-    if (target && acc.visible.has(String(body.spaceId)) && acc.byId.get(target).joinMode === 'request') {
-      await addRequest(env, user.id, target, body.note);
-    }
+    const c = acc.commById.get(String(body.communityId));
+    if (knows(acc, c) && c.joinMode === 'request') await addRequest(env, user.id, c.id, body.note);
   }
   if (!invite) return json({ status: 'pending' }, 201);
 
@@ -137,6 +136,8 @@ export async function join(request, env) {
     await d.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
     throw new HttpError(400, 'This invite link is no longer valid.');
   }
+  // An invite to communities puts the new member straight in them.
+  await addActive(env, user.id, JSON.parse(invite.communities || '[]'));
   return json({ status: 'active' }, 201, { 'Set-Cookie': await sessionCookie(user.id, env) });
 }
 
@@ -191,6 +192,7 @@ export async function listCommunity(env) {
       maxUses: i.max_uses,
       uses: i.uses,
       expiresAt: i.expires_at,
+      communities: JSON.parse(i.communities || '[]'),
       createdAt: i.created_at,
     })),
   });
@@ -222,12 +224,13 @@ export async function createInvite(request, env) {
     maxUses,
     uses: 0,
     expiresAt: Number.isFinite(days) && days > 0 ? new Date(Date.now() + Math.min(days, 365) * 86400 * 1000).toISOString() : null,
+    communities: body.communities ? cleanCommunityIds(body.communities, await knownCommunities(env)) : [],
     createdAt: new Date().toISOString(),
   };
   const d = await db(env);
   await d
-    .prepare('INSERT INTO invites (code, note, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, 0, ?, ?)')
-    .bind(invite.code, invite.note, invite.maxUses, invite.expiresAt, invite.createdAt)
+    .prepare('INSERT INTO invites (code, note, max_uses, uses, expires_at, communities, created_at) VALUES (?, ?, ?, 0, ?, ?, ?)')
+    .bind(invite.code, invite.note, invite.maxUses, invite.expiresAt, JSON.stringify(invite.communities), invite.createdAt)
     .run();
   return json(invite, 201);
 }
