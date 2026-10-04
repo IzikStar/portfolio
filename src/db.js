@@ -3,24 +3,31 @@
 // Every statement is idempotent; add new columns with a new numbered step.
 //
 //   spaces      the site's wings (music, books, ...) and what lives inside a
-//               wing: a book, a sketch series, a genre. Each wing, and any
-//               space that says so, has its own community.
-//   space_members  who belongs to which community (requests wait for the owner)
+//               wing: a book, a sketch series, a genre. Structure only: who
+//               may see a space is its visibility and its communities.
+//   communities the groups the owner defines (beta readers of a book, "nonsense
+//               humor", ...). They stand apart from the wings: any item or
+//               space can be opened to any of them. A community may take join
+//               requests or be by invitation only, and may be hidden: then
+//               outsiders never learn that it, or what it holds, exists.
+//   community_members  who belongs to which community (requests wait for the owner)
+//   space_members  the old per-space communities; read once by the move to
+//               communities, no longer written
 //   entries     every piece of content: a song, a chapter, an article, a project...
 //   comments    what the community says about an item (optionally one paragraph)
 //               or about a blog post: entry_id holds the id of either (both are UUIDs)
-//   posts       community blog posts, one blog per community (a wing, or a space
-//               with its own community); space_id is that community's space
+//   posts       community blog posts, one blog per community; space_id holds the
+//               community's id (the column predates communities)
 //   mentions    who was tagged where (@ in a comment or a post), for the member's page
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
-//   invites     invite links for new members
+//   invites     invite links for new members (optionally straight into communities)
 //   api_tokens  keys for the future Claude connector (hashed)
 //   settings    small key/value settings
 
 export const KINDS = ['idea', 'article', 'project', 'work', 'song', 'chapter', 'torah', 'sketch', 'dub', 'humor', 'video'];
-// private: only the owner. community: the community of the item's space.
-// members: anyone signed in. public: everyone.
+// private: only the owner. community: members of the communities the item
+// (or space) lists. members: anyone signed in. public: everyone.
 export const VISIBILITY = ['private', 'community', 'members', 'public'];
 
 // The wings. Their ids are fixed: pages and the studio address them by id.
@@ -159,6 +166,28 @@ const SCHEMA = [
     created_at TEXT NOT NULL,
     last_used_at TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS communities (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    join_mode TEXT NOT NULL DEFAULT 'request',
+    hidden INTEGER NOT NULL DEFAULT 0,
+    meta TEXT NOT NULL DEFAULT '{}',
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS community_members (
+    community_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    PRIMARY KEY (community_id, user_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS community_members_user ON community_members(user_id, status)`,
   `CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -176,7 +205,53 @@ const COLUMNS = [
       `UPDATE entries SET space_id = 'software' WHERE kind = 'project' AND space_id IS NULL`,
     ],
   },
+  { table: 'spaces', column: 'communities', sql: `ALTER TABLE spaces ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [] },
+  { table: 'invites', column: 'communities', sql: `ALTER TABLE invites ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [] },
+  // Added last: its arrival is what moves the old per-space communities over.
+  { table: 'entries', column: 'communities', sql: `ALTER TABLE entries ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [], then: fromSpaceCommunities },
 ];
+
+// Before communities stood on their own, every wing had a community and a
+// space could have one too (a book's beta readers). The spaces' own
+// communities become real communities under the same id, with their members,
+// and everything below them is opened to that community. Wing communities do
+// not carry over: the owner opens those items to the communities he defines.
+async function fromSpaceCommunities(DB) {
+  const { results: spaces } = await DB.prepare('SELECT * FROM spaces').all();
+  const byId = new Map(spaces.map((s) => [s.id, s]));
+  const owning = (id) => {
+    for (let s = byId.get(id), hops = 0; s && hops < 20; s = byId.get(s.parent_id), hops++) {
+      if (!s.parent_id) return null;
+      if (s.own_community) return s;
+    }
+    return null;
+  };
+  const now = new Date().toISOString();
+  const made = new Set();
+  const out = [];
+  for (const s of spaces) {
+    const c = owning(s.id);
+    if (!c) continue;
+    if (!made.has(c.id)) {
+      made.add(c.id);
+      const title = c.kind === 'book' || c.wing === 'books' ? `קוראי בטא: ${c.title}` : c.title;
+      out.push(
+        DB.prepare(
+          `INSERT OR IGNORE INTO communities (id, slug, title, join_mode, hidden, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)`,
+        ).bind(c.id, `${c.wing}-${c.slug}`.slice(0, 80), title, c.join_mode === 'closed' ? 'closed' : 'request', now, now),
+        DB.prepare(
+          `INSERT OR IGNORE INTO community_members (community_id, user_id, status, note, created_at, decided_at)
+           SELECT space_id, user_id, status, note, created_at, decided_at FROM space_members WHERE space_id = ?`,
+        ).bind(c.id),
+      );
+    }
+    out.push(
+      DB.prepare(`UPDATE spaces SET communities = ? WHERE id = ?`).bind(JSON.stringify([c.id]), s.id),
+      DB.prepare(`UPDATE entries SET communities = ? WHERE space_id = ?`).bind(JSON.stringify([c.id]), s.id),
+    );
+  }
+  if (out.length) await DB.batch(out);
+}
 
 async function migrate(DB) {
   await DB.batch(SCHEMA.map((sql) => DB.prepare(sql)));
@@ -191,6 +266,7 @@ async function migrate(DB) {
       continue;
     }
     for (const sql of c.backfill) await DB.prepare(sql).run();
+    if (c.then) await c.then(DB);
   }
   await DB.prepare('CREATE INDEX IF NOT EXISTS entries_space ON entries(space_id, status)').run();
   const now = new Date().toISOString();

@@ -1,12 +1,16 @@
 // Tagging members: "@" in a comment or a blog post. The text stores a token,
 // @{<user id>}, so a rename shows everywhere at once; pages turn the token into
 // a name chip. A token only survives a save when that person is an active
-// member of the community the text lives in, so nobody can tag (or find out
-// the names of) people outside it. Each tag is also a row in `mentions`, which
+// member of the communities the text lives in (any active member, for an item
+// opened to no community), so nobody can tag (or find out the names of)
+// people outside them. Each tag is also a row in `mentions`, which
 // is what the tagged member sees on their page.
 import { db } from './db.js';
 import { HttpError, json, cleanText } from './http.js';
-import { communityOf } from './spaces.js';
+import { getEntry } from './entries.js';
+import { canComment } from './comments.js';
+import { canSee } from './spaces.js';
+import { knows } from './communities.js';
 import { escapeHtml as e } from './markdown.js';
 
 const TOKEN = /@\{([0-9a-f-]{36})\}/g;
@@ -15,25 +19,30 @@ const PICK_LIMIT = 8;
 
 const idsIn = (text) => [...new Set([...String(text ?? '').matchAll(TOKEN)].map((m) => m[1]))];
 
-// Active members of one community (a wing, or a space with its own community).
-async function membersAmong(env, communityId, ids) {
+// SQL picking active users who are active members of the communities (a JSON
+// list), or every active user when the list is null.
+const IN_SCOPE = `u.status = 'active' AND (? IS NULL OR EXISTS (SELECT 1 FROM community_members m
+  WHERE m.user_id = u.id AND m.status = 'active' AND m.community_id IN (SELECT value FROM json_each(?))))`;
+const scopeArgs = (communities) => {
+  const list = communities ? JSON.stringify(communities) : null;
+  return [list, list ?? '[]'];
+};
+
+async function membersAmong(env, communities, ids) {
   if (!ids.length) return new Set();
   const d = await db(env);
   const { results } = await d
-    .prepare(
-      `SELECT u.id FROM space_members m JOIN users u ON u.id = m.user_id
-       WHERE m.space_id = ? AND m.status = 'active' AND u.status = 'active' AND u.id IN (SELECT value FROM json_each(?))`,
-    )
-    .bind(communityId, JSON.stringify(ids))
+    .prepare(`SELECT u.id FROM users u WHERE ${IN_SCOPE} AND u.id IN (SELECT value FROM json_each(?))`)
+    .bind(...scopeArgs(communities), JSON.stringify(ids))
     .all();
   return new Set(results.map((r) => r.id));
 }
 
-// Keep the tags that point at members of this community and drop the rest.
-// Returns the cleaned text and who is tagged in it.
-export async function cleanMentions(env, communityId, text) {
+// Keep the tags that point at members of these communities (null: any member)
+// and drop the rest. Returns the cleaned text and who is tagged in it.
+export async function cleanMentions(env, communities, text) {
   const wanted = idsIn(text).slice(0, MAX_TAGS);
-  const ok = await membersAmong(env, communityId, wanted);
+  const ok = await membersAmong(env, communities, wanted);
   return { text: String(text).replace(TOKEN, (m, id) => (ok.has(id) ? m : '')), ids: [...ok] };
 }
 
@@ -91,25 +100,33 @@ export function forEditing(text, names) {
 
 // ---------- API: who can be tagged here ----------
 
-// GET /api/people?space=<id>&q=<start of a name>. Open to the owner and to
-// members of that space's community, and lists only that community.
+// GET /api/people?entry=<id>&q=  or  ?community=<id>&q=. Open to whoever may
+// write there (the owner too), and lists only the people who may be tagged there.
 export async function people(env, v, url) {
   if (v.role === 'public') throw new HttpError(401, 'Sign in first.');
   const { acc } = v;
-  const spaceId = String(url.searchParams.get('space') ?? '');
-  const target = communityOf(acc.byId, spaceId);
-  if (!target || !acc.visible.has(spaceId)) throw new HttpError(404, 'No such space.');
-  if (!acc.owner && !acc.communities.has(target)) throw new HttpError(403, 'Only this community can tag its members.');
+  let scope;
+  const entryId = url.searchParams.get('entry');
+  if (entryId) {
+    const entry = await getEntry(env, String(entryId));
+    if (!entry || !canSee(acc, entry)) throw new HttpError(404, 'No such item.');
+    if (!canComment(v, entry)) throw new HttpError(403, 'Only those who may comment here can tag.');
+    scope = entry.communities.length ? entry.communities : null;
+  } else {
+    const c = acc.commById.get(String(url.searchParams.get('community') ?? ''));
+    if (!knows(acc, c)) throw new HttpError(404, 'No such community.');
+    if (!acc.owner && !acc.communities.has(c.id)) throw new HttpError(403, 'Only this community can tag its members.');
+    scope = [c.id];
+  }
   const q = cleanText(url.searchParams.get('q'), 40).replace(/[\\%_]/g, (c) => `\\${c}`);
   const d = await db(env);
   const { results } = await d
     .prepare(
-      `SELECT u.id, u.display_name, u.username FROM space_members m JOIN users u ON u.id = m.user_id
-       WHERE m.space_id = ? AND m.status = 'active' AND u.status = 'active' AND u.id != ?
+      `SELECT u.id, u.display_name, u.username FROM users u WHERE ${IN_SCOPE} AND u.id != ?
        AND (u.display_name LIKE ? ESCAPE '\\' OR u.username LIKE ? ESCAPE '\\')
        ORDER BY u.display_name COLLATE NOCASE LIMIT ?`,
     )
-    .bind(target, v.member?.id ?? '', `%${q}%`, `${q}%`, PICK_LIMIT)
+    .bind(...scopeArgs(scope), v.member?.id ?? '', `%${q}%`, `${q}%`, PICK_LIMIT)
     .all();
   return json({ people: results.map((r) => ({ id: r.id, name: r.display_name, username: r.username })) }, 200, { 'Cache-Control': 'private, no-store' });
 }

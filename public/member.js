@@ -29,15 +29,14 @@
   const join = document.getElementById('join-form');
   if (join) {
     const code = params.get('code');
-    // Came from a wing or a book: the request covers that community too.
-    const space = params.get('space');
-    if (space && !code) {
-      fetch('/api/spaces')
+    // Came from a community's page or a locked item: the request covers that community too.
+    const community = params.get('community');
+    if (community && !code) {
+      fetch('/api/communities')
         .then((r) => r.json())
-        .then(({ spaces }) => {
-          const s = spaces.find((x) => x.id === space);
-          if (!s) return;
-          document.getElementById('join-title').textContent = s.kind === 'book' ? `הצטרפות לקוראי הבטא של ${s.title}` : `הצטרפות ל${s.parentId ? s.title : `קהילת ה${s.title}`}`;
+        .then(({ communities }) => {
+          const c = communities.find((x) => x.id === community);
+          if (c) document.getElementById('join-title').textContent = `הצטרפות ל${c.title}`;
         })
         .catch(() => {});
     }
@@ -60,7 +59,7 @@
       const f = Object.fromEntries(new FormData(join));
       say('join-msg', 'שולח...');
       try {
-        const { status } = await post('/api/member/join', { ...f, code: code || undefined, spaceId: space || undefined });
+        const { status } = await post('/api/member/join', { ...f, code: code || undefined, communityId: community || undefined });
         if (status === 'active') location.href = next();
         else {
           join.hidden = true;

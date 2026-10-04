@@ -11,7 +11,8 @@
 import { escapeHtml as e, renderMarkdown } from './markdown.js';
 import { db, WINGS } from './db.js';
 import { card, getEntry, listFeed, listInSpace } from './entries.js';
-import { entryFilter, canSee, communityOf } from './spaces.js';
+import { entryFilter, canSee, inAny } from './spaces.js';
+import { outsideOf, knows, pathOf } from './communities.js';
 import { projectView } from './projects.js';
 import { renderChords, hasChords } from './chords.js';
 import { mediaEmbed } from './media.js';
@@ -19,7 +20,6 @@ import { commentsBlock, commentsOf, canComment } from './comments.js';
 import { projectFilesBlock } from './project-files.js';
 import { movedTo } from './moves.js';
 import { render, socials, WING_INFO, KIND_LABEL, LOCK, icon, fmtDate, badge, entryPath, spacePath, wingOf } from './site.js';
-import { blogPath, openPostCount } from './posts.js';
 import { creditsLine, memberBlock } from './tagged.js';
 
 const SPACE_LABEL = { book: 'ספר', series: 'סדרה', genre: 'ז\'אנר', collection: 'אוסף' };
@@ -36,50 +36,61 @@ function descendants(acc, rootId) {
 
 const children = (acc, id) => acc.spaces.filter((s) => s.parentId === id && acc.visible.has(s.id));
 
-// How many published items in these spaces stay closed to this viewer.
-async function lockedCount(env, acc, spaceIds) {
-  if (acc.owner) return 0;
+// The published items in these spaces this viewer cannot open but may know
+// about: how many, and the communities that would open them. Items open only
+// to hidden communities stay out of it entirely.
+async function lockedIn(env, acc, spaceIds) {
+  if (acc.owner) return { n: 0, ids: [], members: false };
   const d = await db(env);
   const f = entryFilter(acc);
-  const row = await d
+  const { results } = await d
     .prepare(
-      `SELECT COUNT(*) AS n FROM entries WHERE status = 'published' AND visibility IN ('community', 'members')
-       AND space_id IN (SELECT value FROM json_each(?)) AND NOT (${f.sql})`,
+      `SELECT visibility, communities FROM entries WHERE status = 'published' AND kind != 'idea' AND visibility IN ('community', 'members')
+       AND space_id IN (SELECT value FROM json_each(?)) AND NOT (${f.sql}) LIMIT 1000`,
     )
     .bind(JSON.stringify(spaceIds), ...f.args)
-    .first();
-  return row?.n ?? 0;
+    .all();
+  let n = 0;
+  let members = false;
+  const ids = new Set();
+  for (const r of results) {
+    if (r.visibility === 'members') {
+      n++;
+      members = true;
+      continue;
+    }
+    const open = outsideOf(acc, JSON.parse(r.communities || '[]'));
+    if (!open.length) continue;
+    n++;
+    for (const c of open) ids.add(c.id);
+  }
+  return { n, ids: [...ids], members };
 }
 
-// "קהילת המוזיקה", "קוראי הבטא של גרגמיץ": what a community is called in running text.
-const communityLabel = (s) => (s.kind === 'book' ? `קוראי הבטא של ${s.title}` : s.parentId ? s.title : `קהילת ה${s.title}`);
-
-// Where this viewer stands with the community that guards `spaceId`.
-// `open` is how many of its blog posts are open to everyone (worth a link for outsiders).
-export function communityBox(v, spaceId, path, open = 0) {
+// Where this viewer stands with these communities: what they are in, and a
+// way to ask for the rest. Hidden communities never show to outsiders.
+export function communityBox(v, ids, path, { members = false, intro = 'חלק מהדברים כאן פתוחים רק ל' } = {}) {
   const { acc } = v;
-  const target = acc.byId.get(communityOf(acc.byId, spaceId));
-  if (!target) return '';
-  const label = communityLabel(target);
-  const blog = blogPath(acc, target);
-  const toBlog = path === blog ? '' : `<a class="btn small" href="${blog}">בלוג הקהילה</a>`;
-  if (acc.owner) {
-    return `<div class="community-box"><p><strong>${e(label)}</strong>. כאן רואים גם את מה שפתוח רק לקהילה.</p>${toBlog}<a class="btn small" href="/studio#space/${e(target.id)}">ניהול הקהילה</a></div>`;
+  if (acc.owner) return '';
+  const outside = outsideOf(acc, ids);
+  const inside = (ids ?? []).map((id) => acc.commById.get(id)).filter((c) => c && acc.communities.has(c.id));
+  const link = (c) => `<a href="${pathOf(c)}">${e(c.title)}</a>`;
+  const rows = outside.map((c) => {
+    if (acc.pending.has(c.id)) return `<li>${link(c)} <span class="state">הבקשה מחכה לאישור</span></li>`;
+    if (c.joinMode === 'closed') return `<li>${link(c)} <span class="state">נכנסים רק בהזמנה</span></li>`;
+    if (v.member) return `<li>${link(c)} <button class="btn small accent" type="button" data-join="${e(c.id)}">בקשת הצטרפות</button><span class="msg" role="status"></span></li>`;
+    return `<li>${link(c)} <a class="btn small accent" href="/join?community=${encodeURIComponent(c.id)}&next=${encodeURIComponent(path)}">בקשת הצטרפות</a></li>`;
+  });
+  const login = v.role === 'public' ? `<a class="btn small" href="/login?next=${encodeURIComponent(path)}">כבר בפנים? כניסה</a>` : '';
+  if (rows.length) {
+    return `<div class="community-box"><p>${intro}${outside.length === 1 ? 'קהילה' : 'קהילות'}:</p><ul class="community-list">${rows.join('')}</ul>${login}</div>`;
   }
-  if (acc.communities.has(target.id)) return `<div class="community-box"><p>אתם ב<strong>${e(label)}</strong>, אז רואים כאן גם את מה שפתוח רק לקהילה.</p>${toBlog}</div>`;
-  const peek = open && toBlog ? `<a class="btn small" href="${blog}">מהבלוג של הקהילה</a>` : '';
-  if (acc.pending.has(target.id)) return `<div class="community-box"><p>הבקשה להצטרף ל<strong>${e(label)}</strong> מחכה לאישור.</p>${peek}</div>`;
-  if (target.joinMode === 'closed') return `<div class="community-box"><p>ל<strong>${e(label)}</strong> נכנסים רק בהזמנה.</p>${peek}</div>`;
-  const ask = 'בקשת הצטרפות';
-  if (v.member) {
-    return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><button class="btn accent" type="button" data-join="${e(target.id)}">${ask}</button>${peek}<span class="msg" role="status"></span></div>`;
+  if (members && v.role === 'public') {
+    return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק למי שנרשם.</p><a class="btn accent small" href="/join?next=${encodeURIComponent(path)}">הרשמה</a>${login}</div>`;
   }
-  return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><a class="btn accent" href="/join?space=${encodeURIComponent(target.id)}&next=${encodeURIComponent(path)}">${ask}</a><a class="btn" href="/login?next=${encodeURIComponent(path)}">כבר בקהילה? כניסה</a>${peek}</div>`;
+  if (inside.length) return `<div class="community-box"><p>אתם ב${inside.map(link).join(', ')}, אז רואים כאן גם את מה שפתוח רק לכם.</p></div>`;
+  return '';
 }
-
-// Public blog posts of the community guarding this space, for outsiders only.
-const openPosts = (env, v, spaceId) =>
-  v.acc.owner || v.acc.communities.has(communityOf(v.acc.byId, spaceId)) ? 0 : openPostCount(env, communityOf(v.acc.byId, spaceId));
 
 const versionTypes = (entry) => [...new Set((entry.meta?.versions ?? []).map((x) => x.label).filter(Boolean))].slice(0, 4);
 
@@ -105,7 +116,7 @@ function itemCard(v, entry) {
 </a>`;
 }
 
-const lockedNote = (n) => (n ? `<p class="lock">${LOCK} ${n === 1 ? 'עוד פריט אחד פתוח' : `עוד ${n} פריטים פתוחים`} רק לקהילה</p>` : '');
+const lockedNote = (n) => (n ? `<p class="lock">${LOCK} ${n === 1 ? 'עוד פריט אחד פתוח' : `עוד ${n} פריטים פתוחים`} רק לקהילות</p>` : '');
 
 // ---------- home ----------
 
@@ -123,7 +134,7 @@ export async function home(env, v) {
   ${icon(info.icon)}
   <span class="name">${e(s.title)}</span>
   <span class="what">${e(s.summary || info.what)}</span>
-  <span class="who">${acc.communities.has(w.id) && !acc.owner ? 'אתם בקהילה' : 'קהילה משלו'}${priv}</span>
+  ${priv ? `<span class="who">${priv.slice(3)}</span>` : ''}
 </a>`;
     })
     .join('\n');
@@ -136,10 +147,10 @@ export async function home(env, v) {
         .join('')}</div>`
     : '<p class="empty">עוד לא העליתי כלום. בקרוב.</p>';
   const cta = v.member
-    ? `<h2>שלום ${e(v.member.displayName)}</h2><p>בכל אגף אפשר לבקש להצטרף לקהילה שלו. אחרי שאני מאשר, רואים שם גם טיוטות, הקלטות ופרקים חדשים.</p>`
+    ? `<h2>שלום ${e(v.member.displayName)}</h2><p>בעמוד הקהילות רואים לאילו קהילות אתם שייכים ואפשר לבקש להצטרף לעוד.</p><a class="btn" href="/community">לקהילות</a>`
     : acc.owner
       ? `<h2>הסטודיו</h2><p>הטיוטות, הבקשות והתגובות מחכות שם.</p><a class="btn primary" href="/studio">לסטודיו</a>`
-      : `<h2>רוצים לראות יותר?</h2><p>שולחים בקשה להצטרף לאגף שמעניין אתכם. אחרי שאני מאשר, רואים גם את מה שפתוח רק לקהילה, ואפשר להגיב.</p><div class="actions"><a class="btn primary" href="/join">בקשת הצטרפות</a><a class="btn" href="/login">כניסה</a></div>`;
+      : `<h2>רוצים לראות יותר?</h2><p>חלק מהדברים פתוחים רק לקהילות. מצטרפים, ואחרי שאני מאשר רואים גם אותם ואפשר להגיב.</p><div class="actions"><a class="btn primary" href="/community">הקהילות</a><a class="btn" href="/login">כניסה</a></div>`;
   const body = `<div class="wrap">
   <section class="hero">
     <div class="copy">
@@ -151,7 +162,7 @@ export async function home(env, v) {
     ${links.length ? `<aside><span class="label">ברשתות</span>${links.map((s) => `<a href="${e(s.href)}" rel="me noopener">${e(s.label)} ↗</a>`).join('')}</aside>` : ''}
   </section>
   <section class="block">
-    <div class="section-head"><h2>האגפים</h2><span>לכל אגף קהילה משלו</span></div>
+    <div class="section-head"><h2>האגפים</h2></div>
     <div class="wings">${tiles}</div>
   </section>
   <section class="block split">
@@ -194,7 +205,7 @@ export async function wingPage(env, v, wingId) {
   if (!wing || !acc.visible.has(wingId)) return null;
   const path = `/${wingId}`;
   const ids = descendants(acc, wingId);
-  const [items, locked, open] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids), openPosts(env, v, wingId)]);
+  const [items, locked] = await Promise.all([listInSpace(env, acc, ids), lockedIn(env, acc, ids)]);
   const kids = children(acc, wingId);
   const shelf = kids.length
     ? `<section class="block"><div class="cards">${kids
@@ -203,7 +214,7 @@ export async function wingPage(env, v, wingId) {
           return `<a class="card${k.kind === 'book' ? ' book' : ''}" href="${spacePath(acc, k)}">
   <span class="title" dir="auto">${e(k.title)}</span>
   ${k.summary ? `<p dir="auto">${e(k.summary)}</p>` : ''}
-  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n === 1 ? 'פריט אחד' : `${n} פריטים`}</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'רק אני' : k.visibility === 'members' ? 'לחברים' : 'לקהילה'}</span>` : ''}</span>
+  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n === 1 ? 'פריט אחד' : `${n} פריטים`}</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'רק אני' : k.visibility === 'members' ? 'לחברים' : 'לקהילות'}</span>` : ''}</span>
 </a>`;
         })
         .join('')}</div></section>`
@@ -214,8 +225,8 @@ export async function wingPage(env, v, wingId) {
   const body = `${band({ wing, acc, path, lede: wing.summary || WING_INFO[wingId].what })}
 <div class="wrap">
   ${shelf}
-  <section class="block">${grid}${lockedNote(locked)}</section>
-  ${communityBox(v, wingId, path, open)}
+  <section class="block">${grid}${lockedNote(locked.n)}</section>
+  ${communityBox(v, locked.ids, path, { members: locked.members })}
 </div>`;
   return render(env, v, { title: wing.title, description: wing.summary || WING_INFO[wingId].what, path, wing: wingId, body, script: true });
 }
@@ -227,7 +238,10 @@ export async function spacePage(env, v, space) {
   const wing = wingOf(acc, space.id);
   const path = spacePath(acc, space);
   const ids = descendants(acc, space.id);
-  const [items, locked, open] = await Promise.all([listInSpace(env, acc, ids), lockedCount(env, acc, ids), openPosts(env, v, space.id)]);
+  const [items, lockedInfo] = await Promise.all([listInSpace(env, acc, ids), lockedIn(env, acc, ids)]);
+  const locked = lockedInfo.n;
+  // The communities this page answers to: its own, then whatever opens the locked items.
+  const guards = [...new Set([...space.communities, ...lockedInfo.ids])];
   let body;
   if (space.kind === 'book') {
     const chapters = items.filter((x) => x.spaceId === space.id).sort(byOrder);
@@ -240,9 +254,10 @@ export async function spacePage(env, v, space) {
       : locked
         ? `<p class="lock">${LOCK} ${locked === 1 ? 'פרק אחד פתוח' : `${locked} פרקים פתוחים`} לקוראי בטא</p>`
         : '<p class="empty">הפרקים בדרך.</p>';
-    const beta = acc.owner || acc.communities.has(communityOf(acc.byId, space.id))
-      ? communityBox(v, space.id, path)
-      : `<div class="panel tinted"><h2>קריאת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>קוראים את כל הספר, גם פרקים חדשים כשהם עולים, ומגיבים על כל פרק</li></ol>${communityBox(v, space.id, path, open)}</div>`;
+    const asking = outsideOf(acc, guards).some((c) => c.joinMode === 'request' && !acc.pending.has(c.id));
+    const beta = asking
+      ? `<div class="panel tinted"><h2>קריאת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>קוראים את כל הספר, גם פרקים חדשים כשהם עולים, ומגיבים על כל פרק</li></ol>${communityBox(v, guards, path, { members: lockedInfo.members })}</div>`
+      : communityBox(v, guards, path, { members: lockedInfo.members });
     body = `<div class="wrap" data-wing="books">
   <div class="crumbs back"><a href="/${wing.id}">${e(wing.title)}</a></div>
   <section class="book-head">
@@ -267,7 +282,7 @@ export async function spacePage(env, v, space) {
 <div class="wrap">
   ${sub}
   <section class="block">${grid}${lockedNote(locked)}</section>
-  ${communityBox(v, space.id, path, open)}
+  ${communityBox(v, guards, path, { members: lockedInfo.members })}
 </div>`;
   }
   const noindex = space.visibility !== 'public';
@@ -279,7 +294,9 @@ export async function spacePage(env, v, space) {
 function versionsBlock(v, entry) {
   const { acc } = v;
   const versions = Array.isArray(entry.meta?.versions) ? entry.meta.versions.filter((x) => x && typeof x.url === 'string') : [];
-  const inCommunity = acc.owner || acc.communities.has(communityOf(acc.byId, entry.spaceId));
+  const inCommunity = inAny(acc, entry.communities);
+  // A locked version shows only when one of its communities is not hidden from this viewer.
+  const showLock = outsideOf(acc, entry.communities).length > 0;
   const tabs = [];
   if (entry.kind === 'song' && entry.body.trim()) {
     const chords = hasChords(entry.body);
@@ -291,7 +308,7 @@ function versionsBlock(v, entry) {
   for (const x of versions.slice(0, 20)) {
     const label = String(x.label || 'נגן').slice(0, 40);
     if (x.visibility === 'community' && !inCommunity) {
-      tabs.push({ label, html: `<p class="lock">${LOCK} הגרסה הזאת פתוחה רק לקהילה</p>`, locked: true });
+      if (showLock) tabs.push({ label, html: `<p class="lock">${LOCK} הגרסה הזאת פתוחה רק לקהילה</p>`, locked: true });
       continue;
     }
     const player = mediaEmbed(x.url, { title: label, kind: x.kind });
@@ -407,19 +424,41 @@ async function resolvePage(env, v, wingId, a, b) {
   return entry ? entryPage(env, v, entry) : null;
 }
 
-// Members' own page: what is new in the communities they belong to.
+// /community: the communities a visitor may know about, where they stand in
+// each, and for members what is new for them and where they were tagged.
 export async function communityPage(env, v) {
   const { acc, member } = v;
+  const shown = acc.comms.filter((c) => knows(acc, c));
+  const mine = shown.filter((c) => !acc.owner && acc.communities.has(c.id));
+  const others = shown.filter((c) => acc.owner || !acc.communities.has(c.id));
+  const state = (c) => {
+    if (acc.owner) return `<span class="state">${c.hidden ? 'נסתרת · ' : ''}${c.joinMode === 'closed' ? 'רק בהזמנה' : 'אפשר לבקש'}</span>`;
+    if (acc.communities.has(c.id)) return '<span class="state">אתם בפנים</span>';
+    if (acc.pending.has(c.id)) return '<span class="state">הבקשה מחכה לאישור</span>';
+    if (c.joinMode === 'closed') return '<span class="state">נכנסים רק בהזמנה</span>';
+    if (member) return `<button class="btn small accent" type="button" data-join="${e(c.id)}">בקשת הצטרפות</button><span class="msg" role="status"></span>`;
+    return `<a class="btn small accent" href="/join?community=${encodeURIComponent(c.id)}">בקשת הצטרפות</a>`;
+  };
+  const cards = (list) =>
+    `<div class="cards">${list
+      .map(
+        (c) => `<div class="card community-card">
+  <a class="title" href="${pathOf(c)}" dir="auto">${e(c.title)}</a>
+  ${c.summary ? `<p dir="auto">${e(c.summary)}</p>` : ''}
+  <span class="meta">${state(c)}</span>
+</div>`,
+      )
+      .join('')}</div>`;
   if (v.role === 'public') {
-    const body = `<div class="wrap narrow block">
-  <div class="section-head"><h2>קהילה</h2></div>
-  <p class="lede">לכל אגף באתר יש קהילה משלו, ולכל ספר יש קוראי בטא. מי שמצטרף רואה טיוטות, הקלטות ופרקים שעוד לא יצאו, ויכול להגיב.</p>
-  <div class="actions" style="margin-top:24px"><a class="btn primary" href="/join">בקשת הצטרפות</a><a class="btn" href="/login">כניסה</a></div>
+    const body = `<div class="wrap block">
+  <div class="section-head"><h2>הקהילות</h2></div>
+  <p class="lede">חלק ממה שאני יוצר פתוח רק לקהילות. מי שמצטרף רואה טיוטות, הקלטות ופרקים שעוד לא יצאו, ויכול להגיב.</p>
+  ${others.length ? cards(others) : '<p class="empty">עוד אין קהילות פתוחות. בקרוב.</p>'}
+  <div class="actions" style="margin-top:24px"><a class="btn" href="/join">הרשמה</a><a class="btn" href="/login">כבר בפנים? כניסה</a></div>
 </div>`;
-    return render(env, v, { title: 'קהילה', description: 'הקהילות של יצחק שטרן.', path: '/community', body });
+    return render(env, v, { title: 'קהילות', description: 'הקהילות של יצחק שטרן.', path: '/community', body, script: true });
   }
   const feed = (await listFeed(env, acc, 60)).filter((x) => entryPath(acc, x) && (acc.owner || x.visibility !== 'public'));
-  const mine = acc.spaces.filter((s) => acc.communities.has(s.id) && (s.ownCommunity || !s.parentId));
   const items = feed.length
     ? `<div class="feed">${feed
         .map((x) => {
@@ -427,17 +466,14 @@ export async function communityPage(env, v) {
           return `<a href="${entryPath(acc, x)}" data-wing="${e(w?.id ?? '')}"><span class="w">${e(w?.title ?? '')}</span><span class="t" dir="auto">${e(x.title)}</span><span class="d">${e(fmtDate(x.publishedAt))}</span></a>`;
         })
         .join('')}</div>`
-    : '<p class="empty">עוד אין כאן כלום שפתוח רק לקהילה. בקרוב.</p>';
-  const blogs = mine.length && !acc.owner
-    ? `<p class="blog-links"><span>הבלוגים שלכם:</span>${mine.map((s) => `<a href="${blogPath(acc, s)}">${e(s.title)}</a>`).join('')}</p>`
-    : '';
+    : '<p class="empty">עוד אין כאן כלום שפתוח רק לכם. בקרוב.</p>';
   const body = `<div class="wrap block">
-  <div class="section-head"><h2>${member ? `שלום ${e(member.displayName)}` : 'קהילה'}</h2></div>
-  ${!acc.owner ? `<p class="lede">${mine.length ? `אתם ב${mine.map((s) => e(communityLabel(s))).join(', ')}.` : 'עוד לא הצטרפתם לאף אגף. בעמוד של כל אגף יש כפתור לבקשת הצטרפות.'}</p>` : ''}
-  ${blogs}
+  <div class="section-head"><h2>${member ? `שלום ${e(member.displayName)}` : 'הקהילות'}</h2>${acc.owner ? '<a class="btn small" href="/studio#communities">ניהול</a>' : ''}</div>
+  ${mine.length ? `<div class="section-head"><h2>הקהילות שלכם</h2></div>${cards(mine)}` : !acc.owner ? '<p class="lede">עוד לא הצטרפתם לאף קהילה.</p>' : ''}
+  ${others.length ? `<div class="section-head" style="margin-top:32px"><h2>${acc.owner ? 'כל הקהילות' : 'עוד קהילות'}</h2></div>${cards(others)}` : ''}
   ${await memberBlock(env, v)}
-  <div class="section-head" style="margin-top:32px"><h2>רק לקהילה</h2></div>
+  <div class="section-head" style="margin-top:32px"><h2>רק לכם</h2></div>
   ${items}
 </div>`;
-  return render(env, v, { title: 'קהילה', path: '/community', body, noindex: true });
+  return render(env, v, { title: 'קהילות', path: '/community', body, noindex: true, script: true });
 }

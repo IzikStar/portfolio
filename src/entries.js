@@ -5,7 +5,8 @@ import { db, KINDS, VISIBILITY, STATUS, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { renderMarkdown, excerpt } from './markdown.js';
 import { renderChords } from './chords.js';
-import { entryFilter, canSee } from './spaces.js';
+import { entryFilter, canSee, knownCommunities } from './spaces.js';
+import { cleanCommunityIds } from './communities.js';
 import { settle } from './moves.js';
 
 const MAX_BODY = 200_000;
@@ -26,6 +27,7 @@ export function fromRow(r) {
     summary: r.summary,
     body: r.body,
     visibility: r.visibility,
+    communities: JSON.parse(r.communities || '[]'),
     status: r.status,
     tags: JSON.parse(r.tags || '[]'),
     meta: JSON.parse(r.meta || '{}'),
@@ -90,12 +92,13 @@ function pick(value, allowed, field) {
 }
 
 // Apply a partial update from the client onto an entry (or a new one).
-function applyFields(entry, body) {
+function applyFields(entry, body, known) {
   if ('kind' in body) entry.kind = pick(body.kind, KINDS, 'kind');
   if ('title' in body) entry.title = cleanText(body.title, 200);
   if ('summary' in body) entry.summary = cleanText(body.summary, 600);
   if ('body' in body) entry.body = String(body.body ?? '').slice(0, MAX_BODY);
   if ('visibility' in body) entry.visibility = pick(body.visibility, VISIBILITY, 'visibility');
+  if ('communities' in body) entry.communities = cleanCommunityIds(body.communities, known);
   if ('status' in body) entry.status = pick(body.status, STATUS, 'status');
   if ('tags' in body) entry.tags = cleanTags(body.tags);
   if ('pinned' in body) entry.pinned = Boolean(body.pinned);
@@ -149,22 +152,22 @@ async function writeOnce(env, entry, insert) {
     throw new HttpError(400, 'That wing or space does not exist.');
   }
   const row = [
-    entry.kind, entry.spaceId ?? null, entry.slug, entry.title, entry.summary, entry.body, entry.visibility, entry.status,
+    entry.kind, entry.spaceId ?? null, entry.slug, entry.title, entry.summary, entry.body, entry.visibility, JSON.stringify(entry.communities ?? []), entry.status,
     JSON.stringify(entry.tags), JSON.stringify(entry.meta), entry.pinned ? 1 : 0, entry.updatedAt, entry.publishedAt,
   ];
   try {
     if (insert) {
       await d
         .prepare(
-          `INSERT INTO entries (kind, space_id, slug, title, summary, body, visibility, status, tags, meta, pinned, updated_at, published_at, id, source, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO entries (kind, space_id, slug, title, summary, body, visibility, communities, status, tags, meta, pinned, updated_at, published_at, id, source, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(...row, entry.id, entry.source, entry.createdAt)
         .run();
     } else {
       await d
         .prepare(
-          `UPDATE entries SET kind = ?, space_id = ?, slug = ?, title = ?, summary = ?, body = ?, visibility = ?, status = ?, tags = ?, meta = ?,
+          `UPDATE entries SET kind = ?, space_id = ?, slug = ?, title = ?, summary = ?, body = ?, visibility = ?, communities = ?, status = ?, tags = ?, meta = ?,
            pinned = ?, updated_at = ?, published_at = ? WHERE id = ?`,
         )
         .bind(...row, entry.id)
@@ -232,6 +235,7 @@ export async function createEntry(env, body, source = 'studio', { allowEmpty = f
     summary: '',
     body: '',
     visibility: 'private',
+    communities: [],
     status: 'draft',
     tags: [],
     meta: {},
@@ -242,8 +246,14 @@ export async function createEntry(env, body, source = 'studio', { allowEmpty = f
     publishedAt: null,
   };
   if (!('kind' in body)) throw new HttpError(400, 'Say what kind of item this is.');
-  applyFields(entry, body);
+  applyFields(entry, body, 'communities' in body ? await knownCommunities(env) : null);
   if (!('spaceId' in body)) entry.spaceId = HOME[entry.kind] ?? null;
+  // A new item in a space opened to communities (a book's beta readers) starts open to them too.
+  if (!('communities' in body) && entry.spaceId) {
+    const d = await db(env);
+    const row = await d.prepare('SELECT communities FROM spaces WHERE id = ?').bind(entry.spaceId).first();
+    entry.communities = JSON.parse(row?.communities || '[]');
+  }
   if (!entry.title && !entry.body.trim() && !entry.meta.source && !allowEmpty) throw new HttpError(400, 'Write something first.');
   await write(env, entry, true);
   return entry;
@@ -258,7 +268,7 @@ export async function studioUpdate(request, env, id) {
     throw new HttpError(409, 'This item changed in another window. Reload it before saving.');
   }
   const before = { spaceId: entry.spaceId, kind: entry.kind, slug: entry.slug, status: entry.status };
-  applyFields(entry, body);
+  applyFields(entry, body, 'communities' in body ? await knownCommunities(env) : null);
   // Changing the space or the kind here is a move like any other.
   await settle(env, entry, before);
   if (entry.status === 'draft' && 'status' in body) entry.publishedAt = null;

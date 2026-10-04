@@ -71,17 +71,18 @@ describe('a wing', () => {
   it('lists its items and says what stays closed', async () => {
     const o = await owner();
     await entry(o, { kind: 'song', title: 'Open song', body: '[Am]la la' });
-    await entry(o, { kind: 'song', title: 'Demo only', visibility: 'community' });
+    const fans = (await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json());
+    await entry(o, { kind: 'song', title: 'Demo only', visibility: 'community', communities: [fans.id] });
     const anon = await page('/music');
     expect(anon.text).toContain('Open song');
     expect(anon.text).not.toContain('Demo only');
-    expect(anon.text).toContain('עוד פריט אחד פתוח רק לקהילה');
-    expect(anon.text).toContain('/join?space=music');
+    expect(anon.text).toContain('עוד פריט אחד פתוח רק לקהילות');
+    expect(anon.text).toContain(`/join?community=${fans.id}`);
     expect(anon.res.headers.get('Cache-Control')).toBe('public, max-age=60');
 
     const m = await member(o, 'dana');
-    expect((await page('/music', m.cookie)).text).toContain('data-join="music"');
-    await call(o, '/api/studio/spaces/music/members', 'PATCH', { userId: m.id, status: 'active' });
+    expect((await page('/music', m.cookie)).text).toContain(`data-join="${fans.id}"`);
+    await call(o, `/api/studio/communities/${fans.id}/members`, 'PATCH', { userId: m.id, status: 'active' });
     const inside = await page('/music', m.cookie);
     expect(inside.text).toContain('Demo only');
     expect(inside.res.headers.get('Cache-Control')).toBe('private, no-store');
@@ -99,7 +100,8 @@ describe('a wing', () => {
 describe('a book', () => {
   it('shows open chapters, counts the closed ones, and opens them to beta readers', async () => {
     const o = await owner();
-    const book = await space(o, { parentId: 'books', kind: 'book', title: 'Gargamitz', visibility: 'public', summary: 'A story' });
+    const fans = (await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json());
+    const book = await space(o, { parentId: 'books', kind: 'book', title: 'Gargamitz', visibility: 'public', summary: 'A story', communities: [fans.id] });
     await entry(o, { kind: 'chapter', spaceId: book.id, title: 'One', body: 'First words', meta: { order: 1 } });
     await entry(o, { kind: 'chapter', spaceId: book.id, title: 'Two', body: 'Secret words', visibility: 'community', meta: { order: 2 } });
 
@@ -111,7 +113,8 @@ describe('a book', () => {
     expect((await page('/books/gargamitz/two')).text).toBe('asset:/404.html');
 
     const reader = await member(o, 'reader');
-    await call(o, `/api/studio/spaces/${book.id}/members`, 'PATCH', { userId: reader.id, status: 'active' });
+    expect((await page('/books/gargamitz', reader.cookie)).text).toContain('קריאת בטא');
+    await call(o, `/api/studio/communities/${fans.id}/members`, 'PATCH', { userId: reader.id, status: 'active' });
     const two = await page('/books/gargamitz/two', reader.cookie);
     expect(two.status).toBe(200);
     expect(two.text).toContain('Secret words');
@@ -131,9 +134,11 @@ describe('a book', () => {
 describe('a song', () => {
   it('shows the chord sheet and its versions, and keeps community versions locked', async () => {
     const o = await owner();
+    const fans = (await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json());
     await entry(o, {
       kind: 'song',
       title: 'Ma\'aseh',
+      communities: [fans.id],
       body: '{c: בית}\n[Am]שלום [F]עולם\nC   G\nשורה שנייה',
       meta: {
         capo: '2',

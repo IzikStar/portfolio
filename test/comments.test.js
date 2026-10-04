@@ -43,27 +43,28 @@ async function member(o, username) {
 }
 
 async function book(o) {
-  const b = await space(o, { parentId: 'books', kind: 'book', title: 'Gargamitz', visibility: 'public' });
+  const beta = await (await call(o, '/api/studio/communities', 'POST', { title: 'Gargamitz readers' })).json();
+  const b = await space(o, { parentId: 'books', kind: 'book', title: 'Gargamitz', visibility: 'public', communities: [beta.id] });
   const ch = await entry(o, { kind: 'chapter', spaceId: b.id, title: 'One', body: 'First paragraph\n\nSecond paragraph', meta: { order: 1 } });
   return { b, ch };
 }
 async function reader(o, b, name = 'reader') {
   const m = await member(o, name);
-  await call(o, `/api/studio/spaces/${b.id}/members`, 'PATCH', { userId: m.id, status: 'active' });
+  await call(o, `/api/studio/communities/${b.communities[0]}/members`, 'PATCH', { userId: m.id, status: 'active' });
   return m;
 }
 
 describe('comments', () => {
-  it('are open to the community and the owner only', async () => {
+  it('are open to the item\'s communities and the owner only', async () => {
     const o = await owner();
     const { b, ch } = await book(o);
     const outsider = await member(o, 'outsider');
     const r = await reader(o, b);
 
     const anon = await page('/books/gargamitz/one');
-    expect(anon.text).toContain(`/join?space=${b.id}`);
+    expect(anon.text).toContain(`/join?community=${b.communities[0]}`);
     expect(anon.text).not.toContain('data-comment-form');
-    expect((await page('/books/gargamitz/one', outsider.cookie)).text).toContain(`data-join="${b.id}"`);
+    expect((await page('/books/gargamitz/one', outsider.cookie)).text).toContain(`data-join="${b.communities[0]}"`);
     expect((await call(outsider.cookie, '/api/comments', 'POST', { entryId: ch.id, body: 'hi' })).status).toBe(403);
     expect((await call(null, '/api/comments', 'POST', { entryId: ch.id, body: 'hi' })).status).toBe(401);
 

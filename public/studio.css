@@ -230,3 +230,10 @@ details.box.batch > summary { font-family: var(--display); font-size: 22px; }
 @media (max-width: 1099px) {
   .editor.with-page .page-preview { position: fixed; inset: 0; padding: 12px; z-index: 20; }
 }
+
+/* community picker (item, space, invite) */
+.comm-pick { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; margin: 0; min-width: 0; }
+.comm-pick legend { font-weight: 500; padding-inline: 6px; }
+.comm-pick .picks { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.comm-pick .pick { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.comm-pick small { color: var(--muted); font-weight: 400; }

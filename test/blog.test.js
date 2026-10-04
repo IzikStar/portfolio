@@ -6,6 +6,7 @@ const ORIGIN = 'https://site.test';
 let env;
 
 beforeEach(() => {
+  for (const k of Object.keys(clubs)) delete clubs[k];
   env = {
     DB: new FakeD1(),
     MEDIA: { get: async () => null },
@@ -29,47 +30,53 @@ async function member(o, username, displayName = username) {
   const cookie = cookieOf(res);
   return { cookie, id: (await (await call(cookie, '/api/member/me')).json()).id };
 }
-async function joinTo(o, spaceId, name, displayName) {
+const clubs = {};
+async function club(o, title, more = {}) {
+  clubs[title] ??= await (await call(o, '/api/studio/communities', 'POST', { title, ...more })).json();
+  return clubs[title];
+}
+async function joinTo(o, title, name, displayName) {
   const m = await member(o, name, displayName);
-  await call(o, `/api/studio/spaces/${spaceId}/members`, 'PATCH', { userId: m.id, status: 'active' });
+  await call(o, `/api/studio/communities/${(await club(o, title)).id}/members`, 'PATCH', { userId: m.id, status: 'active' });
   return m;
 }
-async function write(cookie, spaceId, body) {
-  const res = await call(cookie, `/api/blog/${spaceId}/posts`, 'POST', { title: 'Hello', body: 'Some *words*', ...body });
+async function write(cookie, title, body) {
+  const id = clubs[title]?.id ?? title;
+  const res = await call(cookie, `/api/blog/${id}/posts`, 'POST', { title: 'Hello', body: 'Some *words*', ...body });
   return { status: res.status, post: res.status === 201 ? await res.json() : await res.json().catch(() => null) };
 }
 
 describe('community blog', () => {
   it('is read and written by the community only; the owner sees everything', async () => {
     const o = await owner();
-    const dana = await joinTo(o, 'music', 'dana', 'Dana');
-    const reader = await joinTo(o, 'books', 'reader', 'Reader'); // another community
+    const dana = await joinTo(o, 'Musicians', 'dana', 'Dana');
+    const reader = await joinTo(o, 'Readers', 'reader', 'Reader'); // another community
     const outsider = await member(o, 'outsider');
 
-    const { status, post } = await write(dana.cookie, 'music', { title: 'First jam', body: 'We played **loud**' });
+    const { status, post } = await write(dana.cookie, 'Musicians', { title: 'First jam', body: 'We played **loud**' });
     expect(status).toBe(201);
-    expect(post.path).toBe('/music/blog/first-jam');
+    expect(post.path).toBe('/community/musicians/first-jam');
 
     // Writing: only members of this community.
-    expect((await write(null, 'music')).status).toBe(401);
-    expect((await write(outsider.cookie, 'music')).status).toBe(403);
-    expect((await write(reader.cookie, 'music')).status).toBe(403);
+    expect((await write(null, 'Musicians')).status).toBe(401);
+    expect((await write(outsider.cookie, 'Musicians')).status).toBe(403);
+    expect((await write(reader.cookie, 'Musicians')).status).toBe(403);
     expect((await write(dana.cookie, 'nope')).status).toBe(404);
 
     // Reading: the community and the owner.
-    const mine = await page('/music/blog/first-jam', dana.cookie);
+    const mine = await page('/community/musicians/first-jam', dana.cookie);
     expect(mine.status).toBe(200);
     expect(mine.text).toContain('<strong>loud</strong>');
     expect(mine.text).toContain('data-comment-form');
-    expect((await page('/music/blog', dana.cookie)).text).toContain('First jam');
+    expect((await page('/community/musicians', dana.cookie)).text).toContain('First jam');
     for (const who of [null, outsider.cookie, reader.cookie]) {
-      expect((await page('/music/blog/first-jam', who)).status).toBe(404);
-      const list = await page('/music/blog', who);
+      expect((await page('/community/musicians/first-jam', who)).status).toBe(404);
+      const list = await page('/community/musicians', who);
       expect(list.status).toBe(200);
       expect(list.text).not.toContain('First jam');
       expect(list.text).not.toContain('data-post-form');
     }
-    const asOwner = await page('/music/blog/first-jam', o);
+    const asOwner = await page('/community/musicians/first-jam', o);
     expect(asOwner.status).toBe(200);
     expect(asOwner.text).toContain('data-post-mod="pinned"');
 
@@ -77,31 +84,31 @@ describe('community blog', () => {
     expect((await call(reader.cookie, '/api/comments', 'POST', { postId: post.id, body: 'hi' })).status).toBe(404);
     expect((await call(null, '/api/comments', 'POST', { postId: post.id, body: 'hi' })).status).toBe(401);
     expect((await call(dana.cookie, '/api/comments', 'POST', { postId: post.id, body: 'Me again' })).status).toBe(201);
-    expect((await page('/music/blog/first-jam', dana.cookie)).text).toContain('Me again');
+    expect((await page('/community/musicians/first-jam', dana.cookie)).text).toContain('Me again');
     const inbox = await (await call(o, '/api/studio/comments')).json();
-    expect(inbox.comments[0].entry).toMatchObject({ kind: 'post', title: 'First jam', path: '/music/blog/first-jam' });
+    expect(inbox.comments[0].entry).toMatchObject({ kind: 'post', title: 'First jam', path: '/community/musicians/first-jam' });
   });
 
   it('lets the owner pin, hide, open to everyone and delete any post', async () => {
     const o = await owner();
-    const dana = await joinTo(o, 'music', 'dana');
-    const eli = await joinTo(o, 'music', 'eli');
-    const { post } = await write(dana.cookie, 'music', { title: 'Open letter' });
+    const dana = await joinTo(o, 'Musicians', 'dana');
+    const eli = await joinTo(o, 'Musicians', 'eli');
+    const { post } = await write(dana.cookie, 'Musicians', { title: 'Open letter' });
 
     // Moderation is the owner's alone.
     expect((await call(dana.cookie, `/api/studio/posts/${post.id}`, 'PATCH', { public: true })).status).toBe(401);
     expect((await call(o, `/api/studio/posts/${post.id}`, 'PATCH', { public: true, pinned: true })).status).toBe(200);
-    const anon = await page('/music/blog/open-letter');
+    const anon = await page('/community/musicians/open-letter');
     expect(anon.status).toBe(200);
     expect(anon.text).not.toContain('data-comment-form'); // outsiders read, the community talks
-    expect((await page('/music/blog')).text).toContain('Open letter');
-    expect((await page('/music')).text).toContain('href="/music/blog"');
+    expect((await page('/community/musicians')).text).toContain('Open letter');
+    expect((await page('/community')).text).toContain('href="/community/musicians"');
 
     await call(o, `/api/studio/posts/${post.id}`, 'PATCH', { hidden: true });
-    expect((await page('/music/blog/open-letter')).status).toBe(404);
-    expect((await page('/music/blog/open-letter', eli.cookie)).status).toBe(404);
-    expect((await page('/music/blog/open-letter', dana.cookie)).text).toContain('מוסתר'); // the writer still sees it
-    expect((await page('/music/blog/open-letter', o)).status).toBe(200);
+    expect((await page('/community/musicians/open-letter')).status).toBe(404);
+    expect((await page('/community/musicians/open-letter', eli.cookie)).status).toBe(404);
+    expect((await page('/community/musicians/open-letter', dana.cookie)).text).toContain('מוסתר'); // the writer still sees it
+    expect((await page('/community/musicians/open-letter', o)).status).toBe(200);
     const studio = await (await call(o, '/api/studio/posts?status=hidden')).json();
     expect(studio.posts.map((p) => p.title)).toEqual(['Open letter']);
 
@@ -110,35 +117,33 @@ describe('community blog', () => {
     expect((await call(eli.cookie, `/api/blog/posts/${post.id}`, 'PATCH', { title: 'Mine now', body: 'x' })).status).toBe(403);
     expect((await call(eli.cookie, `/api/blog/posts/${post.id}`, 'DELETE')).status).toBe(403);
     expect((await call(dana.cookie, `/api/blog/posts/${post.id}`, 'PATCH', { title: 'Open letter, again', body: 'Edited' })).status).toBe(200);
-    expect((await page('/music/blog/open-letter', eli.cookie)).text).toContain('Edited');
+    expect((await page('/community/musicians/open-letter', eli.cookie)).text).toContain('Edited');
     await call(eli.cookie, '/api/comments', 'POST', { postId: post.id, body: 'Nice' });
     expect((await call(o, `/api/blog/posts/${post.id}`, 'DELETE')).status).toBe(200);
-    expect((await page('/music/blog/open-letter', o)).status).toBe(404);
+    expect((await page('/community/musicians/open-letter', o)).status).toBe(404);
     expect((await (await call(o, '/api/studio/comments')).json()).comments).toHaveLength(0);
 
     // The owner writes too.
-    const own = await write(o, 'music', { title: 'From me' });
+    const own = await write(o, 'Musicians', { title: 'From me' });
     expect(own.status).toBe(201);
-    expect((await page('/music/blog/from-me', eli.cookie)).text).toContain('<span class="mention" dir="auto">יצחק</span>');
+    expect((await page('/community/musicians/from-me', eli.cookie)).text).toContain('<span class="mention" dir="auto">יצחק</span>');
   });
 
-  it('gives a space with its own community a blog of its own', async () => {
+  it('keeps a hidden community\'s blog away from everyone outside it', async () => {
     const o = await owner();
-    const book = await (await call(o, '/api/studio/spaces', 'POST', { parentId: 'books', kind: 'book', title: 'Gargamitz', visibility: 'public' })).json();
-    const genre = await (await call(o, '/api/studio/spaces', 'POST', { parentId: 'books', kind: 'genre', title: 'Fantasy', visibility: 'public' })).json();
-    const beta = await joinTo(o, book.id, 'beta');
-    const wingOnly = await joinTo(o, 'books', 'wingonly');
-
-    const { status, post } = await write(beta.cookie, book.id, { title: 'Chapter thoughts' });
+    await club(o, 'Secret', { hidden: true });
+    const insider = await joinTo(o, 'Secret', 'insider');
+    const outsider = await member(o, 'outsider');
+    const { status, post } = await write(insider.cookie, 'Secret', { title: 'Between us' });
     expect(status).toBe(201);
-    expect(post.path).toBe('/books/gargamitz/blog/chapter-thoughts');
-    expect((await page(post.path, beta.cookie)).status).toBe(200);
-    expect((await page(post.path, wingOnly.cookie)).status).toBe(404);
-    expect((await write(wingOnly.cookie, book.id)).status).toBe(403);
-    expect((await page('/books/gargamitz', beta.cookie)).text).toContain('href="/books/gargamitz/blog"');
-    // A space without its own community has no blog; its people use the wing's.
-    expect((await page('/books/fantasy/blog', wingOnly.cookie)).status).toBe(404);
-    expect((await write(wingOnly.cookie, genre.id)).status).toBe(404);
+    expect(post.path).toBe('/community/secret/between-us');
+    expect((await page(post.path, insider.cookie)).status).toBe(200);
+    await call(o, `/api/studio/posts/${post.id}`, 'PATCH', { public: true });
+    for (const who of [null, outsider.cookie]) {
+      expect((await page('/community/secret', who)).status).toBe(404);
+      expect((await page(post.path, who)).status).toBe(404);
+    }
+    expect((await write(outsider.cookie, 'Secret')).status).toBe(404);
   });
 
   it('keeps "blog" free in every wing and space', async () => {
@@ -153,28 +158,31 @@ describe('community blog', () => {
 
   it('limits how many posts a member writes in an hour', async () => {
     const o = await owner();
-    const dana = await joinTo(o, 'music', 'dana');
-    for (let i = 0; i < 6; i++) expect((await write(dana.cookie, 'music', { title: `Post ${i}` })).status).toBe(201);
-    expect((await write(dana.cookie, 'music', { title: 'One more' })).status).toBe(429);
-    expect((await write(o, 'music', { title: 'Owner is not limited' })).status).toBe(201);
+    const dana = await joinTo(o, 'Musicians', 'dana');
+    for (let i = 0; i < 6; i++) expect((await write(dana.cookie, 'Musicians', { title: `Post ${i}` })).status).toBe(201);
+    expect((await write(dana.cookie, 'Musicians', { title: 'One more' })).status).toBe(429);
+    expect((await write(o, 'Musicians', { title: 'Owner is not limited' })).status).toBe(201);
   });
 });
 
 describe('tagging members', () => {
   it('only resolves to members of the same community', async () => {
     const o = await owner();
-    const dana = await joinTo(o, 'music', 'dana', 'Dana');
-    const yossi = await joinTo(o, 'music', 'yossi', 'Yossi');
-    const reader = await joinTo(o, 'books', 'reader', 'Reader');
+    const dana = await joinTo(o, 'Musicians', 'dana', 'Dana');
+    const yossi = await joinTo(o, 'Musicians', 'yossi', 'Yossi');
+    const reader = await joinTo(o, 'Readers', 'reader', 'Reader');
 
     // Who can be picked: the community only, and only by the community.
-    const found = await (await call(dana.cookie, '/api/people?space=music&q=')).json();
+    const music = clubs.Musicians.id;
+    const found = await (await call(dana.cookie, `/api/people?community=${music}&q=`)).json();
     expect(found.people.map((p) => p.name)).toEqual(['Yossi']);
-    expect((await call(reader.cookie, '/api/people?space=music&q=')).status).toBe(403);
-    expect((await call(null, '/api/people?space=music&q=')).status).toBe(401);
-    expect((await (await call(o, '/api/people?space=music&q=da')).json()).people.map((p) => p.name)).toEqual(['Dana']);
+    expect((await call(reader.cookie, `/api/people?community=${music}&q=`)).status).toBe(403);
+    expect((await call(null, `/api/people?community=${music}&q=`)).status).toBe(401);
+    expect((await (await call(o, `/api/people?community=${music}&q=da`)).json()).people.map((p) => p.name)).toEqual(['Dana']);
 
-    const song = await (await call(o, '/api/studio/entries', 'POST', { kind: 'song', title: 'Tune', visibility: 'community', status: 'published', spaceId: 'music' })).json();
+    const song = await (await call(o, '/api/studio/entries', 'POST', { kind: 'song', title: 'Tune', visibility: 'community', communities: [music], status: 'published', spaceId: 'music' })).json();
+    expect((await (await call(dana.cookie, `/api/people?entry=${song.id}&q=`)).json()).people.map((p) => p.name)).toEqual(['Yossi']);
+    expect((await call(reader.cookie, `/api/people?entry=${song.id}&q=`)).status).toBe(404);
     const res = await call(dana.cookie, '/api/comments', 'POST', { entryId: song.id, body: `Ask @{${yossi.id}} and @{${reader.id}}` });
     expect(res.status).toBe(201);
     const c = await res.json();
@@ -195,19 +203,19 @@ describe('tagging members', () => {
     expect((await page('/music/tune', dana.cookie)).text).toContain('@Yossi K');
 
     // In a post too.
-    const { post } = await write(dana.cookie, 'music', { title: 'Thanks', body: `Thanks @{${yossi.id}}! And @{${reader.id}}` });
+    const { post } = await write(dana.cookie, 'Musicians', { title: 'Thanks', body: `Thanks @{${yossi.id}}! And @{${reader.id}}` });
     expect(post.body).toBe(`Thanks @{${yossi.id}}! And `);
     expect((await page(post.path, yossi.cookie)).text).toContain('<span class="mention" dir="auto">@Yossi K</span>');
     expect((await page('/community', yossi.cookie)).text).toContain(post.path);
 
     // Losing access to the post takes it off the list.
-    await call(o, `/api/studio/spaces/music/members`, 'PATCH', { userId: yossi.id, status: 'removed' });
+    await call(o, `/api/studio/communities/${music}/members`, 'PATCH', { userId: yossi.id, status: 'removed' });
     expect((await page('/community', yossi.cookie)).text).not.toContain(post.path);
   });
 
   it('lets the owner credit members on an item', async () => {
     const o = await owner();
-    const dana = await joinTo(o, 'music', 'dana', 'Dana');
+    const dana = await joinTo(o, 'Musicians', 'dana', 'Dana');
     const song = await (
       await call(o, '/api/studio/entries', 'POST', {
         kind: 'song',

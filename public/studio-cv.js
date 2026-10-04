@@ -4,7 +4,7 @@
 // studio.js calls window.studioCv(api) once and routes #cv to open().
 window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
   const $ = (id) => document.getElementById(id);
-  const VIS = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
+  const VIS = { private: 'רק אני', community: 'לקהילות', members: 'לחברים', public: 'לכולם' };
   const KIND = {
     song: 'שיר', chapter: 'פרק', sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', torah: 'דבר תורה',
     article: 'מאמר', project: 'פרויקט', work: 'יצירה', video: 'סרטון', blog: 'פוסט',

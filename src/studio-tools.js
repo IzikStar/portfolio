@@ -9,7 +9,7 @@ import { entryPage } from './wings.js';
 import { youtubeId, driveId } from './media.js';
 
 // POST /api/studio/preview-page { id?, kind, spaceId, title, ..., meta, as }
-// as: 'owner' (default), 'community' (a member of the item's community) or 'public'.
+// as: 'owner' (default), 'community' (a member of the item's communities) or 'public'.
 export async function previewPage(request, env) {
   const body = await readJson(request);
   const owner = await access(env, { role: 'owner' });
@@ -27,6 +27,7 @@ export async function previewPage(request, env) {
     summary: cleanText(body.summary, 600),
     body: String(body.body ?? '').slice(0, 200_000),
     visibility: VISIBILITY.includes(body.visibility) ? body.visibility : (stored?.visibility ?? 'private'),
+    communities: Array.isArray(body.communities) ? body.communities.map(String).filter((id) => owner.commById.has(id)) : (stored?.communities ?? []),
     status: 'published',
     tags: tags.map((t) => cleanText(t, 40)).filter(Boolean).slice(0, 20),
     meta,
