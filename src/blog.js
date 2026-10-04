@@ -67,7 +67,7 @@ function postForm(space, post = null, names = new Map()) {
   const edit = post ? forEditing(post.body, names) : { text: '', names: {} };
   return `<form class="post-form" data-post-form data-space="${e(space.id)}"${post ? ` data-post="${e(post.id)}"` : ''}>
   <label class="field">כותרת<input type="text" name="title" maxlength="${MAX_TITLE}" dir="auto" required value="${e(post?.title ?? '')}"></label>
-  <label class="field">${post ? 'הפוסט' : 'מה רצית לספר?'} <small>Markdown עובד: ## כותרת, **מודגש**, [קישור](https://...). @ ושם מתייג מישהו מהקהילה.</small>
+  <label class="field">${post ? 'הפוסט' : 'מה רציתם לספר?'} <small>Markdown עובד: ## כותרת, **מודגש**, [קישור](https://...). @ ושם מתייג מישהו מהקהילה.</small>
     <textarea name="body" rows="12" maxlength="${MAX_BODY}" dir="auto" required data-people="${e(space.id)}" data-names="${e(JSON.stringify(edit.names))}">${e(edit.text)}</textarea>
   </label>
   <div class="actions"><button class="btn accent" type="submit">${post ? 'שמירה' : 'פרסום'}</button><p class="msg" role="status"></p></div>
@@ -91,11 +91,11 @@ async function blogPage(env, v, space) {
           (p) => `<li class="post-card${p.pinned ? ' pinned' : ''}">
   <a class="title" href="${postPath(acc, p)}" dir="auto">${e(p.title)}</a>
   <p dir="auto">${e(excerpt(forEditing(p.body, names).text, 220))}</p>
-  <div class="meta">${byline(p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span>${p.comments} תגובות</span>` : ''}${badges(v, p)}</div>
+  <div class="meta">${byline(p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span>${p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות`}</span>` : ''}${badges(v, p)}</div>
 </li>`,
         )
         .join('')}</ol>`
-    : `<p class="empty">${inside ? 'עוד אין כאן פוסטים. מי שכותב ראשון קובע את הטון.' : 'מה שנכתב כאן פתוח לקהילה בלבד.'}</p>`;
+    : `<p class="empty">${inside ? 'עוד אין כאן פוסטים. מי שכותב ראשון קובע את הטון.' : 'מה שנכתב כאן פתוח רק לקהילה.'}</p>`;
   const write = canPost(v, space)
     ? `<details class="panel post-new"><summary>פוסט חדש</summary>${postForm(space)}</details>`
     : '';

@@ -54,9 +54,9 @@ export const DEFAULT_CV = {
     { label: b('LinkedIn', 'LinkedIn'), href: 'https://www.linkedin.com/in/itschak-shteren-0b7a59313' },
     { label: b('GitHub', 'GitHub'), href: 'https://github.com/IzikStar' },
   ],
-  footer: b('נבנה ביד עם HTML, CSS ו־Cloudflare Workers.', 'Hand-built with HTML, CSS and Cloudflare Workers.'),
+  footer: b('בניתי את העמוד בעצמי, עם HTML, CSS ו־Cloudflare Workers.', 'Hand-built with HTML, CSS and Cloudflare Workers.'),
   sections: [
-    { id: 'code', show: true, title: b('פרויקטים', 'Projects'), nav: b('קוד', 'Code'), intro: b('קוד פתוח ב־GitHub, אלא אם צוין אחרת', 'Open source on GitHub unless noted') },
+    { id: 'code', show: true, title: b('פרויקטים', 'Projects'), nav: b('קוד', 'Code'), intro: b('קוד פתוח ב־GitHub, חוץ ממה שמסומן אחרת', 'Open source on GitHub unless noted') },
     { id: 'music', show: true, title: b('מוזיקה', 'Music'), nav: b('מוזיקה', 'Music'), intro: b('', '') },
     { id: 'voice', show: true, title: b('דיבוב', 'Voice acting'), nav: b('דיבוב', 'Voice'), intro: b('', '') },
     { id: 'sketches', show: true, title: b('מערכונים', 'Sketches'), nav: b('מערכונים', 'Sketches'), intro: b('', '') },

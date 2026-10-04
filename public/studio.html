@@ -28,7 +28,7 @@
   <nav class="studio-side" aria-label="סטודיו">
     <a class="mark" href="#ideas">הסטודיו</a>
     <a href="#ideas" data-tab="ideas">רעיונות</a>
-    <span class="group">סטודיו לכל אגף</span>
+    <span class="group">האגפים</span>
     <a href="#wing/music" data-tab="wing/music" data-wing="music"><span class="dot"></span>מוזיקה<span class="count" data-count="music"></span></a>
     <a href="#wing/books" data-tab="wing/books" data-wing="books"><span class="dot"></span>ספרים<span class="count" data-count="books"></span></a>
     <a href="#wing/sketches" data-tab="wing/sketches" data-wing="sketches"><span class="dot"></span>מערכונים<span class="count" data-count="sketches"></span></a>
@@ -174,7 +174,7 @@
           <select id="s-kind"><option value="book">ספר</option><option value="series">סדרה</option><option value="genre">ז'אנר</option><option value="collection">אוסף</option></select>
         </label>
         <label class="field">מי רואה את העמוד
-          <select id="s-visibility"><option value="private">רק אני</option><option value="community">הקהילה שלו</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
+          <select id="s-visibility"><option value="private">רק אני</option><option value="community">הקהילה</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
         </label>
         <label class="field">הצטרפות לקהילה
           <select id="s-join"><option value="request">בבקשה ואישור</option><option value="closed">בהזמנה בלבד</option></select>
@@ -192,7 +192,7 @@
         <button class="btn primary" type="button" id="s-save">שמירה</button>
         <a class="btn" id="s-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
         <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
-        <a class="btn" id="s-drive-open" target="_blank" rel="noopener" hidden>פתיחה בדרייב ↗</a>
+        <a class="btn" id="s-drive-open" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
         <button class="btn danger" type="button" id="s-delete">מחיקה</button>
       </div>
       <details class="box batch" data-batch="space"></details>
@@ -222,7 +222,7 @@
       <div class="cvs-bar">
         <button class="btn primary" type="button" id="cv-save">שמירה</button>
         <span class="msg" id="cv-status" role="status"></span>
-        <a class="btn small" href="/cv" target="_blank" rel="noopener">לעמוד עצמו ↗</a>
+        <a class="btn small" href="/cv" target="_blank" rel="noopener">לעמוד באתר ↗</a>
       </div>
       <div class="cvs-panes" id="cv-panes">
         <div class="cvs-form" id="cv-form"></div>
@@ -241,10 +241,10 @@
       <div class="toolbar" style="margin-bottom: 1rem">
         <button class="btn primary" type="button" id="new-project">פרויקט חדש</button>
         <button class="btn" type="button" id="import-cv" hidden>ייבוא הפרויקטים מקורות החיים</button>
-        <button class="btn" type="button" id="sync-all">רענון כולם מהמקור</button>
+        <button class="btn" type="button" id="sync-all">רענון של כולם מהמקור</button>
         <span class="msg" id="projects-msg" role="status"></span>
       </div>
-      <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים ב־/cv לפי הסדר כאן. את הבחירה והסדר אפשר לעשות גם <a href="#cv">בעמוד קורות החיים</a>. כל פרויקט ציבורי מופיע גם באגף התוכנה.</p>
+      <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים ב־/cv לפי הסדר כאן. את הבחירה והסדר אפשר לעשות גם <a href="#cv">בעמוד קורות החיים</a>. כל פרויקט שפתוח לכולם מופיע גם באגף התוכנה.</p>
       <ol class="rows-table" id="projects"></ol>
       <p class="empty" id="projects-empty" hidden>עוד אין פרויקטים. אפשר לייבא את מה שכבר מופיע בקורות החיים.</p>
     </section>
@@ -305,7 +305,7 @@
       </label>
       <div class="settings">
         <label class="field">מי רואה
-          <select id="p-visibility"><option value="private">רק אני</option><option value="community">קהילת האגף</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
+          <select id="p-visibility"><option value="private">רק אני</option><option value="community">הקהילה</option><option value="members">כל החברים</option><option value="public">כולם</option></select>
         </label>
         <label class="field">מצב
           <select id="p-state"><option value="draft">טיוטה</option><option value="published">פורסם</option></select>
@@ -317,7 +317,7 @@
       </label>
       <div class="toolbar">
         <button class="btn primary" type="button" id="p-save">שמירה</button>
-        <a class="btn" id="p-view" target="_blank" rel="noopener" hidden>צפייה באתר</a>
+        <a class="btn" id="p-view" target="_blank" rel="noopener" hidden>לעמוד באתר ↗</a>
         <button class="btn danger" type="button" id="p-delete">מחיקה</button>
       </div>
     </section>
@@ -370,7 +370,7 @@
       </div>
       <div class="box">
         <h2>הפריטים מדף הניהול הישן</h2>
-        <p class="hint">דף הניהול הישן (/admin) ירד, ומה שהעלית בו עבר לאגפים: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר ציבורי, מה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים הועתקו, והמקור נשאר שמור בצד. ההעברה רצה לבד פעם אחת; הכפתור מריץ אותה שוב, ומה שכבר עבר לא יוכפל.</p>
+        <p class="hint">דף הניהול הישן (/admin) ירד, ומה שהעלית בו עבר לאגפים: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר פתוח לכולם, ומה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים הועתקו, והמקור שמור בצד. ההעברה רצה לבד פעם אחת. הכפתור מריץ אותה שוב, ומה שכבר עבר לא יוכפל.</p>
         <p class="msg" id="legacy-auto"></p>
         <div class="toolbar">
           <button class="btn" type="button" id="import-legacy">העברה לאגפים</button>
@@ -431,7 +431,7 @@
         <label class="field">מי רואה
           <select id="ed-visibility">
             <option value="private">רק אני</option>
-            <option value="community">קהילת האגף</option>
+            <option value="community">הקהילה</option>
             <option value="members">כל החברים</option>
             <option value="public">כולם</option>
           </select>
@@ -486,13 +486,13 @@
       </div>
       <div class="toolbar">
         <button class="btn primary" type="button" id="publish">פרסום</button>
-        <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>צפייה באתר</a>
+        <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>לעמוד באתר ↗</a>
         <button class="btn danger" type="button" id="delete-article">מחיקה</button>
       </div>
       <aside class="page-preview" id="ed-page" hidden aria-label="איך זה ייראה באתר">
         <div class="toolbar">
           <label class="sr-only" for="ed-page-as">לראות כמו</label>
-          <select id="ed-page-as"><option value="owner">כמו שאני רואה</option><option value="community">כמו חבר.ת קהילה</option><option value="public">כמו אורח.ת</option></select>
+          <select id="ed-page-as"><option value="owner">כמו שאני רואה</option><option value="community">כמו מישהו מהקהילה</option><option value="public">כמו מי שלא מחובר</option></select>
           <span class="msg" id="ed-page-msg" role="status"></span>
           <button class="btn small" type="button" id="ed-page-close">סגירה</button>
         </div>

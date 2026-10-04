@@ -7,21 +7,21 @@ export const SITE = 'https://itschakshteren.com';
 
 // What each wing holds, for the home page tiles and the wing headers.
 export const WING_INFO = {
-  music: { what: 'שירים שהלחנתי, מילים ואקורדים, הקלטות, עיבודים מלאים וסרטוני נגינה', icon: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
-  books: { what: 'עמוד לכל ספר, פרקים שנכתבים עכשיו, וקוראי בטא שמגיבים לכל פרק', icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>' },
-  sketches: { what: 'מערכונים, סדרות ופרקים, וקהילה לכל ז\'אנר', icon: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>' },
-  humor: { what: 'דיבובים, טקסטי מקור והומור', icon: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/>' },
+  music: { what: 'שירים שהלחנתי, עם מילים ואקורדים, הקלטות ועיבודים', icon: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
+  books: { what: 'הספרים שאני כותב, פרק אחרי פרק. קוראי הבטא מגיבים על כל פרק', icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>' },
+  sketches: { what: 'מערכונים וסדרות, מסודרים לפי ז\'אנר', icon: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>' },
+  humor: { what: 'דיבובים, טקסטים מקוריים ושטויות', icon: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/>' },
   torah: { what: 'דברי תורה ומאמרים תורניים', icon: '<path d="M2 4h7a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h8z"/>' },
-  articles: { what: 'מחשבות, מסות ורשימות', icon: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>' },
-  software: { what: 'פרויקטי תוכנה, עמוד לכל פרויקט, מתעדכנים לבד מגיטהאב', icon: '<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/>' },
-  videos: { what: 'סרטונים, קליפים ומאחורי הקלעים', icon: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3"/>' },
+  articles: { what: 'דברים שרציתי להגיד בכתב', icon: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>' },
+  software: { what: 'פרויקטים שבניתי, רובם בקוד פתוח ב־GitHub', icon: '<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/>' },
+  videos: { what: 'קליפים ומאחורי הקלעים', icon: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3"/>' },
 };
 
 export const KIND_LABEL = {
   article: 'מאמר', project: 'פרויקט', work: 'יצירה', song: 'שיר', chapter: 'פרק', torah: 'דבר תורה',
   sketch: 'מערכון', dub: 'דיבוב', humor: 'הומור', video: 'סרטון', idea: 'רעיון',
 };
-const VIS_LABEL = { private: 'פרטי', community: 'לקהילה', members: 'לחברים', public: 'ציבורי' };
+const VIS_LABEL = { private: 'רק אני', community: 'לקהילה', members: 'לחברים', public: 'לכולם' };
 
 export const icon = (paths, size = 34) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;

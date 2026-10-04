@@ -4,10 +4,10 @@
     'That username is taken.': 'שם המשתמש הזה תפוס.',
     'This invite link is no longer valid.': 'קישור ההזמנה כבר לא בתוקף.',
     'Wrong username or password.': 'שם משתמש או סיסמה שגויים.',
-    'Your request is waiting for approval.': 'הבקשה שלך עוד מחכה לאישור.',
+    'Your request is waiting for approval.': 'הבקשה שלכם עוד מחכה לאישור.',
     'This account is not active.': 'החשבון הזה לא פעיל.',
     'Password: at least 8 characters.': 'הסיסמה צריכה להיות לפחות 8 תווים.',
-    'Username: 3 to 30 letters, digits, dots, dashes or underscores.': 'שם משתמש: 3 עד 30 אותיות, ספרות, נקודה, מקף או קו תחתון.',
+    'Username: 3 to 30 letters, digits, dots, dashes or underscores.': 'שם המשתמש צריך להיות 3 עד 30 אותיות, ספרות, נקודה, מקף או קו תחתון.',
   };
   const say = (id, text, kind = '') => {
     const n = document.getElementById(id);
@@ -37,7 +37,7 @@
         .then(({ spaces }) => {
           const s = spaces.find((x) => x.id === space);
           if (!s) return;
-          document.getElementById('join-title').textContent = s.kind === 'book' ? `קריאת בטא: ${s.title}` : `הצטרפות ל${s.parentId ? s.title : `קהילת ה${s.title}`}`;
+          document.getElementById('join-title').textContent = s.kind === 'book' ? `הצטרפות לקוראי הבטא של ${s.title}` : `הצטרפות ל${s.parentId ? s.title : `קהילת ה${s.title}`}`;
         })
         .catch(() => {});
     }
@@ -46,7 +46,7 @@
         .then((r) => r.json())
         .then(({ valid }) => {
           if (valid) {
-            document.getElementById('join-title').textContent = 'הוזמנת לקהילה';
+            document.getElementById('join-title').textContent = 'הוזמנתם לקהילה';
             document.getElementById('join-lede').textContent = 'בוחרים שם משתמש וסיסמה, ונכנסים.';
             document.getElementById('note-field').hidden = true;
           } else {
@@ -75,7 +75,7 @@
   const login = document.getElementById('login-form');
   if (login) {
     if (params.get('logout')) {
-      post('/api/member/logout', {}).then(() => say('login-msg', 'יצאת מהחשבון.', 'ok'), () => {});
+      post('/api/member/logout', {}).then(() => say('login-msg', 'יצאתם מהחשבון.', 'ok'), () => {});
     }
     login.addEventListener('submit', async (e) => {
       e.preventDefault();

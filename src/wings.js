@@ -51,24 +51,26 @@ async function lockedCount(env, acc, spaceIds) {
   return row?.n ?? 0;
 }
 
+// "קהילת המוזיקה", "קוראי הבטא של גרגמיץ": what a community is called in running text.
+const communityLabel = (s) => (s.kind === 'book' ? `קוראי הבטא של ${s.title}` : s.parentId ? s.title : `קהילת ה${s.title}`);
+
 // Where this viewer stands with the community that guards `spaceId`.
 // `open` is how many of its blog posts are open to everyone (worth a link for outsiders).
 export function communityBox(v, spaceId, path, open = 0) {
   const { acc } = v;
   const target = acc.byId.get(communityOf(acc.byId, spaceId));
   if (!target) return '';
-  const name = target.parentId ? target.title : `קהילת ה${target.title}`;
-  const label = target.kind === 'book' ? `קוראי הבטא של ${target.title}` : name;
+  const label = communityLabel(target);
   const blog = blogPath(acc, target);
   const toBlog = path === blog ? '' : `<a class="btn small" href="${blog}">בלוג הקהילה</a>`;
   if (acc.owner) {
-    return `<div class="community-box"><p><strong>${e(label)}</strong>. כאן רואים את מה שפתוח לקהילה.</p>${toBlog}<a class="btn small" href="/studio#space/${e(target.id)}">ניהול הקהילה</a></div>`;
+    return `<div class="community-box"><p><strong>${e(label)}</strong>. כאן רואים גם את מה שפתוח רק לקהילה.</p>${toBlog}<a class="btn small" href="/studio#space/${e(target.id)}">ניהול הקהילה</a></div>`;
   }
-  if (acc.communities.has(target.id)) return `<div class="community-box"><p>את.ה ב<strong>${e(label)}</strong>, ורואים כאן גם את מה שפתוח רק לקהילה.</p>${toBlog}</div>`;
+  if (acc.communities.has(target.id)) return `<div class="community-box"><p>אתם ב<strong>${e(label)}</strong>, אז רואים כאן גם את מה שפתוח רק לקהילה.</p>${toBlog}</div>`;
   const peek = open && toBlog ? `<a class="btn small" href="${blog}">מהבלוג של הקהילה</a>` : '';
   if (acc.pending.has(target.id)) return `<div class="community-box"><p>הבקשה להצטרף ל<strong>${e(label)}</strong> מחכה לאישור.</p>${peek}</div>`;
-  if (target.joinMode === 'closed') return `<div class="community-box"><p><strong>${e(label)}</strong> פתוחה בהזמנה בלבד.</p>${peek}</div>`;
-  const ask = target.kind === 'book' ? 'לבקש להיות קורא.ת בטא' : 'לבקש להצטרף';
+  if (target.joinMode === 'closed') return `<div class="community-box"><p>ל<strong>${e(label)}</strong> נכנסים רק בהזמנה.</p>${peek}</div>`;
+  const ask = 'בקשת הצטרפות';
   if (v.member) {
     return `<div class="community-box"><p>חלק מהדברים כאן פתוחים רק ל<strong>${e(label)}</strong>.</p><button class="btn accent" type="button" data-join="${e(target.id)}">${ask}</button>${peek}<span class="msg" role="status"></span></div>`;
   }
@@ -103,7 +105,7 @@ function itemCard(v, entry) {
 </a>`;
 }
 
-const lockedNote = (n, what = 'פריטים') => (n ? `<p class="lock">${LOCK} עוד ${n} ${what} פתוחים רק לקהילה</p>` : '');
+const lockedNote = (n) => (n ? `<p class="lock">${LOCK} ${n === 1 ? 'עוד פריט אחד פתוח' : `עוד ${n} פריטים פתוחים`} רק לקהילה</p>` : '');
 
 // ---------- home ----------
 
@@ -116,12 +118,12 @@ export async function home(env, v) {
     .map((w) => {
       const s = acc.byId.get(w.id);
       const info = WING_INFO[w.id];
-      const priv = s.visibility === 'private' ? ' · מוסתר' : '';
+      const priv = s.visibility === 'private' ? ' · רק אני' : '';
       return `<a class="wing-tile" data-wing="${w.id}" href="/${w.id}">
   ${icon(info.icon)}
   <span class="name">${e(s.title)}</span>
   <span class="what">${e(s.summary || info.what)}</span>
-  <span class="who">${acc.communities.has(w.id) && !acc.owner ? 'את.ה בקהילה' : 'קהילה משלו'}${priv}</span>
+  <span class="who">${acc.communities.has(w.id) && !acc.owner ? 'אתם בקהילה' : 'קהילה משלו'}${priv}</span>
 </a>`;
     })
     .join('\n');
@@ -132,19 +134,19 @@ export async function home(env, v) {
           return `<a href="${entryPath(acc, x)}" data-wing="${e(w?.id ?? '')}"><span class="w">${e(w?.title ?? '')}</span><span class="t" dir="auto">${e(x.title)}</span><span class="d">${e(fmtDate(x.publishedAt))}</span></a>`;
         })
         .join('')}</div>`
-    : '<p class="empty">התוכן הראשון בדרך.</p>';
+    : '<p class="empty">עוד לא העליתי כלום. בקרוב.</p>';
   const cta = v.member
-    ? `<h2>שלום ${e(v.member.displayName)}</h2><p>בכל אגף אפשר לבקש להצטרף לקהילה שלו. אחרי שאני מאשר, נפתחים שם טיוטות, הקלטות ופרקים חדשים.</p>`
+    ? `<h2>שלום ${e(v.member.displayName)}</h2><p>בכל אגף אפשר לבקש להצטרף לקהילה שלו. אחרי שאני מאשר, רואים שם גם טיוטות, הקלטות ופרקים חדשים.</p>`
     : acc.owner
-      ? `<h2>הסטודיו</h2><p>כל אגף והקהילה שלו מנוהלים מהסטודיו.</p><a class="btn primary" href="/studio">לסטודיו</a>`
-      : `<h2>רוצים לראות יותר?</h2><p>מצטרפים לאגף שמעניין אתכם. אני מאשר, ומאותו רגע נפתחים הטיוטות, ההקלטות והפרקים החדשים, ואפשר להגיב.</p><div class="actions"><a class="btn primary" href="/join">לבקש הצטרפות</a><a class="btn" href="/login">כניסה</a></div>`;
+      ? `<h2>הסטודיו</h2><p>הטיוטות, הבקשות והתגובות מחכות שם.</p><a class="btn primary" href="/studio">לסטודיו</a>`
+      : `<h2>רוצים לראות יותר?</h2><p>שולחים בקשה להצטרף לאגף שמעניין אתכם. אחרי שאני מאשר, רואים גם את מה שפתוח רק לקהילה, ואפשר להגיב.</p><div class="actions"><a class="btn primary" href="/join">בקשת הצטרפות</a><a class="btn" href="/login">כניסה</a></div>`;
   const body = `<div class="wrap">
   <section class="hero">
     <div class="copy">
       <div class="kicker">שירים · ספרים · מערכונים · קוד · תורה</div>
-      <h1>כל מה<br>שאני יוצר,<br>במקום אחד.</h1>
-      <p class="lede">חלק פתוח לכולם. השאר שמור לקהילות: מי שמצטרף לאגף רואה טיוטות, הקלטות גולמיות ופרקים שעוד לא יצאו.</p>
-      <div class="actions"><a class="btn primary" href="/cv">קורות חיים ופרויקטים</a>${v.role === 'public' ? '<a class="btn" href="/join">להצטרף לקהילה</a>' : ''}</div>
+      <h1>היי,<br>אני יצחק.</h1>
+      <p class="lede">פה אני מעלה את מה שאני כותב, מנגן, מדבב ובונה. חלק פתוח לכולם. טיוטות, הקלטות גולמיות ופרקים שעוד לא יצאו פתוחים רק לקהילות.</p>
+      <div class="actions"><a class="btn primary" href="/cv">קורות חיים ופרויקטים</a>${v.role === 'public' ? '<a class="btn" href="/join">בקשת הצטרפות</a>' : ''}</div>
     </div>
     ${links.length ? `<aside><span class="label">ברשתות</span>${links.map((s) => `<a href="${e(s.href)}" rel="me noopener">${e(s.label)} ↗</a>`).join('')}</aside>` : ''}
   </section>
@@ -162,7 +164,7 @@ export async function home(env, v) {
 </div>`;
   return render(env, v, {
     title: '',
-    description: 'יצחק שטרן: שירים, ספרים, מערכונים, דיבובים, דברי תורה, מאמרים ותוכנה.',
+    description: 'שירים, ספרים, מערכונים, דיבובים, דברי תורה, מאמרים ותוכנה של יצחק שטרן.',
     path: '/',
     body,
   });
@@ -201,7 +203,7 @@ export async function wingPage(env, v, wingId) {
           return `<a class="card${k.kind === 'book' ? ' book' : ''}" href="${spacePath(acc, k)}">
   <span class="title" dir="auto">${e(k.title)}</span>
   ${k.summary ? `<p dir="auto">${e(k.summary)}</p>` : ''}
-  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n} פריטים</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'פרטי' : 'לקהילה'}</span>` : ''}</span>
+  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n === 1 ? 'פריט אחד' : `${n} פריטים`}</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'רק אני' : k.visibility === 'members' ? 'לחברים' : 'לקהילה'}</span>` : ''}</span>
 </a>`;
         })
         .join('')}</div></section>`
@@ -234,13 +236,13 @@ export async function spacePage(env, v, space) {
     const toc = chapters.length
       ? `<ol class="toc">${chapters
           .map((c, i) => `<li><a href="${entryPath(acc, c)}"><span dir="auto">${e(c.title)}</span><span class="n">${c.visibility === 'public' ? `פרק ${i + 1}` : `פרק ${i + 1} · לקוראי בטא`}</span></a></li>`)
-          .join('')}${locked ? `<li><span class="locked"><span>עוד ${locked} פרקים</span><span class="lock">${LOCK} לקוראי בטא</span></span></li>` : ''}</ol>`
+          .join('')}${locked ? `<li><span class="locked"><span>${locked === 1 ? 'עוד פרק אחד' : `עוד ${locked} פרקים`}</span><span class="lock">${LOCK} לקוראי בטא</span></span></li>` : ''}</ol>`
       : locked
-        ? `<p class="lock">${LOCK} ${locked} פרקים פתוחים לקוראי בטא</p>`
+        ? `<p class="lock">${LOCK} ${locked === 1 ? 'פרק אחד פתוח' : `${locked} פרקים פתוחים`} לקוראי בטא</p>`
         : '<p class="empty">הפרקים בדרך.</p>';
     const beta = acc.owner || acc.communities.has(communityOf(acc.byId, space.id))
       ? communityBox(v, space.id, path)
-      : `<div class="panel tinted"><h2>להיות קורא.ת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>כל הספר נפתח, כולל פרקים חדשים כשהם עולים, ואפשר להגיב על כל פרק</li></ol>${communityBox(v, space.id, path, open)}</div>`;
+      : `<div class="panel tinted"><h2>קריאת בטא</h2><ol class="steps"><li>שולחים בקשה עם כמה מילים</li><li>אני מאשר</li><li>קוראים את כל הספר, גם פרקים חדשים כשהם עולים, ומגיבים על כל פרק</li></ol>${communityBox(v, space.id, path, open)}</div>`;
     body = `<div class="wrap" data-wing="books">
   <div class="crumbs back"><a href="/${wing.id}">${e(wing.title)}</a></div>
   <section class="book-head">
@@ -425,13 +427,13 @@ export async function communityPage(env, v) {
           return `<a href="${entryPath(acc, x)}" data-wing="${e(w?.id ?? '')}"><span class="w">${e(w?.title ?? '')}</span><span class="t" dir="auto">${e(x.title)}</span><span class="d">${e(fmtDate(x.publishedAt))}</span></a>`;
         })
         .join('')}</div>`
-    : '<p class="empty">עוד אין כאן תוכן לקהילה. בקרוב.</p>';
+    : '<p class="empty">עוד אין כאן כלום שפתוח רק לקהילה. בקרוב.</p>';
   const blogs = mine.length && !acc.owner
     ? `<p class="blog-links"><span>הבלוגים שלכם:</span>${mine.map((s) => `<a href="${blogPath(acc, s)}">${e(s.title)}</a>`).join('')}</p>`
     : '';
   const body = `<div class="wrap block">
   <div class="section-head"><h2>${member ? `שלום ${e(member.displayName)}` : 'קהילה'}</h2></div>
-  ${!acc.owner ? `<p class="lede">${mine.length ? `את.ה ב${mine.map((s) => e(s.parentId ? s.title : `קהילת ה${s.title}`)).join(', ')}.` : 'עוד לא הצטרפת לאף אגף. בכל אגף יש כפתור לבקשת הצטרפות.'}</p>` : ''}
+  ${!acc.owner ? `<p class="lede">${mine.length ? `אתם ב${mine.map((s) => e(communityLabel(s))).join(', ')}.` : 'עוד לא הצטרפתם לאף אגף. בעמוד של כל אגף יש כפתור לבקשת הצטרפות.'}</p>` : ''}
   ${blogs}
   ${await memberBlock(env, v)}
   <div class="section-head" style="margin-top:32px"><h2>רק לקהילה</h2></div>
