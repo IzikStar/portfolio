@@ -127,6 +127,10 @@ describe('growing an idea into a draft', () => {
     form.set('entryId', idea.id);
     form.set('file', new File([new Uint8Array(20)], 'room.jpg', { type: 'image/jpeg' }));
     const pic = await (await req('/api/studio/files', { method: 'POST', headers: { Cookie: o, Origin: ORIGIN }, body: form })).json();
+    const cpr = new FormData();
+    cpr.set('entryId', idea.id);
+    cpr.set('file', new File([new Uint8Array(30)], 'רכבת.cpr', { type: '' }));
+    const project = await (await req('/api/studio/files', { method: 'POST', headers: { Cookie: o, Origin: ORIGIN }, body: cpr })).json();
     await call(o, `/api/studio/ideas/${idea.id}`, 'PATCH', { note: 'פזמון בשקט' });
     await call(o, `/api/studio/entries/${idea.id}`, 'PATCH', { pinned: true });
 
@@ -136,13 +140,14 @@ describe('growing an idea into a draft', () => {
     expect(draft).toMatchObject({ id: idea.id, kind: 'song', spaceId: 'music', title: 'כשהאור בחדר נגמר', status: 'draft', visibility: 'private', pinned: false });
     expect(draft.body).toBe(`בית ראשון כאן\n\nפזמון בשקט\n\n![room.jpg](${pic.url})`);
     expect(draft.meta.versions).toEqual([{ label: 'הקלטה', url: idea.files[0].url, kind: 'audio' }]);
+    expect(draft.meta.projects).toEqual([{ label: 'רכבת', url: project.url, kind: 'cubase' }]);
     expect(draft.meta.idea).toEqual({ capturedAt: idea.createdAt, spark: 'שורה ראשונה' });
     expect(draft.meta.wing).toBeUndefined();
     expect(draft.meta.notes).toBeUndefined();
     // It left the notebook and its files went with it.
     expect(await ideas(o)).toEqual([]);
     const files = await (await call(o, `/api/studio/entries/${idea.id}/files`)).json();
-    expect(files.files).toHaveLength(2);
+    expect(files.files).toHaveLength(3);
   });
 
   it('names a recording-only idea after the file and keeps a long first line whole', async () => {

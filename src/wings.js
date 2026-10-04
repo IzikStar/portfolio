@@ -16,6 +16,8 @@ import { projectView } from './projects.js';
 import { renderChords, hasChords } from './chords.js';
 import { mediaEmbed } from './media.js';
 import { commentsBlock, commentsOf, canComment } from './comments.js';
+import { projectFilesBlock } from './project-files.js';
+import { movedTo } from './moves.js';
 import { render, socials, WING_INFO, KIND_LABEL, LOCK, icon, fmtDate, badge, entryPath, spacePath, wingOf } from './site.js';
 import { blogPath, openPostCount } from './posts.js';
 import { creditsLine, memberBlock } from './tagged.js';
@@ -339,7 +341,7 @@ export async function entryPage(env, v, entry) {
     const reading = entry.kind === 'chapter' ? 'paper prose' : entry.kind === 'article' || entry.kind === 'torah' ? 'prose read' : 'prose';
     const anchors = canComment(v, entry) ? ' data-anchors' : '';
     const text = entry.kind !== 'song' && entry.body.trim() ? `<div class="${reading}" dir="auto"${anchors}>${renderMarkdown(entry.body)}</div>` : '';
-    main = `${versionsBlock(v, entry)}${text}`;
+    main = `${versionsBlock(v, entry)}${text}${projectFilesBlock(v, entry)}`;
     if (entry.kind === 'chapter' || space.kind === 'series') {
       const { prev, next } = await siblings(env, v, entry);
       main += `<nav class="pager" aria-label="ניווט">${next ? `<a href="${entryPath(acc, next)}">→ ${e(next.title)}</a>` : '<span></span>'}${prev ? `<a href="${entryPath(acc, prev)}">${e(prev.title)} ←</a>` : '<span></span>'}</nav>`;
@@ -368,8 +370,19 @@ export async function entryPage(env, v, entry) {
 
 // ---------- routing ----------
 
-// /<wing>/<a>[/<b>]: a space, or an item in the wing or in a space.
+// /<wing>/<a>[/<b>]: a space, or an item in the wing or in a space. An
+// address an item moved away from sends the visitor on to where it lives now.
 export async function resolve(env, v, wingId, a, b) {
+  const page = await resolvePage(env, v, wingId, a, b);
+  if (page) return page;
+  const entry = await movedTo(env, v.acc, `/${[wingId, a, b].filter((x) => x !== undefined).join('/')}`);
+  const to = entry && entryPath(v.acc, entry);
+  if (!to) return null;
+  const cache = v.role === 'public' && entry.visibility === 'public' ? 'public, max-age=3600' : 'private, no-store';
+  return new Response(null, { status: 301, headers: { Location: to, 'Cache-Control': cache, Vary: 'Cookie' } });
+}
+
+async function resolvePage(env, v, wingId, a, b) {
   const { acc } = v;
   if (!WINGS.some((w) => w.id === wingId) || !acc.visible.has(wingId)) return null;
   const d = await db(env);

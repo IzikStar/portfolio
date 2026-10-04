@@ -12,7 +12,7 @@ import { db, KINDS, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { fromRow, getEntry, createEntry, saveEntry } from './entries.js';
 import { checkFile, attachFile, fileInfo } from './files.js';
-import { fileKind } from './limits.js';
+import { fileKind, downloadKind, DOWNLOAD_TYPE } from './limits.js';
 
 const MAX_TEXT = 200_000;
 const MAX_SPARKS = 300;
@@ -143,7 +143,8 @@ const MEDIA_LABEL = { audio: 'הקלטה', video: 'סרטון' };
 
 // The idea becomes a draft of `kind` in `spaceId`, keeping its id and files.
 // The first line becomes the title when there is none; notes join the body;
-// pictures go into the body and recordings become versions.
+// pictures go into the body, recordings become versions and a Cubase
+// project or zip joins the item's project files (owner only).
 export async function growIdea(request, env, id) {
   const idea = await getEntry(env, id);
   if (!idea || idea.kind !== 'idea') throw new HttpError(404, 'That idea no longer exists.');
@@ -169,13 +170,15 @@ export async function growIdea(request, env, id) {
   const { wing: _wing, spark, notes = [], source: _source, ...meta } = idea.meta;
   const parts = [body, ...notes.map((n) => String(n?.text ?? '').trim())].filter(Boolean);
   const versions = [...(meta.versions ?? [])];
+  const projects = [...(meta.projects ?? [])];
   const { results: files } = await d.prepare('SELECT * FROM files WHERE entry_id = ? ORDER BY created_at').bind(id).all();
   for (const f of files) {
     const url = `/files/${f.id}`;
     if (parts.some((p) => p.includes(url))) continue;
     const k = fileKind(f.type);
     const name = f.name.replace(/[[\]]/g, '');
-    if (k === 'audio' || k === 'video') versions.push({ label: MEDIA_LABEL[k], url, kind: k });
+    if (f.type === DOWNLOAD_TYPE) projects.push({ label: f.name.replace(/\.[^.]+$/, '').slice(0, 80), url, kind: downloadKind(f.name) ?? 'other' });
+    else if (k === 'audio' || k === 'video') versions.push({ label: MEDIA_LABEL[k], url, kind: k });
     else parts.push(k === 'image' ? `![${name}](${url})` : `[${name}](${url})`);
   }
   // Without any text the recording is the whole item; it still needs a title.
@@ -186,7 +189,7 @@ export async function growIdea(request, env, id) {
     title,
     body: parts.join('\n\n'),
     pinned: false,
-    meta: { ...meta, ...(versions.length ? { versions } : {}), idea: { capturedAt: idea.createdAt, ...(spark ? { spark } : {}) } },
+    meta: { ...meta, ...(versions.length ? { versions } : {}), ...(projects.length ? { projects } : {}), idea: { capturedAt: idea.createdAt, ...(spark ? { spark } : {}) } },
   });
   await saveEntry(env, idea);
   return json(idea);

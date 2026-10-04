@@ -6,6 +6,7 @@ import { HttpError, json, readJson, cleanText } from './http.js';
 import { renderMarkdown, excerpt } from './markdown.js';
 import { renderChords } from './chords.js';
 import { entryFilter, canSee } from './spaces.js';
+import { settle } from './moves.js';
 
 const MAX_BODY = 200_000;
 // Addresses taken by the site itself under every wing and space (/music/blog).
@@ -100,13 +101,15 @@ function applyFields(entry, body) {
   if ('pinned' in body) entry.pinned = Boolean(body.pinned);
   if ('meta' in body) {
     if (typeof body.meta !== 'object' || body.meta === null || Array.isArray(body.meta)) throw new HttpError(400, 'meta must be an object.');
-    // "synced" is written only by source sync, never by the client.
-    const { synced: _ignored, ...rest } = body.meta;
+    // "synced" is written only by source sync, "oldPaths" only by moves; never by the client.
+    const { synced: _ignored, oldPaths: _moved, ...rest } = body.meta;
     rest.source = cleanSource(rest.source);
     rest.credits = cleanCredits(rest.credits);
     if (!rest.credits) delete rest.credits;
     if (JSON.stringify(rest).length > 20_000) throw new HttpError(400, 'meta is too large.');
-    entry.meta = entry.meta?.synced ? { ...rest, synced: entry.meta.synced } : rest;
+    const kept = { synced: entry.meta?.synced, oldPaths: entry.meta?.oldPaths };
+    entry.meta = rest;
+    for (const [k, v] of Object.entries(kept)) if (v) entry.meta[k] = v;
   }
   if ('slug' in body) entry.slug = slugify(body.slug) || null;
   if ('slug' in body && RESERVED_SLUGS.includes(entry.slug)) throw new HttpError(400, 'That address is taken by the community blog. Pick another.');
@@ -254,7 +257,10 @@ export async function studioUpdate(request, env, id) {
   if (body.baseUpdatedAt && body.baseUpdatedAt !== entry.updatedAt) {
     throw new HttpError(409, 'This item changed in another window. Reload it before saving.');
   }
+  const before = { spaceId: entry.spaceId, kind: entry.kind, slug: entry.slug, status: entry.status };
   applyFields(entry, body);
+  // Changing the space or the kind here is a move like any other.
+  await settle(env, entry, before);
   if (entry.status === 'draft' && 'status' in body) entry.publishedAt = null;
   entry.updatedAt = new Date().toISOString();
   await write(env, entry, false);

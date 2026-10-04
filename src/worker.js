@@ -24,6 +24,8 @@ import { access, listSpaces, requestJoin, studioSpaces, createSpace, updateSpace
 import { postComment, deleteComment, studioComments, setCommentStatus, deleteCommentsOf } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
+import { moveEntries } from './moves.js';
+import { previewPage, linkInfo } from './studio-tools.js';
 import { MAX_FILE_BYTES, MAX_COVER_BYTES, SECTIONS, MEDIA_SECTIONS, fileKind, isCoverType } from './limits.js';
 import { listIdeas, captureIdea, updateIdea, growIdea, getSparks, saveSparks } from './ideas.js';
 import { blogRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
@@ -184,6 +186,9 @@ async function studio(request, env, url) {
   if (gi && gi[2] && method === 'POST') return growIdea(request, env, gi[1]);
   if (path === '/api/studio/sparks' && method === 'GET') return getSparks(env);
   if (path === '/api/studio/sparks' && method === 'PUT') return saveSparks(request, env);
+  if (path === '/api/studio/entries/move' && method === 'POST') return moveEntries(request, env);
+  if (path === '/api/studio/preview-page' && method === 'POST') return previewPage(request, env);
+  if (path === '/api/studio/link-info' && method === 'POST') return linkInfo(request, env);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
   if (path === '/api/studio/spaces' && method === 'GET') return studioSpaces(env);
   if (path === '/api/studio/spaces' && method === 'POST') return createSpace(request, env);
