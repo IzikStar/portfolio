@@ -195,6 +195,26 @@ export async function growIdea(request, env, id) {
   return json(idea);
 }
 
+// ---------- back to an idea ----------
+
+// The opposite of growing: an item (one that grew from an idea, or any other)
+// goes back into the notebook, private, with everything it has. Where it was
+// is kept in meta.was, so growing it again starts from the same place.
+export async function backToIdea(env, id) {
+  const entry = await getEntry(env, id);
+  if (!entry) throw new HttpError(404, 'That item no longer exists.');
+  if (entry.kind === 'idea') throw new HttpError(400, 'It is already an idea.');
+  const d = await db(env);
+  const space = entry.spaceId ? await d.prepare('SELECT wing FROM spaces WHERE id = ?').bind(entry.spaceId).first() : null;
+  const { idea: origin, ...meta } = entry.meta;
+  if (space?.wing && WING_IDS.includes(space.wing)) meta.wing = space.wing;
+  if (origin?.spark) meta.spark = origin.spark;
+  meta.was = { kind: entry.kind, spaceId: entry.spaceId, slug: entry.slug, status: entry.status, at: new Date().toISOString() };
+  Object.assign(entry, { kind: 'idea', spaceId: null, slug: null, status: 'draft', visibility: 'private', communities: [], publishedAt: null, meta });
+  await saveEntry(env, entry);
+  return json(entry);
+}
+
 // ---------- sparks ----------
 
 async function storedSparks(env) {

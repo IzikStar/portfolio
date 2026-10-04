@@ -95,6 +95,9 @@
 .idea .muse-modes { display: flex; flex-wrap: wrap; gap: 6px; }
 .idea .muse-ask { display: flex; gap: 6px; }
 .idea .muse-ask input { flex: 1; min-width: 0; }
+.muse-model-slot { margin-inline-start: auto; }
+.muse-model-slot select, .idea .muse-model select { width: auto !important; padding: 4px 10px !important; font-size: 14px; }
+.idea .muse-model { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .idea .muse-out { background: var(--ground); border-radius: 12px; padding: 12px; font-size: 15px; }
 .idea .muse-out:empty { display: none; }
 .idea .muse-saved { display: grid; gap: 6px; }
@@ -255,3 +258,10 @@ details.box.batch > summary { font-family: var(--display); font-size: 22px; }
 .comm-pick .picks { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .comm-pick .pick { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .comm-pick small { color: var(--muted); font-weight: 400; }
+
+/* A wing's notebook: the ideas page kept to one wing, in its colour. */
+.ideas-page[data-wing] .capture, .ideas-page[data-wing] .spark { border-inline-start: 4px solid var(--accent); }
+.notebook-link .count:empty { display: none; }
+.notebook-link .count { font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: var(--on-accent); color: var(--accent); margin-inline-start: 4px; }
+.idea .to-notebook { font-size: 13px; color: var(--muted); text-decoration: none; }
+.idea .to-notebook:hover { color: var(--ink); }
