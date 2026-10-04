@@ -20,6 +20,8 @@ import { postComment, deleteComment, studioComments, setCommentStatus, deleteCom
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
 import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
+import { moveEntries } from './moves.js';
+import { previewPage, linkInfo } from './studio-tools.js';
 import { blogRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
 
@@ -159,6 +161,9 @@ async function studio(request, env, url) {
   if (path === '/api/studio/entries' && method === 'GET') return studioList(env, url);
   if (path === '/api/studio/entries' && method === 'POST') return studioCreate(request, env);
   if (path === '/api/studio/preview' && method === 'POST') return preview(request);
+  if (path === '/api/studio/entries/move' && method === 'POST') return moveEntries(request, env);
+  if (path === '/api/studio/preview-page' && method === 'POST') return previewPage(request, env);
+  if (path === '/api/studio/link-info' && method === 'POST') return linkInfo(request, env);
   if (path === '/api/studio/community' && method === 'GET') return listCommunity(env);
   if (path === '/api/studio/spaces' && method === 'GET') return studioSpaces(env);
   if (path === '/api/studio/spaces' && method === 'POST') return createSpace(request, env);
