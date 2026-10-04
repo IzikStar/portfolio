@@ -15,3 +15,13 @@ export function fileKind(type) {
   return null;
 }
 export const isCoverType = (type) => IMAGE_TYPES.includes(type);
+
+// Cubase projects and their archives (.cpr, Cubase's .bak backups, .zip):
+// working files the owner hands out as downloads. They are stored as opaque
+// bytes and always served as attachments, never shown inline.
+export const DOWNLOAD_TYPE = 'application/octet-stream';
+const DOWNLOAD_EXT = { cpr: 'cubase', bak: 'cubase', zip: 'zip' };
+export function downloadKind(name) {
+  const m = /\.([a-z0-9]+)$/i.exec(String(name ?? ''));
+  return (m && DOWNLOAD_EXT[m[1].toLowerCase()]) || null;
+}
