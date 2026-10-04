@@ -17,7 +17,8 @@
 
   --display: 'Frank Ruhl Libre', 'Times New Roman', serif;
   --body: 'IBM Plex Sans Hebrew', 'IBM Plex Sans', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+  /* Hebrew inside a mono label takes the sans font, not a generic monospace. */
+  --mono: 'IBM Plex Mono', 'IBM Plex Sans Hebrew', ui-monospace, 'Cascadia Mono', monospace;
 
   --step--1: 0.875rem;
   --step-0: 1rem;
@@ -180,6 +181,7 @@ p { margin: 0; text-wrap: pretty; }
 
 .reach {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -191,10 +193,12 @@ p { margin: 0; text-wrap: pretty; }
 .reach .label { font: 500 0.75rem / 1 var(--mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .reach .email { font: 500 var(--step-0) / 1.4 var(--mono); direction: ltr; text-align: start; overflow-wrap: anywhere; color: var(--ink); text-decoration-color: var(--accent); }
 [dir='rtl'] .reach .email { text-align: right; }
-.reach ul { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
-.reach li a { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-block: 0.6rem; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); font-weight: 500; }
+.reach ul { list-style: none; margin: 0; padding: 0; display: grid; min-width: 0; border-top: 1px solid var(--line); }
+.reach li { min-width: 0; }
+.reach li a { min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-block: 0.6rem; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); font-weight: 500; }
 .reach li a:hover { color: var(--accent); }
-.reach .host { font: 400 0.75rem / 1.2 var(--mono); color: var(--muted); direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.reach li a > span:first-child { flex: none; }
+.reach .host { font: 400 0.75rem / 1.2 var(--mono); color: var(--muted); direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
 
 /* ---------- sections ---------- */
 section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px solid var(--line); }
@@ -268,7 +272,6 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
 .play.ghost { cursor: default; color: var(--muted); font-size: var(--step--1); }
 .play.ghost:hover { background: var(--surface); border-color: var(--line); color: var(--muted); }
 .play svg { width: 14px; height: 14px; fill: currentColor; }
-[dir='rtl'] .play svg { transform: scaleX(-1); }
 .row .cover { width: 3rem; height: 3rem; border-radius: 6px; object-fit: cover; background: var(--chip); }
 .info { min-width: 0; display: grid; gap: 0.15rem; }
 .info .title { font-weight: 600; overflow-wrap: anywhere; }
@@ -312,6 +315,7 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
 .contact { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
 .contact .email.big { font: 500 clamp(1.15rem, 3.4vw, 1.9rem) / 1.2 var(--mono); direction: ltr; color: var(--ink); text-decoration-color: var(--accent); overflow-wrap: anywhere; flex-basis: 100%; margin-bottom: 0.4rem; }
 .contact .email.big:hover { color: var(--accent); }
+[dir='rtl'] .contact .email.big { text-align: right; }
 
 .foot { padding-block: 2rem 3rem; color: var(--muted); font-size: var(--step--1); border-top: 1px solid var(--line); }
 .foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem; }
@@ -363,5 +367,5 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
   .block-contact { break-inside: avoid; }
   .contact .btn { border: 0; padding: 0; min-height: 0; margin-inline-end: 12pt; }
   .contact .email.big { font-size: 12pt; }
-  .foot { padding-block: 6pt 0; }
+  .foot { display: none; }
 }

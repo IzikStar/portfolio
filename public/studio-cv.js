@@ -20,7 +20,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
     about: 'הטקסט, ציר הזמן והכלים.',
     contact: 'המייל והקישורים בסוף העמוד, וגם בכרטיס שלמעלה.',
   };
-  const ST = { cv: null, defaults: null, entries: [], byId: new Map(), seeded: false, dirty: false, lang: 'he', width: 'desk', built: false };
+  const ST = { cv: null, defaults: null, entries: [], byId: new Map(), seeded: false, dirty: false, lang: 'he', width: 'desk', built: false, open: new Set() };
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const fmtTime = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit' });
 
@@ -76,7 +76,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
           h(
             'div',
             { className: 'cvs-row' },
-            h('div', { className: 'cvs-row-fields' }, row(item, i)),
+            h('div', { className: 'cvs-row-fields' }, ...[].concat(row(item, i))),
             h(
               'div',
               { className: 'cvs-row-tools' },
@@ -178,7 +178,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
             ),
           ),
         ),
-        chosen.length ? null : h('p', { className: 'empty', textContent: 'עוד לא בחרת כלום, אז המקטע לא מופיע.' }),
+        ...(chosen.length ? [] : [h('p', { className: 'empty', textContent: 'עוד לא בחרת כלום, אז המקטע לא מופיע.' })]),
         add,
       );
     };
@@ -254,7 +254,6 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
   function sectionsEditor() {
     const box = h('div', { className: 'cvs-sections' });
     const draw = () => {
-      const open = new Set([...box.querySelectorAll('details[open]')].map((d) => d.dataset.id));
       box.replaceChildren(
         ...ST.cv.sections.map((s, i) => {
           const show = h('input', { type: 'checkbox', checked: s.show });
@@ -271,7 +270,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
           };
           const node = h(
             'details',
-            { className: `cvs-sec${s.show ? '' : ' off'}`, open: open.has(s.id) },
+            { className: `cvs-sec${s.show ? '' : ' off'}`, open: ST.open.has(s.id) },
             h(
               'summary',
               {},
@@ -283,6 +282,8 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
             h('div', { className: 'cvs-sec-body' }, ...sectionBody(s)),
           );
           node.dataset.id = s.id;
+          // Sections stay open across a save or an import, which redraw the form.
+          node.addEventListener('toggle', () => (node.open ? ST.open.add(s.id) : ST.open.delete(s.id)));
           return node;
         }),
       );
@@ -441,6 +442,8 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
       });
     group('cv-lang', 'lang', render);
     group('cv-width', 'width', fit);
+    // On a phone the preview starts at phone width.
+    if (window.innerWidth < 700) $('cv-width').querySelector('[data-v="phone"]').click();
     $('cv-switch').addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;

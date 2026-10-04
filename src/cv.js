@@ -396,7 +396,7 @@ export async function seedFromOldSettings(env) {
 // two requests never import side by side; a failed run gives the claim back.
 // Nothing in KV is deleted.
 export async function importLegacyOnce(env) {
-  if (legacyDone || !env.MEDIA) return null;
+  if (legacyDone || !env.MEDIA || !env.DB) return null;
   const d = await db(env);
   const flag = await readSetting(env, LEGACY_FLAG);
   if (flag?.state === 'done') {

@@ -1,7 +1,7 @@
 // Studio: the owner's private workspace. Idea notebook, a studio per wing,
 // the item editor, projects, comments and the community.
 // Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
-// #projects, #project/<id>, #project-new, #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
+// #projects, #project/<id>, #project-new, #cv (studio-cv.js), #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'קהילת האגף', members: 'כל החברים', public: 'ציבורי' };
