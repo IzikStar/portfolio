@@ -1,5 +1,5 @@
 // Studio settings: the social links shown on every page, and moving what the
-// old admin page (/admin, items in KV) holds into the wings.
+// old admin page (items in KV, the page itself is gone) held into the wings.
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { socials } from './site.js';
@@ -8,8 +8,19 @@ import { fileKind } from './limits.js';
 
 const MAX_LINKS = 20;
 
+// Set once the old items were moved automatically (see importLegacyOnce in cv.js).
+export const LEGACY_FLAG = 'legacy_import';
+
 export async function getSettings(env) {
-  return json({ socials: await socials(env) });
+  const d = await db(env);
+  const row = await d.prepare('SELECT value FROM settings WHERE key = ?').bind(LEGACY_FLAG).first();
+  let legacy = null;
+  try {
+    legacy = row ? JSON.parse(row.value) : null;
+  } catch {
+    // an unreadable flag reads as "not yet"
+  }
+  return json({ socials: await socials(env), legacy });
 }
 
 export async function saveSocials(request, env) {
@@ -72,13 +83,14 @@ async function copyFile(env, d, key, entryId, name) {
 
 // Every item from the old admin page becomes an item in its wing, once.
 // Items that were shown on the site stay public; hidden ones become private drafts.
-// The old copies are left in place.
-export async function importLegacy(env) {
+// The old copies are left in place. meta.legacy keeps the old section and place
+// in the list, which the CV uses until the owner picks its items himself.
+export async function importLegacyData(env) {
   const d = await db(env);
   const items = (await env.MEDIA.get('items', 'json')) ?? [];
   const created = [];
   let skipped = 0;
-  for (const item of items) {
+  for (const [order, item] of items.entries()) {
     const to = LEGACY[item.section];
     if (!to || (await d.prepare(`SELECT id FROM entries WHERE json_extract(meta, '$.legacy.id') = ?`).bind(item.id).first())) {
       skipped++;
@@ -102,7 +114,7 @@ export async function importLegacy(env) {
       visibility: item.hidden ? 'private' : 'public',
       status: item.hidden ? 'draft' : 'published',
       tags: [],
-      meta: { legacy: { id: item.id } },
+      meta: { legacy: { id: item.id, section: item.section, order } },
       pinned: false,
       source: 'legacy',
       createdAt: when,
@@ -126,5 +138,9 @@ export async function importLegacy(env) {
     await saveEntry(env, entry);
     created.push({ id, title, kind: to.kind, spaceId: to.spaceId, status: entry.status });
   }
-  return json({ created, skipped, total: items.length });
+  return { created, skipped, total: items.length };
+}
+
+export async function importLegacy(env) {
+  return json(await importLegacyData(env));
 }

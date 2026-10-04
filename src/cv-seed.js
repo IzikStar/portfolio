@@ -1,4 +1,4 @@
-// The projects that were written into the CV page (public/app.js) before they moved
+// The projects that were written into the old static CV page before they moved
 // into the studio. The studio imports them once; after that the studio is the source.
 export const CV_PROJECTS = [
   {

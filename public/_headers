@@ -3,8 +3,5 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
 
-/admin
-  Cache-Control: no-store
-
 /studio
   Cache-Control: no-store

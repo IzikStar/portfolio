@@ -48,8 +48,11 @@ describe('addresses', () => {
     expect(home.status).toBe(200);
     expect(home.text).toContain('האגפים');
     expect(home.text).toContain('href="/music"');
-    expect((await page('/cv')).text).toBe('asset:/cv');
+    const cv = await page('/cv');
+    expect(cv.status).toBe(200);
+    expect(cv.text).toContain('<h1>יצחק שטרן</h1>');
     expect((await req('/cv/')).headers.get('Location')).toBe(`${ORIGIN}/cv`);
+    expect((await req('/admin')).headers.get('Location')).toBe(`${ORIGIN}/studio#cv`);
   });
 
   it('sends the old addresses to the new ones', async () => {
