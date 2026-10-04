@@ -330,7 +330,7 @@
     wingPick.addEventListener('change', () => tend({ wing: wingPick.value }));
     const pin = pressed(
       h('button', {
-        className: 'pin',
+        className: 'quiet pin-toggle',
         type: 'button',
         textContent: idea.pinned ? 'נעוץ' : 'לנעוץ',
         title: idea.pinned ? 'לשחרר מלמעלה' : 'להשאיר למעלה',
@@ -367,6 +367,7 @@
       const go = act('לפתוח טיוטה', async () => {
         try {
           const e = await send(`/api/studio/ideas/${idea.id}/grow`, 'POST', { spaceId: spaceSel.value, kind: kindSel.value });
+          window.scrollTo(0, 0);
           location.hash = e.kind === 'project' || e.kind === 'work' ? `#project/${e.id}` : `#item/${e.id}`;
         } catch (err) {
           fail(err);
@@ -425,14 +426,14 @@
     const notes = idea.meta.notes ?? [];
     node.append(
       ...[
-        h('div', { className: 'idea-top' }, wingPick, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin),
+        h('div', { className: 'idea-top' }, wingPick, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
         idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
         idea.body.trim() ? h('div', { className: 'text', dir: 'auto', textContent: idea.body }) : null,
         idea.files.length ? h('div', { className: 'files' }, ...idea.files.map(fileView)) : null,
         idea.meta.spark ? h('p', { className: 'from-spark', dir: 'auto', textContent: `מתוך ניצוץ: ${idea.meta.spark}` }) : null,
         notes.length ? h('ul', { className: 'notes' }, ...notes.map((n) => h('li', { dir: 'auto' }, n.text, h('time', { dateTime: n.at, textContent: when(n.at) })))) : null,
         idea.tags.length ? h('ul', { className: 'chips' }, ...idea.tags.map((t) => h('li', { textContent: `#${t}` }))) : null,
-        h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('לפתח לטיוטה', grow), act('עריכה', edit)),
+        h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('לפתח לטיוטה', grow)),
         panel,
         msg,
       ].filter(Boolean),

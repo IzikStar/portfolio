@@ -61,7 +61,10 @@
 .capture .answering .t { flex: 1; }
 .capture .answering .x { background: none; border: 0; color: var(--muted); font: inherit; font-size: 22px; line-height: 1; min-width: 34px; min-height: 34px; cursor: pointer; }
 .capture-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.capture-row .primary { margin-inline-start: auto; min-width: 7rem; }
+.capture-row .primary { margin-inline-start: auto; min-width: 6rem; }
+@media (max-width: 480px) { .capture-row .btn { padding-inline: 14px; } .capture-row .primary { min-width: 0; flex: 1 1 auto; } }
+/* An empty dir=auto field falls back to LTR; keep Hebrew placeholders right to left. */
+.ideas-page textarea:placeholder-shown, .ideas-page input:placeholder-shown { direction: rtl; }
 .capture-more { display: flex; flex-wrap: wrap; gap: 8px; }
 .capture-more select { flex: 0 1 15rem; width: auto !important; }
 .capture-more input { flex: 1 1 12rem; width: auto !important; }
@@ -100,12 +103,14 @@
 .idea .panel { display: grid; gap: 8px; }
 .idea .panel:empty { display: none; }
 .idea .panel textarea { min-height: 5rem; }
-.idea-top { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.idea-top { display: flex; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+.idea-top time { white-space: nowrap; }
 .idea-top .wing-pick { width: auto !important; padding: 2px 10px !important; border-radius: 999px !important; font-size: 14px !important; color: var(--accent); max-width: 11rem; }
 .idea:not([data-wing]) .wing-pick { color: var(--muted); }
-.idea-top .pin { margin-inline-start: auto; font: inherit; font-size: 13px; background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px; min-height: 32px; color: var(--muted); cursor: pointer; }
-.idea-top .pin:hover { border-color: var(--line-strong); }
-.idea-top .pin[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
+.idea-top .quiet { font: inherit; font-size: 13px; background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px; min-height: 32px; color: var(--muted); cursor: pointer; }
+.idea-top .quiet:hover { border-color: var(--line-strong); color: var(--ink); }
+.idea-top .pin-toggle { margin-inline-start: auto; }
+.idea-top .pin-toggle[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
 .idea .files { display: grid; gap: 8px; }
 .idea .files img { display: block; width: 100%; max-height: 14rem; object-fit: cover; border-radius: 12px; }
 .idea .files audio, .idea .files video { width: 100%; }
