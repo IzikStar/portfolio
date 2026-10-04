@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Secular+One&family=Heebo:wght@300;400;500;700&family=Frank+Ruhl+Libre:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/site.css">
 <link rel="stylesheet" href="/studio.css">
+<link rel="stylesheet" href="/studio-cv.css">
 <meta name="theme-color" content="#13110e">
 </head>
 <body class="studio-body">
@@ -40,11 +41,11 @@
     <a href="#comments" data-tab="comments">תגובות<span class="count" id="comment-count"></span></a>
     <a href="#blog" data-tab="blog">בלוגים<span class="count" id="blog-count" title="פוסטים חדשים השבוע"></span></a>
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
-    <a href="#projects" data-tab="projects">קורות חיים: פרויקטים</a>
+    <a href="#cv" data-tab="cv">קורות חיים</a>
+    <a href="#projects" data-tab="projects">פרויקטים</a>
     <a href="#settings" data-tab="settings">הגדרות</a>
     <div class="foot">
       <a href="/" target="_blank" rel="noopener">לאתר ↗</a>
-      <a href="/admin">ניהול ישן</a>
       <a href="#" id="logout">יציאה</a>
     </div>
   </nav>
@@ -145,6 +146,32 @@
       </div>
     </section>
 
+    <section id="view-cv" class="cvs" data-pane="form" hidden>
+      <div class="head">
+        <h1>קורות חיים</h1>
+        <div class="filters cvs-switch" id="cv-switch">
+          <button type="button" data-pane="form" aria-pressed="true">עריכה</button>
+          <button type="button" data-pane="preview" aria-pressed="false">תצוגה</button>
+        </div>
+      </div>
+      <div class="cvs-bar">
+        <button class="btn primary" type="button" id="cv-save">שמירה</button>
+        <span class="msg" id="cv-status" role="status"></span>
+        <a class="btn small" href="/cv" target="_blank" rel="noopener">לעמוד עצמו ↗</a>
+      </div>
+      <div class="cvs-panes" id="cv-panes">
+        <div class="cvs-form" id="cv-form"></div>
+        <div class="cvs-preview">
+          <div class="toolbar">
+            <div class="filters" id="cv-lang"><button type="button" data-v="he" aria-pressed="true">עברית</button><button type="button" data-v="en" aria-pressed="false">English</button></div>
+            <div class="filters" id="cv-width"><button type="button" data-v="desk" aria-pressed="true">מחשב</button><button type="button" data-v="phone" aria-pressed="false">טלפון</button></div>
+          </div>
+          <p class="hint">ככה ייראה העמוד עם מה שבטופס, גם לפני שמירה.</p>
+          <div class="cvs-frame" id="cv-frame-wrap"><iframe id="cv-frame" title="תצוגה מקדימה של קורות החיים" sandbox="allow-same-origin"></iframe></div>
+        </div>
+      </div>
+    </section>
+
     <section id="view-projects" hidden>
       <div class="toolbar" style="margin-bottom: 1rem">
         <button class="btn primary" type="button" id="new-project">פרויקט חדש</button>
@@ -152,7 +179,7 @@
         <button class="btn" type="button" id="sync-all">רענון כולם מהמקור</button>
         <span class="msg" id="projects-msg" role="status"></span>
       </div>
-      <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים בעמוד הראשי לפי הסדר כאן. כל פרויקט ציבורי מופיע גם ב־/work.</p>
+      <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים ב־/cv לפי הסדר כאן. את הבחירה והסדר אפשר לעשות גם <a href="#cv">בעמוד קורות החיים</a>. כל פרויקט ציבורי מופיע גם באגף התוכנה.</p>
       <ol class="rows-table" id="projects"></ol>
       <p class="empty" id="projects-empty" hidden>עוד אין פרויקטים. אפשר לייבא את מה שכבר מופיע בקורות החיים.</p>
     </section>
@@ -278,7 +305,8 @@
       </div>
       <div class="box">
         <h2>הפריטים מדף הניהול הישן</h2>
-        <p class="hint">מעביר כל פריט מ־/admin לאגף שלו: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר ציבורי, מה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים מועתקים, והמקור בדף הישן נשאר כמו שהוא. אפשר להריץ שוב: מה שכבר עבר לא יוכפל.</p>
+        <p class="hint">דף הניהול הישן (/admin) ירד, ומה שהעלית בו עבר לאגפים: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר ציבורי, מה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים הועתקו, והמקור נשאר שמור בצד. ההעברה רצה לבד פעם אחת; הכפתור מריץ אותה שוב, ומה שכבר עבר לא יוכפל.</p>
+        <p class="msg" id="legacy-auto"></p>
         <div class="toolbar">
           <button class="btn" type="button" id="import-legacy">העברה לאגפים</button>
           <span class="msg" id="legacy-msg" role="status"></span>
@@ -390,6 +418,7 @@
     </section>
   </main>
 </div>
+<script src="/studio-cv.js"></script>
 <script src="/studio.js"></script>
 </body>
 </html>

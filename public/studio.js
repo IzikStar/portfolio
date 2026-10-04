@@ -52,6 +52,8 @@
   const report = (id) => (err) => {
     if (!(err instanceof AuthError)) say(id, err.message, 'err');
   };
+  // The CV view lives in studio-cv.js.
+  const cvView = window.studioCv({ call, send, h, AuthError, wingOf: (id) => wingOf(id) });
 
   // ---------- login ----------
   function showLogin(message = '') {
@@ -128,6 +130,7 @@
     $('view-comments').hidden = view !== 'comments';
     $('view-blog').hidden = view !== 'blog';
     $('view-settings').hidden = view !== 'settings';
+    $('view-cv').hidden = view !== 'cv';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'item' && view !== 'new';
@@ -138,6 +141,7 @@
     else if (view === 'comments') loadComments();
     else if (view === 'blog') loadBlog();
     else if (view === 'settings') loadSettings();
+    else if (view === 'cv') cvView.open();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
     else if (view === 'project' && id) openProject(id);
@@ -147,13 +151,14 @@
   }
   let current = location.hash;
   window.addEventListener('hashchange', () => {
-    if ((editor.dirty || project.dirty) && !confirm('יש שינויים שלא נשמרו. לצאת בכל זאת?')) {
+    if ((editor.dirty || project.dirty || (cvView.dirty() && $('view-cv').hidden === false)) && !confirm('יש שינויים שלא נשמרו. לצאת בכל זאת?')) {
       history.replaceState(null, '', current);
       return;
     }
     editor.flush.cancel();
     editor.dirty = false;
     project.dirty = false;
+    cvView.clean();
     current = location.hash;
     route();
   });
@@ -720,7 +725,7 @@
     }
   });
   window.addEventListener('beforeunload', (e) => {
-    if (editor.dirty || project.dirty) e.preventDefault();
+    if (editor.dirty || project.dirty || cvView.dirty()) e.preventDefault();
   });
 
   $('publish').addEventListener('click', async () => {
@@ -1313,8 +1318,9 @@
 
   async function loadSettings() {
     try {
-      const { socials } = await call('/api/studio/settings');
+      const { socials, legacy } = await call('/api/studio/settings');
       $('socials').replaceChildren(...socials.map(socialRow));
+      $('legacy-auto').textContent = legacy?.state === 'done' ? `ההעברה האוטומטית רצה ב־${fmt(legacy.at)}: עברו ${legacy.created} פריטים${legacy.skipped ? `, ${legacy.skipped} כבר היו כאן` : ''}.` : legacy?.state === 'running' ? 'ההעברה האוטומטית רצה עכשיו.' : 'ההעברה האוטומטית עוד לא רצה.';
     } catch (err) {
       report('socials-msg')(err);
     }
