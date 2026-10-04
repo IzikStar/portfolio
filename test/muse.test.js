@@ -186,8 +186,12 @@ describe('new directions', () => {
     expect((await (await call(o, '/api/studio/ideas/pulse')).json()).pulse.seen).toBe(true);
   });
 
-  it('runs from the cron only when something new came in', async () => {
+  it('runs from the cron only when turned on, and only when something new came in', async () => {
     const o = await owner();
+    await worker.scheduled({}, env, { waitUntil: async (p) => p });
+    await settle();
+    expect(sent).toHaveLength(0);
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('muse_cron', 'true')`).run();
     let jobs = [];
     const ctx = { waitUntil: (p) => jobs.push(p) };
     await worker.scheduled({}, env, ctx);
@@ -216,6 +220,7 @@ describe("the week's parasha", () => {
 
     expect((await call(o, '/api/studio/ideas/weekly', 'POST')).status).toBe(409);
     await call(o, `/api/studio/entries/${idea.id}`, 'DELETE');
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('muse_cron', 'true')`).run();
     const jobs = [];
     await worker.scheduled({}, env, { waitUntil: (p) => jobs.push(p) });
     await Promise.all(jobs);

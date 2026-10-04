@@ -474,8 +474,11 @@ async function weeklyCron(env, now = Date.now()) {
   return { weekly: p.id, id: idea.id };
 }
 
+// Off unless settings 'muse_cron' is true: the owner chose (2026-10-04) to
+// have the weekly draft and the pulse written from his Claude project, which
+// his subscription covers, so the site spends API credit only on clicks.
 export async function museCron(env) {
-  if (!hasKey(env)) return null;
+  if (!hasKey(env) || (await getSetting(env, 'muse_cron')) !== true) return null;
   const out = {};
   for (const [name, job] of [
     ['weekly', weeklyCron],
