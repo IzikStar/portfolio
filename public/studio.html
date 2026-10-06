@@ -27,6 +27,7 @@
 <div id="app" class="studio-shell" hidden>
   <nav class="studio-side" aria-label="סטודיו">
     <a class="mark" href="#ideas">הסטודיו</a>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-label="תפריט"><span class="nav-current" id="nav-current"></span><span class="count" id="nav-badge"></span><span class="burger" aria-hidden="true"></span></button>
     <a href="#ideas" data-tab="ideas">רעיונות</a>
     <span class="group">האגפים</span>
     <a href="#wing/music" data-tab="wing/music" data-wing="music"><span class="dot"></span>מוזיקה<span class="count" data-count="music"></span></a>
@@ -145,7 +146,7 @@
     </section>
 
     <section id="view-wing" hidden>
-      <div class="head">
+      <div class="head w-head">
         <h1 id="w-title"></h1>
         <label class="sr-only" for="w-kind">סוג פריט</label>
         <select id="w-kind" style="width:auto"></select>
@@ -183,6 +184,8 @@
         <span class="status" id="s-status" role="status"></span>
       </div>
       <input type="text" class="title-input" id="s-title" placeholder="שם" dir="auto" aria-label="שם">
+      <button class="btn small more-toggle" type="button" id="s-more-toggle" aria-expanded="false" aria-controls="s-more">פרטי העמוד והגדרות</button>
+      <div class="more-box" id="s-more">
       <label class="field">תיאור קצר<textarea id="s-summary" rows="3" dir="auto"></textarea></label>
       <div class="settings">
         <label class="field">סוג
@@ -206,13 +209,16 @@
       <div class="toolbar">
         <button class="btn primary" type="button" id="s-save">שמירה</button>
         <a class="btn" id="s-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
-        <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
         <a class="btn" id="s-drive-open" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
         <button class="btn danger" type="button" id="s-delete">מחיקה</button>
       </div>
+      </div>
       <details class="box batch" data-batch="space"></details>
-      <div class="box">
-        <h2>מה יש בפנים</h2>
+      <div class="box s-inside">
+        <div class="toolbar">
+          <h2 style="margin:0; flex:1">מה יש בפנים</h2>
+          <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
+        </div>
         <div class="pick-bar" id="s-pickbar"></div>
         <ol class="rows-table" id="s-items"></ol>
         <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
@@ -493,12 +499,14 @@
     </section>
 
     <section id="view-edit" class="editor split" hidden>
-      <div class="toolbar">
+      <div class="toolbar ed-top">
+        <div class="ed-top-actions">
         <a class="btn small" id="ed-back" href="#ideas">חזרה</a>
         <button class="btn small" type="button" id="ed-move">העברה לאגף או סוג אחר</button>
         <button class="btn small" type="button" id="ed-to-idea" title="חוזר למחברת הרעיונות, פרטי, עם כל מה שיש בו">להחזיר לרעיונות</button>
         <button class="btn small" type="button" id="ed-page-toggle" aria-pressed="false">איך זה ייראה באתר</button>
         <button class="btn small" type="button" id="ed-history" hidden>גרסאות קודמות</button>
+        </div>
         <span class="status" id="save-status" role="status"></span>
       </div>
       <div class="ed-notice" id="ed-notice" role="alert" hidden>
@@ -506,6 +514,8 @@
         <div class="toolbar" id="ed-notice-actions"></div>
       </div>
       <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
+      <button class="btn small more-toggle" type="button" id="ed-more-toggle" aria-expanded="false" aria-controls="ed-more">פרטים, גרסאות והגדרות</button>
+      <div class="more-box" id="ed-more">
       <div class="settings">
         <label class="field">סוג<select id="ed-kind"></select></label>
         <label class="field">איפה<select id="ed-space"></select></label>
@@ -558,7 +568,8 @@
         <div class="versions-editor" id="ed-credits"></div>
         <div class="toolbar"><button class="btn small" type="button" id="ed-add-credit">הוספת קרדיט</button></div>
       </fieldset>
-      <div class="toolbar">
+      </div>
+      <div class="toolbar ed-write-bar">
         <div class="md-tools" id="md-tools">
           <button class="btn small" type="button" data-md="bold" title="מודגש"><b>B</b></button>
           <button class="btn small" type="button" data-md="italic" title="נטוי"><i>I</i></button>
@@ -576,7 +587,7 @@
         <textarea class="body-input" id="ed-body" dir="auto" placeholder="כותבים כאן. Markdown עובד: ## כותרת, **מודגש**, - רשימה, [קישור](https://...)" aria-label="תוכן"></textarea>
         <div class="preview prose" id="ed-preview" dir="auto" aria-label="תצוגה מקדימה"></div>
       </div>
-      <div class="toolbar">
+      <div class="toolbar ed-actions">
         <button class="btn primary" type="button" id="publish">פרסום</button>
         <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>לעמוד באתר ↗</a>
         <button class="btn danger" type="button" id="delete-article">מחיקה</button>
