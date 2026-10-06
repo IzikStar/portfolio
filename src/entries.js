@@ -8,6 +8,7 @@ import { renderChords } from './chords.js';
 import { entryFilter, canSee, knownCommunities } from './spaces.js';
 import { cleanCommunityIds } from './communities.js';
 import { settle } from './moves.js';
+import { keepRevision } from './safety.js';
 
 const MAX_BODY = 200_000;
 // Addresses taken by the site itself under every wing and space (/music/blog).
@@ -134,11 +135,12 @@ function applyFields(entry, body, known) {
 // A slug the owner typed is kept as typed and a clash is an error instead.
 const autoSlug = new WeakSet();
 
-async function write(env, entry, insert) {
+// `keep` says how to put the text it had aside first (see keepRevision).
+export async function write(env, entry, insert, keep) {
   const base = entry.slug;
   for (let n = 2; ; n++) {
     try {
-      return await writeOnce(env, entry, insert);
+      return await writeOnce(env, entry, insert, keep);
     } catch (err) {
       if (!(err instanceof HttpError) || err.status !== 409 || !autoSlug.has(entry) || n > 50) throw err;
       entry.slug = `${base}-${n}`;
@@ -146,11 +148,12 @@ async function write(env, entry, insert) {
   }
 }
 
-async function writeOnce(env, entry, insert) {
+async function writeOnce(env, entry, insert, keep) {
   const d = await db(env);
   if (entry.spaceId && !(await d.prepare('SELECT id FROM spaces WHERE id = ?').bind(entry.spaceId).first())) {
     throw new HttpError(400, 'That wing or space does not exist.');
   }
+  if (!insert) await keepRevision(d, entry, keep);
   const row = [
     entry.kind, entry.spaceId ?? null, entry.slug, entry.title, entry.summary, entry.body, entry.visibility, JSON.stringify(entry.communities ?? []), entry.status,
     JSON.stringify(entry.tags), JSON.stringify(entry.meta), entry.pinned ? 1 : 0, entry.updatedAt, entry.publishedAt,
@@ -263,9 +266,12 @@ export async function studioUpdate(request, env, id) {
   const entry = await getEntry(env, id);
   if (!entry) throw new HttpError(404, 'That item no longer exists.');
   const body = await readJson(request);
-  // Optimistic check: refuse to overwrite a newer save from another tab.
-  if (body.baseUpdatedAt && body.baseUpdatedAt !== entry.updatedAt) {
-    throw new HttpError(409, 'This item changed in another window. Reload it before saving.');
+  // Optimistic check: refuse to overwrite a newer save from another tab,
+  // unless the owner chose to keep this window's text; then the other save
+  // is kept as a version.
+  const conflict = Boolean(body.baseUpdatedAt && body.baseUpdatedAt !== entry.updatedAt);
+  if (conflict && body.overwrite !== true) {
+    throw new HttpError(409, 'This item changed in another window. Reload it before saving.', { conflict: true, updatedAt: entry.updatedAt });
   }
   const before = { spaceId: entry.spaceId, kind: entry.kind, slug: entry.slug, status: entry.status };
   applyFields(entry, body, 'communities' in body ? await knownCommunities(env) : null);
@@ -273,15 +279,8 @@ export async function studioUpdate(request, env, id) {
   await settle(env, entry, before);
   if (entry.status === 'draft' && 'status' in body) entry.publishedAt = null;
   entry.updatedAt = new Date().toISOString();
-  await write(env, entry, false);
+  await write(env, entry, false, conflict ? { reason: 'conflict', force: true } : undefined);
   return json(entry);
-}
-
-export async function studioDelete(env, id) {
-  const d = await db(env);
-  const { meta } = await d.prepare('DELETE FROM entries WHERE id = ?').bind(id).run();
-  if (!meta.changes) throw new HttpError(404, 'That item no longer exists.');
-  return json({ ok: true });
 }
 
 export async function preview(request) {

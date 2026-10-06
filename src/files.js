@@ -66,14 +66,6 @@ export async function deleteFile(env, id) {
   return json({ ok: true });
 }
 
-// When an entry goes, its files go with it.
-export async function deleteFilesOf(env, entryId) {
-  const d = await db(env);
-  const { results } = await d.prepare('SELECT id FROM files WHERE entry_id = ?').bind(entryId).all();
-  await Promise.all(results.map((f) => env.MEDIA.delete(`blob:${f.id}`)));
-  await d.prepare('DELETE FROM files WHERE entry_id = ?').bind(entryId).run();
-}
-
 export async function serveFile(request, env, acc, id) {
   const d = await db(env);
   const row = await d.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();

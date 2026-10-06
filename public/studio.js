@@ -1,7 +1,7 @@
 // Studio: the owner's private workspace. Idea notebook, a studio per wing,
 // the item editor, projects, comments and the community.
 // Routes (hash): #ideas, #wing/<wing>, #space/<id>, #item/<id>, #new/<spaceId>/<kind>,
-// #projects, #project/<id>, #project-new, #cv (studio-cv.js), #comments, #blog, #community, #settings. (#edit/<id> and #articles still work.)
+// #projects, #project/<id>, #project-new, #cv (studio-cv.js), #comments, #blog, #community, #trash, #settings. (#edit/<id> and #articles still work.)
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIS = { private: 'רק אני', community: 'לקהילות', members: 'לחברים', public: 'לכולם' };
@@ -45,7 +45,7 @@
       showLogin('הכניסה פגה. צריך להיכנס שוב.');
       throw new AuthError();
     }
-    if (!res.ok) throw new Error(data.error || `שגיאה ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(data.error || `שגיאה ${res.status}`), { data, status: res.status });
     return data;
   }
   const send = (path, method, body) => call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
@@ -181,6 +181,7 @@
     $('view-comments').hidden = view !== 'comments';
     $('view-blog').hidden = view !== 'blog';
     $('view-settings').hidden = view !== 'settings';
+    $('view-trash').hidden = view !== 'trash';
     $('view-cv').hidden = view !== 'cv';
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
@@ -194,6 +195,7 @@
     else if (view === 'comments') loadComments();
     else if (view === 'blog') loadBlog();
     else if (view === 'settings') loadSettings();
+    else if (view === 'trash') loadTrash();
     else if (view === 'cv') cvView.open();
     else if (view === 'projects') loadProjects();
     else if (view === 'project-new') openProject(null);
@@ -512,7 +514,7 @@
         ...(idea.meta.notes ?? []).map((n) => h('li', {}, h('span', { dir: 'auto', textContent: n.text }), act('הסרה', () => confirm('להסיר את המחשבה הזאת?') && tend({ dropNote: n.at }), 'danger'))),
       ];
       const save = act('שמירה', () => send(`/api/studio/entries/${idea.id}`, 'PATCH', { body: area.value, tags: tagInput.value }).then(replaceIdea, fail), 'primary');
-      const del = act('מחיקה', () => confirm('למחוק את הרעיון? אין דרך חזרה.') && call(`/api/studio/entries/${idea.id}`, { method: 'DELETE' }).then(() => dropIdea(idea.id), fail), 'danger');
+      const del = act('מחיקה', () => confirm('להעביר את הרעיון לסל המחזור? אפשר להחזיר אותו משם עד 30 יום.') && call(`/api/studio/entries/${idea.id}`, { method: 'DELETE' }).then(() => { dropIdea(idea.id); refreshTrashCount(); }, fail), 'danger');
       node.replaceChildren(
         area,
         tagInput,
@@ -1256,11 +1258,14 @@
     else status('טיוטה חדשה');
   }
 
-  async function openEditor(id, defaults = {}) {
+  async function openEditor(id, defaults = {}, { skipLocal = false } = {}) {
     await loadPeople();
     editor.entry = null;
     editor.dirty = false;
+    editor.conflict = false;
     editor.defaults = defaults;
+    notice(null);
+    $('ed-history').hidden = true;
     fill(null);
     if (id) {
       status('טוען...');
@@ -1268,6 +1273,7 @@
         editor.entry = await call(`/api/studio/entries/${id}`);
         if (editor.entry.kind === 'project' || editor.entry.kind === 'work') return void (location.hash = `#project/${id}`);
         fill(editor.entry);
+        $('ed-history').hidden = false;
       } catch (err) {
         if (!(err instanceof AuthError)) status(err.message, 'err');
         return;
@@ -1275,8 +1281,98 @@
     } else {
       $('ed-title').focus();
     }
+    if (!skipLocal) offerLocal();
     renderPreview();
   }
+
+  // ---------- earlier versions ----------
+  const REASON = { edit: '', restore: 'לפני שחזור', conflict: 'מחלון אחר' };
+  const versionsView = { list: [], picked: null };
+  async function openHistory() {
+    if (!editor.entry) return;
+    $('history-dialog').showModal();
+    showVersions();
+    say('hs-msg', 'טוען...');
+    try {
+      ({ revisions: versionsView.list } = await call(`/api/studio/entries/${editor.entry.id}/revisions`));
+      say('hs-msg', '');
+      drawVersions();
+    } catch (err) {
+      report('hs-msg')(err);
+    }
+  }
+  function showVersions() {
+    versionsView.picked = null;
+    $('hs-list').hidden = false;
+    $('hs-view').hidden = true;
+    $('hs-restore').hidden = true;
+    $('hs-back').hidden = true;
+  }
+  function drawVersions() {
+    $('hs-list').replaceChildren(
+      ...versionsView.list.map((r) =>
+        h(
+          'li',
+          { tabIndex: 0, onclick: () => pickVersion(r), onkeydown: (e) => e.key === 'Enter' && pickVersion(r) },
+          h('span', { className: 'who', textContent: fmt(r.savedAt || r.keptAt) }),
+          h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: r.title || 'בלי כותרת' }), h('span', { textContent: `${r.chars.toLocaleString('he-IL')} תווים` }), REASON[r.reason] ? h('span', { className: 'badge', textContent: REASON[r.reason] }) : null),
+        ),
+      ),
+    );
+    $('hs-empty').hidden = versionsView.list.length > 0;
+  }
+  async function pickVersion(r) {
+    say('hs-msg', 'טוען...');
+    try {
+      const v = await call(`/api/studio/entries/${editor.entry.id}/revisions/${r.id}`);
+      versionsView.picked = v;
+      say('hs-msg', `נשמר ב־${fmt(v.savedAt || v.keptAt)}`);
+      $('hs-title').textContent = v.title || 'בלי כותרת';
+      $('hs-body').textContent = v.body || '(בלי טקסט)';
+      $('hs-list').hidden = true;
+      $('hs-empty').hidden = true;
+      $('hs-view').hidden = false;
+      $('hs-restore').hidden = false;
+      $('hs-back').hidden = false;
+    } catch (err) {
+      report('hs-msg')(err);
+    }
+  }
+  $('ed-history').addEventListener('click', async () => {
+    // What is on screen goes to the server first, so it becomes a version too.
+    if (editor.dirty) {
+      editor.flush.cancel();
+      try {
+        await save();
+      } catch {
+        return;
+      }
+    }
+    openHistory();
+  });
+  $('hs-back').addEventListener('click', () => {
+    showVersions();
+    say('hs-msg', '');
+    drawVersions();
+  });
+  $('hs-restore').addEventListener('click', async () => {
+    const v = versionsView.picked;
+    if (!v || !editor.entry) return;
+    try {
+      const entry = await send(`/api/studio/entries/${editor.entry.id}/revisions/${v.id}/restore`, 'POST');
+      editor.flush.cancel();
+      editor.entry = entry;
+      editor.dirty = false;
+      forgetLocal();
+      notice(null);
+      fill(entry);
+      renderPreview();
+      $('history-dialog').close();
+      status(`שוחזר לגרסה מ־${fmt(v.savedAt || v.keptAt)}. מה שהיה לפני כן נמצא בגרסאות הקודמות.`);
+    } catch (err) {
+      report('hs-msg')(err);
+    }
+  });
 
   function collect() {
     const num = (v) => (v === '' ? undefined : Number(v));
@@ -1309,8 +1405,92 @@
   function changed() {
     editor.dirty = true;
     status('לא נשמר');
+    keepLocal();
     editor.flush();
     refreshPage();
+  }
+
+  // ---------- a copy in this browser ----------
+  // Every change is copied to localStorage until the server has it, so text
+  // typed while offline, before a failed save or a closed tab is never lost.
+  const localKey = () => `studio.local.${editor.entry?.id ?? `new.${editor.defaults.spaceId ?? ''}`}`;
+  const keepLocal = debounce(() => {
+    try {
+      const { title, summary, body } = collect();
+      localStorage.setItem(localKey(), JSON.stringify({ at: new Date().toISOString(), base: editor.entry?.updatedAt ?? null, title, summary, body }));
+    } catch {
+      // storage full or blocked: the server save still runs
+    }
+  }, 300);
+  function readLocal(key = localKey()) {
+    try {
+      return JSON.parse(localStorage.getItem(key) || 'null');
+    } catch {
+      return null;
+    }
+  }
+  function forgetLocal(key = localKey()) {
+    keepLocal.cancel();
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // nothing kept
+    }
+  }
+
+  function notice(text, actions = []) {
+    $('ed-notice').hidden = !text;
+    $('ed-notice-text').textContent = text ?? '';
+    $('ed-notice-actions').replaceChildren(...actions.map(([label, fn, cls = '']) => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn })));
+  }
+
+  // Opening an item: offer back what this browser kept and the server never got.
+  function offerLocal() {
+    const key = localKey();
+    const copy = readLocal(key);
+    const e = editor.entry;
+    if (!copy) return;
+    if (e && copy.title === e.title && copy.summary === e.summary && copy.body === e.body) return forgetLocal(key);
+    notice(`יש כאן טקסט שלא נשמר, מ־${fmt(copy.at)}${copy.body ? ` (${copy.body.length.toLocaleString('he-IL')} תווים)` : ''}.`, [
+      ['להחזיר אותו', () => {
+        $('ed-title').value = copy.title ?? '';
+        $('ed-summary').value = copy.summary ?? '';
+        $('ed-body').value = copy.body ?? '';
+        notice(null);
+        changed();
+        renderPreview();
+      }, 'primary'],
+      ['לזרוק', () => {
+        if (!confirm('לזרוק את הטקסט שלא נשמר?')) return;
+        forgetLocal(key);
+        notice(null);
+      }, 'danger'],
+    ]);
+  }
+
+  // Another window (or the phone) saved this item since it was opened here.
+  function conflicted(err) {
+    notice('הפריט נשמר בינתיים בחלון אחר או במכשיר אחר. מה שכתבת כאן שמור בדפדפן עד שתחליט.', [
+      ['לשמור את מה שכאן', async () => {
+        notice(null);
+        editor.flush.cancel();
+        try {
+          await save({ overwrite: true });
+          status('נשמר. מה שנשמר בחלון האחר נמצא בגרסאות הקודמות.');
+        } catch {
+          // the status line says why
+        }
+      }, 'primary'],
+      ['לטעון את מה שנשמר שם', async () => {
+        editor.flush.cancel();
+        keepLocal.cancel();
+        editor.dirty = false;
+        notice(null);
+        await openEditor(editor.entry.id, editor.defaults, { skipLocal: true });
+        status('נטען. הטקסט שהיה כאן לא נשמר; הוא עדיין בדפדפן, ויוצע שוב בפעם הבאה שתפתח את הפריט.');
+      }],
+    ]);
+    status(err.message, 'err');
   }
 
   // Saves are serialized; a change made during a save triggers one more.
@@ -1321,9 +1501,12 @@
     }
     const body = { ...collect(), ...extra };
     if (!editor.entry && !body.title.trim() && !body.body.trim()) return null;
+    // While another window's save waits for a decision, only that decision saves.
+    if (!$('ed-notice').hidden && editor.conflict && !extra.overwrite) return editor.entry;
     editor.dirty = false;
     status('שומר...');
     const run = (async () => {
+      const before = localKey();
       try {
         if (editor.entry) {
           editor.entry = await send(`/api/studio/entries/${editor.entry.id}`, 'PATCH', { ...body, baseUpdatedAt: editor.entry.updatedAt });
@@ -1332,13 +1515,24 @@
           history.replaceState(null, '', `#item/${editor.entry.id}`);
           current = location.hash;
         }
+        editor.conflict = false;
+        if (before !== localKey()) {
+          // A new item got its id: the copy moves to the item's own key.
+          forgetLocal(before);
+          if (editor.dirty) keepLocal();
+        } else if (!editor.dirty) forgetLocal(before);
         if (!$('ed-slug').matches(':focus')) $('ed-slug').value = editor.entry.slug ?? '';
         reflect(editor.entry);
+        $('ed-history').hidden = false;
         if (editor.dirty) editor.flush();
         return editor.entry;
       } catch (err) {
         editor.dirty = true;
-        if (!(err instanceof AuthError)) status(err.message, 'err');
+        keepLocal();
+        if (err.data?.conflict) {
+          editor.conflict = true;
+          conflicted(err);
+        } else if (!(err instanceof AuthError)) status(err instanceof TypeError || navigator.onLine === false ? 'אין חיבור לשרת. הטקסט שמור בדפדפן, ויישמר כשהחיבור יחזור.' : err.message, 'err');
         throw err;
       } finally {
         editor.saving = null;
@@ -1378,6 +1572,10 @@
       save().catch(() => {});
     }
   });
+  // Back online: send what waited.
+  window.addEventListener('online', () => {
+    if (editor.dirty && !$('view-edit').hidden) editor.flush();
+  });
   window.addEventListener('beforeunload', (e) => {
     if (editor.dirty || project.dirty || cvView.dirty()) e.preventDefault();
   });
@@ -1394,11 +1592,13 @@
   });
 
   $('delete-article').addEventListener('click', async () => {
-    if (!editor.entry || !confirm('למחוק את הפריט לצמיתות?')) return;
+    if (!editor.entry || !confirm('להעביר את הפריט לסל המחזור? אפשר להחזיר אותו משם עד 30 יום, עם התגובות והקבצים.')) return;
     editor.flush.cancel();
     try {
       await call(`/api/studio/entries/${editor.entry.id}`, { method: 'DELETE' });
       editor.dirty = false;
+      forgetLocal();
+      refreshTrashCount();
       location.hash = $('ed-back').getAttribute('href');
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, 'err');
@@ -1730,7 +1930,7 @@
     }
   });
   $('p-delete').addEventListener('click', async () => {
-    if (!project.entry || !confirm('למחוק את הפרויקט?')) return;
+    if (!project.entry || !confirm('להעביר את הפרויקט לסל המחזור? אפשר להחזיר אותו משם עד 30 יום.')) return;
     try {
       await call(`/api/studio/entries/${project.entry.id}`, { method: 'DELETE' });
       project.dirty = false;
@@ -2083,6 +2283,62 @@
       h('button', { className: 'btn small danger', type: 'button', textContent: 'הסרה', onclick: () => row.remove() }),
     );
     return row;
+  }
+
+  // ---------- trash and backup ----------
+  async function refreshTrashCount() {
+    try {
+      const { items } = await call('/api/studio/trash');
+      $('trash-count').textContent = items.length || '';
+      return items;
+    } catch {
+      return null;
+    }
+  }
+  async function loadTrash(msg = '') {
+    say('t-msg', msg, msg ? 'ok' : '');
+    const items = await refreshTrashCount();
+    if (!items) return say('t-msg', 'לא הצלחתי לטעון את הסל.', 'err');
+    const left = (iso) => Math.max(0, 30 - Math.floor((Date.now() - new Date(iso)) / DAY));
+    $('t-list').replaceChildren(
+      ...items.map((t) => {
+        const where = state.byId.get(t.spaceId);
+        return h(
+          'li',
+          {},
+          h('span', { className: 'who', dir: 'auto', textContent: t.title || 'בלי כותרת' }),
+          h(
+            'span',
+            { className: 'meta', dir: 'auto' },
+            h('span', { textContent: KIND[t.kind] ?? t.kind }),
+            where ? h('span', { textContent: where.title }) : null,
+            h('span', { textContent: `נמחק ${fmt(t.deletedAt)}` }),
+            h('span', { textContent: `עוד ${left(t.deletedAt)} ימים בסל` }),
+          ),
+          h(
+            'span',
+            { className: 'actions' },
+            h('button', {
+              className: 'btn small primary',
+              type: 'button',
+              textContent: 'החזרה',
+              onclick: () =>
+                send(`/api/studio/trash/${t.id}/restore`, 'POST').then((e) => {
+                  loadTrash(`"${e.title || 'בלי כותרת'}" חזר למקום שלו.`);
+                  loadSpaces().catch(() => {});
+                }, report('t-msg')),
+            }),
+            h('button', {
+              className: 'btn small danger',
+              type: 'button',
+              textContent: 'מחיקה לתמיד',
+              onclick: () => confirm(`למחוק את "${t.title || 'בלי כותרת'}" לתמיד, עם הקבצים והגרסאות שלו? מזה אין דרך חזרה.`) && call(`/api/studio/trash/${t.id}`, { method: 'DELETE' }).then(() => loadTrash(), report('t-msg')),
+            }),
+          ),
+        );
+      }),
+    );
+    $('t-empty').hidden = items.length > 0;
   }
 
   async function loadSettings() {
@@ -2656,6 +2912,7 @@
     call('/api/studio/community').then(({ users }) => showPendingCount(users.filter((u) => u.status === 'pending').length), () => {});
     call('/api/studio/comments?status=open').then(({ open }) => showCommentCount(open), () => {});
     call('/api/studio/posts?status=pinned').then(({ week }) => showBlogCount(week), () => {});
+    refreshTrashCount();
   }
   start();
 })();

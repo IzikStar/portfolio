@@ -265,3 +265,11 @@ details.box.batch > summary { font-family: var(--display); font-size: 22px; }
 .notebook-link .count { font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: var(--on-accent); color: var(--accent); margin-inline-start: 4px; }
 .idea .to-notebook { font-size: 13px; color: var(--muted); text-decoration: none; }
 .idea .to-notebook:hover { color: var(--ink); }
+
+/* keeping work safe: the editor's notice, the versions dialog */
+.ed-notice { position: sticky; top: 12px; z-index: 5; display: grid; gap: 10px; padding: 14px 18px; border-radius: 16px; border: 1px solid #ff9b85; background: var(--raised); box-shadow: 0 8px 24px rgb(0 0 0 / 0.4); }
+.ed-notice p { margin: 0; }
+.history-dialog { width: min(44rem, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; }
+.history-dialog .people li { cursor: pointer; }
+.history-dialog .people li:hover, .history-dialog .people li:focus-visible { background: var(--ground); }
+.hs-body { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--read, inherit); font-size: 15px; max-height: 50dvh; overflow: auto; margin: 0; padding: 14px; border-radius: 12px; background: var(--ground); }

@@ -44,6 +44,7 @@
     <a href="#community" data-tab="community">חברים והזמנות<span class="count" id="pending-count"></span></a>
     <a href="#cv" data-tab="cv">קורות חיים</a>
     <a href="#projects" data-tab="projects">פרויקטים</a>
+    <a href="#trash" data-tab="trash">גיבוי וסל מחזור<span class="count" id="trash-count"></span></a>
     <a href="#settings" data-tab="settings">הגדרות</a>
     <div class="foot">
       <a href="/" target="_blank" rel="noopener">לאתר ↗</a>
@@ -363,6 +364,22 @@
       <p class="empty" id="b-empty" hidden>אין כאן פוסטים.</p>
     </section>
 
+    <section id="view-trash" hidden>
+      <div class="head"><h1>גיבוי וסל מחזור</h1></div>
+      <div class="box">
+        <h2>גיבוי</h2>
+        <p class="hint">קובץ ZIP עם כל מה שיש באתר: כל פריט כקובץ טקסט בתיקייה של האגף שלו, הקבצים שהעלית, וקובץ data.json עם הכל (גם קהילות, חברים בלי סיסמאות, תגובות והגדרות). הקלטות וסרטונים מדרייב ומיוטיוב נשארים שם, ובגיבוי יש את הקישור.</p>
+        <div class="toolbar"><a class="btn primary" href="/api/studio/export" download>הורדת הכל כ־ZIP</a></div>
+      </div>
+      <div class="box">
+        <h2>סל מחזור</h2>
+        <p class="hint">מה שמחקת מחכה כאן 30 יום, עם התגובות והקבצים שלו. "החזרה" מחזירה אותו בדיוק למקום שהיה בו. אחרי 30 יום הוא נמחק לבד.</p>
+        <p class="msg" id="t-msg" role="status"></p>
+        <ul class="people" id="t-list"></ul>
+        <p class="empty" id="t-empty" hidden>הסל ריק.</p>
+      </div>
+    </section>
+
     <section id="view-settings" hidden>
       <div class="head"><h1>הגדרות</h1></div>
       <div class="box">
@@ -481,7 +498,12 @@
         <button class="btn small" type="button" id="ed-move">העברה לאגף או סוג אחר</button>
         <button class="btn small" type="button" id="ed-to-idea" title="חוזר למחברת הרעיונות, פרטי, עם כל מה שיש בו">להחזיר לרעיונות</button>
         <button class="btn small" type="button" id="ed-page-toggle" aria-pressed="false">איך זה ייראה באתר</button>
+        <button class="btn small" type="button" id="ed-history" hidden>גרסאות קודמות</button>
         <span class="status" id="save-status" role="status"></span>
+      </div>
+      <div class="ed-notice" id="ed-notice" role="alert" hidden>
+        <p id="ed-notice-text"></p>
+        <div class="toolbar" id="ed-notice-actions"></div>
       </div>
       <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
       <div class="settings">
@@ -582,6 +604,24 @@
       <button class="btn primary" type="submit" id="mv-go">העברה</button>
       <button class="btn" type="button" id="mv-cancel">ביטול</button>
       <span class="msg" id="mv-msg" role="status"></span>
+    </div>
+  </form>
+</dialog>
+<dialog class="move-dialog history-dialog" id="history-dialog">
+  <form method="dialog">
+    <h2>גרסאות קודמות</h2>
+    <p class="hint">האתר שומר בצד את הטקסט הקודם בכל פעם שעורכים, לכל היותר פעם בעשר דקות, ותמיד לפני מחיקה של חלק גדול. שחזור מחזיר את הכותרת, התקציר, הטקסט והקישורים, ומה שיש עכשיו נשמר כגרסה, כך שאפשר לחזור גם מהשחזור.</p>
+    <p class="msg" id="hs-msg" role="status"></p>
+    <ul class="people" id="hs-list"></ul>
+    <p class="empty" id="hs-empty" hidden>עוד אין גרסאות קודמות. הן נאספות מעכשיו, בכל עריכה.</p>
+    <div id="hs-view" hidden>
+      <h3 id="hs-title" dir="auto"></h3>
+      <pre class="hs-body" id="hs-body" dir="auto"></pre>
+    </div>
+    <div class="toolbar">
+      <button class="btn primary" type="button" id="hs-restore" hidden>לשחזר את הגרסה הזאת</button>
+      <button class="btn" type="button" id="hs-back" hidden>לכל הגרסאות</button>
+      <button class="btn" type="submit">סגירה</button>
     </div>
   </form>
 </dialog>
