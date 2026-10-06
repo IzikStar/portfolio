@@ -1,9 +1,11 @@
 // Small helpers shared by every route.
 
 export class HttpError extends Error {
-  constructor(status, message) {
+  // `extra` joins the JSON error body ({ error, ...extra }).
+  constructor(status, message, extra) {
     super(message);
     this.status = status;
+    this.extra = extra;
   }
 }
 

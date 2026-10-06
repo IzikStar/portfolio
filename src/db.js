@@ -24,6 +24,8 @@
 //   invites     invite links for new members (optionally straight into communities)
 //   api_tokens  keys for the future Claude connector (hashed)
 //   settings    small key/value settings
+//   revisions   earlier versions of an entry's text, put aside as it is saved (src/safety.js)
+//   trash       deleted entries, with their comments and files, kept 30 days (src/safety.js)
 
 export const KINDS = ['idea', 'article', 'project', 'work', 'song', 'chapter', 'torah', 'sketch', 'dub', 'humor', 'video'];
 // private: only the owner. community: members of the communities the item
@@ -191,6 +193,26 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS revisions (
+    id TEXT PRIMARY KEY,
+    entry_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    meta TEXT NOT NULL DEFAULT '{}',
+    saved_at TEXT,
+    kept_at TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT 'edit'
+  )`,
+  `CREATE INDEX IF NOT EXISTS revisions_entry ON revisions(entry_id, kept_at)`,
+  `CREATE TABLE IF NOT EXISTS trash (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    space_id TEXT,
+    data TEXT NOT NULL,
+    deleted_at TEXT NOT NULL
   )`,
 ];
 

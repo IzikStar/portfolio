@@ -11,16 +11,17 @@
 
 import { HttpError, json, checkOrigin } from './http.js';
 import { login, logout, isOwner, requireOwner } from './auth.js';
-import { studioList, studioCreate, studioUpdate, studioDelete, getEntry, preview, publicList } from './entries.js';
+import { studioList, studioCreate, studioUpdate, getEntry, preview, publicList, write } from './entries.js';
+import { listRevisions, getRevision, restoreRevision, trashEntry, listTrash, restoreTrash, purgeTrashItem, emptyOldTrash, exportAll } from './safety.js';
 import { home, wingPage, resolve, communityPage } from './wings.js';
 import { WINGS } from './db.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { access, listSpaces, studioSpaces, createSpace, updateSpace, deleteSpace } from './spaces.js';
 import { requestJoin, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
-import { postComment, deleteComment, studioComments, setCommentStatus, deleteCommentsOf } from './comments.js';
+import { postComment, deleteComment, studioComments, setCommentStatus } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
-import { uploadFile, listFiles, deleteFile, deleteFilesOf, serveFile } from './files.js';
+import { uploadFile, listFiles, deleteFile, serveFile } from './files.js';
 import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
@@ -42,6 +43,8 @@ export default {
     ctx.waitUntil(importLegacyOnce(env).then((r) => r && console.log('legacy import', r)));
     // The ideas page's writing partner: the week's parasha draft, new directions.
     ctx.waitUntil(museCron(env).then((r) => r && console.log('muse', r)));
+    // Items deleted more than 30 days ago leave the trash for good.
+    ctx.waitUntil(emptyOldTrash(env).then((n) => n && console.log('trash emptied', n)));
   },
 
   async fetch(request, env, ctx) {
@@ -54,7 +57,7 @@ export default {
       const page = await pages(request, env, url, ctx);
       if (page) return page;
     } catch (err) {
-      if (err instanceof HttpError) return json({ error: err.message }, err.status);
+      if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
       console.error(err);
       return json({ error: 'Something went wrong on the server.' }, 500);
     }
@@ -246,12 +249,17 @@ async function studio(request, env, url) {
   if (m && method === 'PATCH') return studioUpdate(request, env, m[1]);
   const sm = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/sync$/);
   if (sm && method === 'POST') return syncOne(env, sm[1]);
-  if (m && method === 'DELETE') {
-    const res = await studioDelete(env, m[1]);
-    await deleteFilesOf(env, m[1]);
-    await deleteCommentsOf(env, m[1]);
-    return res;
-  }
+  // Deleting moves the item, its comments and files to the trash (src/safety.js).
+  if (m && method === 'DELETE') return trashEntry(env, m[1]);
+  const rv = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/revisions(?:\/([a-z0-9-]+)(\/restore)?)?$/);
+  if (rv && !rv[2] && method === 'GET') return listRevisions(env, rv[1]);
+  if (rv && rv[2] && !rv[3] && method === 'GET') return getRevision(env, rv[1], rv[2]);
+  if (rv && rv[3] && method === 'POST') return restoreRevision(env, rv[1], rv[2], write);
+  if (path === '/api/studio/trash' && method === 'GET') return listTrash(env);
+  const tr = path.match(/^\/api\/studio\/trash\/([a-z0-9-]+)(\/restore)?$/);
+  if (tr && tr[2] && method === 'POST') return restoreTrash(env, tr[1]);
+  if (tr && !tr[2] && method === 'DELETE') return purgeTrashItem(env, tr[1]);
+  if (path === '/api/studio/export' && method === 'GET') return exportAll(env);
   throw new HttpError(404, 'Not found.');
 }
 

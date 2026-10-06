@@ -93,7 +93,7 @@ describe('entry files', () => {
     expect((await upload('admin_session=nope', e.id)).status).toBe(401);
   });
 
-  it('lists and deletes files, and removes them with their entry', async () => {
+  it('lists and deletes files; an entry in the trash keeps them until it is emptied', async () => {
     const o = await owner();
     const e = await entry(o, {});
     const a = await (await upload(o, e.id)).json();
@@ -105,7 +105,10 @@ describe('entry files', () => {
     expect(env.MEDIA.data.has(`blob:${a.id}`)).toBe(false);
 
     await req(`/api/studio/entries/${e.id}`, { method: 'DELETE', headers: { Cookie: o, Origin: ORIGIN } });
-    expect(env.MEDIA.data.has(`blob:${b.id}`)).toBe(false);
     expect((await req(b.url ?? `/files/${b.id}`, { headers: { Cookie: o } })).status).toBe(404);
+    expect(env.MEDIA.data.has(`blob:${b.id}`)).toBe(true);
+
+    await req(`/api/studio/trash/${e.id}`, { method: 'DELETE', headers: { Cookie: o, Origin: ORIGIN } });
+    expect(env.MEDIA.data.has(`blob:${b.id}`)).toBe(false);
   });
 });
