@@ -37,6 +37,42 @@
     return d;
   };
 
+  // ---------- on a phone ----------
+  // The sidebar is a bar with a menu button; the button names where you are
+  // and adds up the sidebar's counts. Long forms fold their details away.
+  const phone = matchMedia('(max-width: 700px)');
+  function setNav(open) {
+    document.querySelector('.studio-side').classList.toggle('open', open);
+    document.body.classList.toggle('nav-open', open);
+    document.getElementById('nav-toggle').setAttribute('aria-expanded', String(open));
+  }
+  function showNavCurrent() {
+    const a = document.querySelector('.studio-side [aria-current="page"]');
+    const name = a ? [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('').trim() : '';
+    document.getElementById('nav-current').textContent = name || 'תפריט';
+  }
+  function showNavBadge() {
+    // What waits for you: comments, join requests, members to approve.
+    const n = ['comment-count', 'request-count', 'pending-count'].map((id) => document.getElementById(id)).reduce((sum, c) => sum + (parseInt(c.textContent.replace(/\D/g, ''), 10) || 0), 0);
+    const badge = document.getElementById('nav-badge');
+    // Only on a change: this runs from an observer on the sidebar itself.
+    if (badge.textContent !== String(n || '')) badge.textContent = n || '';
+  }
+  document.getElementById('nav-toggle').addEventListener('click', () => setNav(!document.querySelector('.studio-side').classList.contains('open')));
+  document.querySelector('.studio-side').addEventListener('click', (e) => {
+    if (e.target.closest('a')) setNav(false);
+  });
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && setNav(false));
+  phone.addEventListener('change', () => setNav(false));
+  new MutationObserver(showNavBadge).observe(document.querySelector('.studio-side'), { subtree: true, childList: true, characterData: true });
+  for (const [btn, box] of [['ed-more-toggle', 'ed-more'], ['s-more-toggle', 's-more']]) {
+    document.getElementById(btn).addEventListener('click', () => foldOpen(btn, box, !document.getElementById(box).classList.contains('open')));
+  }
+  function foldOpen(btn, box, open) {
+    document.getElementById(box).classList.toggle('open', open);
+    document.getElementById(btn).setAttribute('aria-expanded', String(open));
+  }
+
   class AuthError extends Error {}
   async function call(path, opts = {}) {
     const res = await fetch(path, { credentials: 'same-origin', ...opts });
@@ -172,6 +208,7 @@
       if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     }
+    showNavCurrent();
     $('view-ideas').hidden = view !== 'ideas';
     $('view-wing').hidden = view !== 'wing';
     $('view-space').hidden = view !== 'space';
@@ -1605,12 +1642,15 @@
     }
   });
 
-  $('toggle-preview').addEventListener('click', () => {
-    const split = $('view-edit').classList.toggle('split');
+  function setSplit(split) {
+    $('view-edit').classList.toggle('split', split);
     $('ed-preview').hidden = !split;
     $('toggle-preview').textContent = split ? 'הסתרת תצוגה מקדימה' : 'תצוגה מקדימה';
     if (split) renderPreview();
-  });
+  }
+  $('toggle-preview').addEventListener('click', () => setSplit(!$('view-edit').classList.contains('split')));
+  // On a phone the preview would sit under the text: it starts hidden there.
+  if (phone.matches) setSplit(false);
 
   // Markdown helpers: wrap the selection or prefix the current lines.
   $('md-tools').addEventListener('click', (e) => {

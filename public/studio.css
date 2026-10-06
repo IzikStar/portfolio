@@ -273,3 +273,75 @@ details.box.batch > summary { font-family: var(--display); font-size: 22px; }
 .history-dialog .people li { cursor: pointer; }
 .history-dialog .people li:hover, .history-dialog .people li:focus-visible { background: var(--ground); }
 .hs-body { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--read, inherit); font-size: 15px; max-height: 50dvh; overflow: auto; margin: 0; padding: 14px; border-radius: 12px; background: var(--ground); }
+
+/* ---------- on a phone ----------
+   The sidebar becomes a bar with a menu, the editor puts the writing first
+   (details fold away under one button), and a book's page shows what is
+   inside before its settings. On wider screens .more-box is invisible. */
+.nav-toggle, .more-toggle { display: none; }
+.more-box, .ed-top-actions { display: contents; }
+@media (max-width: 700px) {
+  .studio { padding: 16px 16px 40px; gap: 18px; }
+  .studio h1 { font-size: 30px; }
+  .studio h2 { font-size: 22px; }
+  .studio .box { padding: 16px; border-radius: 16px; }
+
+  .studio-side { position: sticky; top: 0; z-index: 30; flex-flow: row nowrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .studio-side > a:not(.mark), .studio-side .group, .studio-side .foot { display: none; }
+  .studio-side .mark { flex-basis: auto; margin: 0; padding: 8px 4px; font-weight: 700; }
+  .nav-toggle {
+    display: flex; align-items: center; gap: 10px; margin-inline-start: auto; min-height: 44px; padding: 6px 8px 6px 14px;
+    font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--line-strong); border-radius: 999px; cursor: pointer;
+  }
+  .nav-toggle .count { margin: 0; }
+  .nav-toggle .burger { width: 18px; height: 12px; background: linear-gradient(currentColor 0 0) top / 100% 2px no-repeat, linear-gradient(currentColor 0 0) center / 100% 2px no-repeat, linear-gradient(currentColor 0 0) bottom / 100% 2px no-repeat; }
+  .studio-side.open { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr auto; align-content: start; gap: 2px; overflow-y: auto; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); border: 0; }
+  .studio-side.open > a, .studio-side.open .foot { display: flex; grid-column: 1 / -1; }
+  .studio-side.open .mark { grid-column: 1; }
+  .studio-side.open .group { display: block; grid-column: 1 / -1; }
+  .studio-side.open .foot { flex-direction: row; gap: 8px; }
+  .studio-side.open > a, .studio-side.open .foot a { padding: 12px; font-size: 17px; }
+  .studio-side.open .nav-current, .studio-side.open .nav-toggle .count { display: none; }
+  .studio-side.open .burger { background: linear-gradient(45deg, transparent 45%, currentColor 45% 55%, transparent 55%), linear-gradient(-45deg, transparent 45%, currentColor 45% 55%, transparent 55%); height: 18px; }
+  body.nav-open { overflow: hidden; }
+
+  .head { gap: 8px; }
+  .head h1 { flex-basis: 100%; }
+  .w-head .btn { min-height: 38px; padding: 6px 14px; font-size: 14px; }
+
+  .more-toggle { display: inline-flex; justify-self: start; }
+  .more-toggle::after { content: '▾'; margin-inline-start: 8px; transition: transform 0.15s; }
+  .more-toggle[aria-expanded='true']::after { transform: rotate(180deg); }
+  .more-box { display: none; }
+  .more-box.open { display: grid; gap: 16px; }
+
+  /* One column that never grows past the screen, whatever scrolls inside it. */
+  .editor { grid-template-columns: minmax(0, 1fr); }
+  .ed-top, .ed-write-bar, .ed-actions { min-width: 0; }
+  .editor .title-input { font-size: 26px !important; }
+  .ed-top { gap: 8px; }
+  .ed-top .status { order: -1; flex-basis: 100%; margin: 0; }
+  .ed-top-actions { display: flex; gap: 8px; flex-basis: 100%; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+  .ed-top-actions::-webkit-scrollbar { display: none; }
+  .ed-top-actions .btn { flex: none; }
+  .ed-write-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+  .ed-write-bar::-webkit-scrollbar { display: none; }
+  .ed-write-bar .md-tools { flex-wrap: nowrap; }
+  .ed-write-bar .btn { flex: none; }
+  .editor .body-input { min-height: 55dvh; font-size: 17px; }
+  .editor .preview { min-height: 30vh; padding: 18px; }
+  .ed-actions {
+    position: sticky; bottom: 0; z-index: 4; margin-inline: -16px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--ground); border-top: 1px solid var(--line);
+  }
+  .ed-actions { flex-wrap: nowrap; gap: 8px; }
+  .ed-actions .btn { min-height: 40px; padding: 6px 14px; font-size: 15px; white-space: nowrap; }
+  .ed-actions .primary { flex: 1 1 auto; }
+
+  #view-space > * { order: 2; }
+  #view-space > .toolbar:first-child, #view-space > #s-title { order: 0; }
+  #view-space > .s-inside { order: 1; }
+
+  .rows-table a.title { font-size: 17px; }
+  .history-dialog, .move-dialog { padding: 18px; }
+}
