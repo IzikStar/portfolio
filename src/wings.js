@@ -120,25 +120,18 @@ const lockedNote = (n) => (n ? `<p class="lock">${LOCK} ${n === 1 ? 'עוד פר
 
 // ---------- home ----------
 
-// The crafts under the greeting, each in its wing's color.
-const KICKER = [['music', 'שירים'], ['books', 'ספרים'], ['sketches', 'מערכונים'], ['software', 'קוד'], ['torah', 'תורה']];
-
 export async function home(env, v) {
   const { acc } = v;
   const wings = WINGS.filter((w) => acc.visible.has(w.id));
   const feed = (await listFeed(env, acc, 40)).filter((x) => entryPath(acc, x)).slice(0, 8);
   const links = await socials(env);
   const tiles = wings
-    .map((w, i) => {
+    .map((w) => {
       const s = acc.byId.get(w.id);
       const info = WING_INFO[w.id];
       const priv = s.visibility === 'private' ? ' · רק אני' : '';
-      // The first tile takes a 2x2 block; the last one stretches to close the grid.
-      const fill = (cols) => cols - ((wings.length + 3) % cols || cols) + 1;
-      const span = i === wings.length - 1 && wings.length >= 5 ? `;--s4:${fill(4)};--s2:${fill(2)}` : '';
-      return `<a class="wing-tile" data-wing="${w.id}" href="/${w.id}" style="--i:${i}${span}">
+      return `<a class="wing-tile" data-wing="${w.id}" href="/${w.id}">
   ${icon(info.icon)}
-  <span class="no" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
   <span class="name">${e(s.title)}</span>
   <span class="what">${e(s.summary || info.what)}</span>
   ${priv ? `<span class="who">${priv.slice(3)}</span>` : ''}
@@ -161,8 +154,8 @@ export async function home(env, v) {
   const body = `<div class="wrap">
   <section class="hero">
     <div class="copy">
-      <div class="kicker">${KICKER.map(([id, word]) => (acc.visible.has(id) ? `<a href="/${id}" data-wing="${id}">${word}</a>` : `<span data-wing="${id}">${word}</span>`)).join('<span aria-hidden="true"> · </span>')}</div>
-      <h1><span class="line"><span>היי,</span></span><span class="line"><span>אני יצחק.</span></span></h1>
+      <div class="kicker">שירים · ספרים · מערכונים · קוד · תורה</div>
+      <h1>היי,<br>אני יצחק.</h1>
       <p class="lede">פה אני מעלה את מה שאני כותב, מנגן, מדבב ובונה. חלק פתוח לכולם. טיוטות, הקלטות גולמיות ופרקים שעוד לא יצאו פתוחים רק לקהילות.</p>
       <div class="actions"><a class="btn primary" href="/cv">קורות חיים ופרויקטים</a>${v.role === 'public' ? '<a class="btn" href="/join">בקשת הצטרפות</a>' : ''}</div>
     </div>
@@ -170,7 +163,7 @@ export async function home(env, v) {
   </section>
   <section class="block">
     <div class="section-head"><h2>האגפים</h2></div>
-    <div class="wings${wings.length < 5 ? ' few' : ''}">${tiles}</div>
+    <div class="wings">${tiles}</div>
   </section>
   <section class="block split">
     <div class="main">
@@ -198,7 +191,7 @@ function band({ wing, space, acc, path, lede, tabs = true }) {
         .join('')}</nav>`
     : '<div class="spacer"></div>';
   const crumbs = space ? `<div class="crumbs"><a href="/${wing.id}">${e(wing.title)}</a></div>` : '';
-  return `<section class="band"><span class="band-mark" aria-hidden="true">${icon(WING_INFO[wing.id]?.icon ?? '', 420)}</span><div class="wrap">
+  return `<section class="band"><div class="wrap">
   ${crumbs}
   <h1 dir="auto">${e(space?.title ?? wing.title)}</h1>
   ${lede ? `<p class="lede" dir="auto">${e(lede)}</p>` : ''}
