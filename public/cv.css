@@ -28,6 +28,7 @@
   --step-4: clamp(2.9rem, 9vw, 5.6rem);
 
   --radius: 10px;
+  --out: cubic-bezier(0.16, 1, 0.3, 1);
   --wrap: 72rem;
   --gutter: clamp(16px, 4vw, 32px);
   color-scheme: light;
@@ -172,10 +173,10 @@ p { margin: 0; text-wrap: pretty; }
   text-decoration: none;
   font: 500 var(--step--1) / 1.2 var(--body);
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.3s var(--out), transform 0.4s var(--out), filter 0.3s var(--out);
 }
 .btn:hover { border-color: var(--ink); }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: scale(0.97); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary:hover { filter: brightness(1.08); }
 
@@ -226,9 +227,9 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
   border-radius: calc(var(--radius) * 1.4);
   padding: clamp(1.1rem, 2.5vw, 1.75rem);
   box-shadow: var(--shadow);
-  transition: border-color 0.2s;
+  transition: border-color 0.4s var(--out), transform 0.6s var(--out), box-shadow 0.6s var(--out);
 }
-.project:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.project:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); transform: translateY(-3px); box-shadow: 0 2px 4px rgb(20 28 26 / 0.04), 0 24px 48px -24px rgb(20 28 26 / 0.22); }
 .project.plain { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 760px) {
   .project { grid-template-columns: minmax(0, 1fr); }
@@ -321,6 +322,18 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
 .foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem; }
 
 /* ---------- print: one clean document, no players or buttons ---------- */
+/* ---------- craft: selection, and the hero arriving in order ---------- */
+::selection { background: var(--accent); color: var(--accent-ink); }
+@media screen and (prefers-reduced-motion: no-preference) {
+  @keyframes cv-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .hero-main > * { animation: cv-enter 0.9s var(--out) backwards; }
+  .hero-main > :nth-child(2) { animation-delay: 0.08s; }
+  .hero-main > :nth-child(3) { animation-delay: 0.18s; }
+  .hero-main > :nth-child(4) { animation-delay: 0.28s; }
+  .hero-main > :nth-child(5) { animation-delay: 0.38s; }
+  .hero .reach { animation: cv-enter 0.9s var(--out) 0.5s backwards; }
+}
+
 @media print {
   @page { size: A4; margin: 13mm 14mm; }
   :root, :root[data-theme='dark'], :root:not([data-theme='light']) {
