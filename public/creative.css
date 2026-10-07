@@ -1,0 +1,345 @@
+/* The creative layer: loaded after site.css (and studio.css in the studio).
+   It keeps the site's tokens, fonts and wing colors and adds texture, light
+   and motion: grain on the ground, the eight wing colors glowing behind the
+   home page, a pattern per wing in its header band, books with a spine,
+   ideas as notes on a board. Everything that moves stops under
+   prefers-reduced-motion, and nothing here hides or reorders content. */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --glow: color-mix(in srgb, var(--accent) 35%, transparent);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  accent-color: var(--accent);
+}
+
+/* Pages fade into each other where the browser can (same-site links). */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.28s; }
+
+::selection { background: var(--accent); color: var(--on-accent); }
+html { scrollbar-color: var(--line-strong) var(--ground); }
+#main { overflow-x: clip; }
+
+/* Film grain over the dark ground, never over the paper. */
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none;
+  background-image: var(--grain); opacity: 0.045; mix-blend-mode: overlay;
+}
+
+/* ---------- header ---------- */
+.mark { position: relative; transition: color 0.2s; }
+.mark::after {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-inline-start: 5px; border-radius: 2px;
+  background: var(--accent); transform: rotate(45deg) translateY(-2px); transition: transform 0.4s var(--ease-spring);
+}
+.mark:hover::after { transform: rotate(225deg) translateY(-2px) scale(1.2); }
+.bar nav a { position: relative; transition: color 0.2s; }
+.bar nav a::after {
+  content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 2px; border-radius: 2px;
+  background: var(--accent); transform: scaleX(0); transform-origin: right; transition: transform 0.3s var(--ease-out);
+}
+.bar nav a:hover::after { transform: scaleX(1); }
+.bar nav a[aria-current='page'] { box-shadow: none; }
+.bar nav a[aria-current='page']::after { transform: scaleX(1); }
+/* Each wing's link carries its own color on hover. */
+.bar nav a[href='/music'] { --accent: #e9a23b; }
+.bar nav a[href='/books'] { --accent: #5db7a4; }
+.bar nav a[href='/sketches'] { --accent: #e584b4; }
+.bar nav a[href='/humor'] { --accent: #ee7a54; }
+.bar nav a[href='/torah'] { --accent: #e3c978; }
+.bar nav a[href='/articles'] { --accent: #d9d1c3; }
+.bar nav a[href='/software'] { --accent: #79bfe6; }
+.bar nav a[href='/videos'] { --accent: #b6a2ee; }
+
+/* ---------- buttons ---------- */
+.btn { transition: transform 0.18s var(--ease-out), border-color 0.2s, background-color 0.2s, box-shadow 0.25s; }
+.btn:active:not([disabled]) { transform: scale(0.96); }
+.btn.primary:hover { box-shadow: 0 6px 24px -8px rgb(243 238 230 / 0.45); }
+.btn.accent:hover { box-shadow: 0 6px 24px -6px var(--glow); }
+
+/* ---------- home: the eight colors behind the hello ---------- */
+.hero { position: relative; isolation: isolate; }
+.hero::before {
+  content: ''; position: absolute; z-index: -1; inset: 0 -10vw -40px; pointer-events: none;
+  background:
+    radial-gradient(28% 40% at 82% 28%, rgb(233 162 59 / 0.22), transparent 70%),
+    radial-gradient(24% 36% at 62% 70%, rgb(229 132 180 / 0.16), transparent 70%),
+    radial-gradient(26% 38% at 30% 30%, rgb(121 191 230 / 0.15), transparent 70%),
+    radial-gradient(22% 34% at 12% 76%, rgb(93 183 164 / 0.16), transparent 70%),
+    radial-gradient(20% 30% at 45% 12%, rgb(182 162 238 / 0.14), transparent 70%);
+  filter: blur(20px);
+  animation: aurora 22s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-3%, 2%, 0) scale(1.06); }
+  100% { transform: translate3d(2%, -2%, 0) scale(0.98); }
+}
+.hero h1 {
+  background: linear-gradient(100deg, var(--ink) 40%, #e9a23b 58%, #e584b4 70%, #79bfe6 82%, var(--ink) 96%);
+  background-size: 250% 100%; background-position: 0 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: ink-sweep 9s var(--ease-out) 0.4s both;
+}
+@keyframes ink-sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.kicker { display: inline-flex; align-items: center; gap: 10px; }
+.kicker::before { content: ''; width: 28px; height: 2px; border-radius: 2px; background: currentColor; }
+.hero aside a { transition: color 0.2s, transform 0.2s var(--ease-out); }
+.hero aside a:hover { color: var(--accent); transform: translateX(-4px); }
+
+.section-head h2 { position: relative; }
+.section-head h2::after {
+  content: ''; display: block; height: 4px; width: 48px; margin-top: 6px; border-radius: 4px;
+  background: linear-gradient(90deg, #e9a23b, #e584b4, #79bfe6, #5db7a4);
+}
+
+/* Wing tiles: a big ghost of the icon, a tilt and a glow in the wing's color. */
+.wing-tile {
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: transform 0.35s var(--ease-spring), box-shadow 0.35s var(--ease-out);
+}
+.wing-tile::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgb(255 255 255 / 0.28), transparent 55%),
+    var(--grain);
+  opacity: 0.6; mix-blend-mode: soft-light;
+}
+.wing-tile svg { transition: transform 0.5s var(--ease-spring); transform-origin: center; }
+.wing-tile::after {
+  content: ''; position: absolute; inset-inline-end: -18px; bottom: -26px; width: 130px; height: 130px; z-index: -1;
+  border-radius: 50%; border: 18px solid currentColor; opacity: 0.08; transition: transform 0.6s var(--ease-out), opacity 0.3s;
+}
+.wing-tile:hover { transform: translateY(-6px) rotate(-0.8deg); box-shadow: 0 22px 40px -18px var(--glow); }
+.wing-tile:nth-child(even):hover { transform: translateY(-6px) rotate(0.8deg); }
+.wing-tile:hover svg { transform: rotate(-12deg) scale(1.18); }
+.wing-tile:hover::after { transform: scale(1.35) translate(10px, -10px); opacity: 0.14; }
+.wing-tile .who { display: inline-flex; align-items: center; gap: 6px; }
+.wing-tile .name::after { content: '←'; display: inline-block; margin-inline-start: 10px; font-size: 0.6em; opacity: 0; transform: translateX(8px); transition: opacity 0.25s, transform 0.3s var(--ease-out); vertical-align: middle; }
+.wing-tile:hover .name::after, .wing-tile:focus-visible .name::after { opacity: 1; transform: none; }
+
+/* The newest things: a colored marker slides in on hover. */
+.feed a { position: relative; transition: background-color 0.25s, padding 0.3s var(--ease-out); border-radius: 4px; }
+.feed a::before {
+  content: ''; position: absolute; inset-inline-start: 0; top: 50%; width: 4px; height: 0; border-radius: 4px;
+  background: var(--accent); transform: translateY(-50%); transition: height 0.3s var(--ease-out);
+}
+.feed a:hover { background: linear-gradient(to left, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%); padding-inline-start: 16px; }
+.feed a:hover::before { height: 60%; }
+.feed a:hover .t { color: var(--ink); }
+.feed .t { transition: color 0.2s; }
+
+.panel { position: relative; overflow: hidden; isolation: isolate; border: 1px solid var(--line); }
+.panel::before {
+  content: ''; position: absolute; z-index: -1; width: 220px; height: 220px; inset-inline-start: -80px; top: -90px; border-radius: 50%;
+  background: radial-gradient(circle, var(--glow), transparent 70%); pointer-events: none;
+}
+
+/* ---------- a wing's header band: light, grain and a pattern of its own ---------- */
+.band { position: relative; isolation: isolate; overflow: hidden; }
+.band::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    radial-gradient(70% 120% at 100% 0%, rgb(255 255 255 / 0.32), transparent 60%),
+    var(--band-pattern, none),
+    var(--grain);
+  background-size: 100% 100%, var(--band-size, auto), 160px;
+  mix-blend-mode: soft-light; opacity: 0.9;
+}
+.band::after {
+  content: ''; position: absolute; z-index: -1; width: 46vmax; height: 46vmax; inset-inline-start: -14vmax; bottom: -30vmax;
+  border-radius: 50%; border: 3vmax solid currentColor; opacity: 0.07; pointer-events: none;
+  animation: slow-turn 60s linear infinite;
+}
+@keyframes slow-turn { to { transform: rotate(360deg); } }
+.band h1 { letter-spacing: -0.01em; }
+.band nav a { transition: background-color 0.2s; }
+.band nav a:not([aria-current='page']):hover { background: rgb(0 0 0 / 0.1); }
+/* Staff lines for music, ruled paper for books, a dot grid for code and so on. */
+[data-wing='music'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 9px, rgb(0 0 0 / 0.4) 9px 10px, transparent 10px 19px, rgb(0 0 0 / 0.4) 19px 20px, transparent 20px 29px, rgb(0 0 0 / 0.4) 29px 30px, transparent 30px 39px, rgb(0 0 0 / 0.4) 39px 40px, transparent 40px 49px, rgb(0 0 0 / 0.4) 49px 50px, transparent 50px 96px); }
+[data-wing='books'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 31px, rgb(0 0 0 / 0.3) 31px 32px); }
+[data-wing='sketches'] .band { --band-pattern: radial-gradient(circle, rgb(0 0 0 / 0.35) 2px, transparent 3px); --band-size: 22px 22px; }
+[data-wing='humor'] .band { --band-pattern: repeating-linear-gradient(-45deg, transparent 0 18px, rgb(0 0 0 / 0.22) 18px 20px); }
+[data-wing='torah'] .band { --band-pattern: repeating-linear-gradient(90deg, transparent 0 46px, rgb(0 0 0 / 0.25) 46px 47px); }
+[data-wing='articles'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 27px, rgb(0 0 0 / 0.22) 27px 28px); }
+[data-wing='software'] .band { --band-pattern: radial-gradient(circle, rgb(0 0 0 / 0.4) 1.4px, transparent 2px); --band-size: 18px 18px; }
+[data-wing='videos'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.2) 3px 4px); }
+
+/* ---------- cards ---------- */
+.card {
+  position: relative; overflow: hidden; isolation: isolate; border: 1px solid transparent;
+  transition: transform 0.3s var(--ease-out), background-color 0.25s, border-color 0.25s, box-shadow 0.3s;
+}
+.card::before {
+  content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; height: 3px; background: var(--accent);
+  transform: scaleX(0); transform-origin: right; transition: transform 0.4s var(--ease-out);
+}
+.card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 18px 36px -22px var(--glow); }
+.card:hover::before { transform: scaleX(1); }
+.card:hover .title { color: var(--accent); }
+.card .title { transition: color 0.2s; }
+.card img { transition: transform 0.5s var(--ease-out); }
+.card:hover img { transform: scale(1.03); }
+
+/* Books get a spine and a page edge. */
+.card.book, .cover { position: relative; box-shadow: inset 14px 0 18px -10px rgb(0 0 0 / 0.35), 0 16px 30px -18px rgb(0 0 0 / 0.8); }
+.card.book::before { display: none; }
+.card.book::after, .cover::after {
+  content: ''; position: absolute; inset-block: 0; inset-inline-end: 10px; width: 3px; pointer-events: none;
+  background: linear-gradient(to right, rgb(0 0 0 / 0.18), rgb(255 255 255 / 0.25), rgb(0 0 0 / 0.12));
+}
+.card.book:hover { transform: perspective(800px) translateY(-4px) rotateY(8deg); transform-origin: left; border-color: transparent; }
+.card.book:hover .title { color: inherit; }
+.cover { transform-origin: left; transform: perspective(900px) rotateY(7deg); transition: transform 0.5s var(--ease-out); }
+.cover:hover { transform: perspective(900px) rotateY(0); }
+
+/* ---------- reading ---------- */
+.paper { position: relative; box-shadow: 0 1px 0 rgb(255 255 255 / 0.4) inset, 0 30px 60px -30px rgb(0 0 0 / 0.9); }
+.paper.prose > p:first-of-type::first-letter {
+  font-family: var(--display); float: right; font-size: 2.7em; line-height: 0.9; margin: 0.08em 0 0 0.12em; color: color-mix(in srgb, var(--accent) 70%, var(--paper-ink));
+}
+.article .kind { display: inline-flex; align-items: center; gap: 8px; }
+.article .kind::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); transform: rotate(45deg); }
+.prose a { transition: text-decoration-thickness 0.2s; }
+.prose a:hover { text-decoration-thickness: 3px; }
+.toc a { transition: padding 0.3s var(--ease-out), color 0.2s; }
+.toc a:hover { padding-inline-start: 10px; color: var(--accent); }
+.sheet { background-image: linear-gradient(rgb(255 255 255 / 0.5), transparent 120px), var(--grain); background-blend-mode: normal, multiply; box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.9); }
+.versions button { transition: background-color 0.2s, color 0.2s, transform 0.2s var(--ease-spring); }
+.versions button:active { transform: scale(0.95); }
+.links a { transition: border-color 0.2s, color 0.2s; }
+.links a:hover { border-color: var(--accent); color: var(--accent); }
+.comment, .post-card { transition: transform 0.25s var(--ease-out); }
+.post-card:hover { transform: translateX(-3px); }
+
+/* ---------- forms ---------- */
+.field input, .field textarea, .field select, .studio input[type='text'], .studio input[type='password'],
+.studio input[type='search'], .studio textarea, .studio select, .comment-form textarea, .post-form textarea {
+  transition: border-color 0.2s, box-shadow 0.25s;
+}
+.field input:focus, .field textarea:focus, .field select:focus, .studio input:focus, .studio textarea:focus,
+.studio select:focus, .comment-form textarea:focus, .post-form textarea:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); outline: none;
+}
+.member-form, .login { position: relative; isolation: isolate; }
+.member-form::before, .login::before {
+  content: ''; position: absolute; z-index: -1; inset: -10% -30% auto; height: 70%; pointer-events: none;
+  background: radial-gradient(40% 50% at 70% 40%, rgb(233 162 59 / 0.16), transparent 70%), radial-gradient(35% 45% at 25% 60%, rgb(121 191 230 / 0.12), transparent 70%);
+  filter: blur(10px);
+}
+
+/* ---------- footer ---------- */
+.site-foot { position: relative; border-top: 0; }
+.site-foot::before {
+  content: ''; position: absolute; inset-inline: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, #e9a23b, #5db7a4, #e584b4, #ee7a54, #e3c978, #d9d1c3, #79bfe6, #b6a2ee);
+  opacity: 0.75;
+}
+.site-foot a { transition: color 0.2s; }
+.site-foot a:hover { color: var(--accent); }
+
+/* ---------- the studio ---------- */
+.studio-body .studio { position: relative; isolation: isolate; }
+.studio-body .studio::before {
+  content: ''; position: absolute; z-index: -1; inset: 0 0 auto; height: 340px; pointer-events: none;
+  background: radial-gradient(60% 100% at 85% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
+}
+.studio-side { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.02), transparent 40%); }
+@media (min-width: 701px) { .studio-side { border-inline-end: 1px solid var(--line); } }
+.studio-side a { position: relative; transition: background-color 0.2s, color 0.2s, padding 0.25s var(--ease-out); }
+.studio-side > a[data-tab]:hover { padding-inline-start: 18px; }
+.studio-side a[aria-current='page']::before {
+  content: ''; position: absolute; inset-inline-start: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 3px; background: var(--accent);
+}
+.studio-side a[aria-current='page'] { background: var(--tint, var(--raised)); background: color-mix(in srgb, var(--accent) 14%, var(--raised)); }
+.studio-side .dot { transition: transform 0.3s var(--ease-spring), box-shadow 0.3s; }
+.studio-side a:hover .dot, .studio-side a[aria-current='page'] .dot { transform: scale(1.35); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.studio-side .mark { font-size: 26px; }
+.studio .box { border: 1px solid var(--line); transition: border-color 0.25s; }
+.studio .box:focus-within { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.studio h1 { position: relative; }
+
+/* The capture box glows while you write. */
+.capture { transition: border-color 0.25s, box-shadow 0.35s var(--ease-out); }
+.capture:focus-within { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent), 0 24px 50px -30px var(--glow); }
+.spark-text { background: linear-gradient(100deg, var(--ink) 30%, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.board { position: relative; overflow: hidden; isolation: isolate; }
+.board::after {
+  content: ''; position: absolute; z-index: -1; inset-inline-start: -40px; bottom: -60px; width: 160px; height: 160px; border-radius: 50%;
+  border: 14px solid var(--accent); opacity: 0.07; pointer-events: none;
+}
+.pulse .week span { transition: transform 0.3s var(--ease-spring); }
+.pulse .week span.on { box-shadow: 0 0 12px -2px var(--glow); }
+
+/* Ideas sit on the board like notes, a little crooked until you pick one up. */
+.idea { transition: transform 0.35s var(--ease-spring), box-shadow 0.3s, border-color 0.25s; }
+@media (min-width: 701px) {
+  .ideas > .idea:nth-child(3n + 1) { transform: rotate(-0.6deg); }
+  .ideas > .idea:nth-child(3n + 2) { transform: rotate(0.5deg); }
+  .ideas > .idea:nth-child(5n) { transform: rotate(-0.3deg); }
+  .ideas > .idea:hover, .ideas > .idea:focus-within, .ideas > .idea.open { transform: none; }
+}
+.idea:hover { box-shadow: 0 18px 34px -22px var(--glow), inset 0 3px var(--accent); }
+.idea:not([data-wing]):hover { box-shadow: 0 18px 34px -22px rgb(0 0 0 / 0.9); }
+.idea.pinned { box-shadow: 0 0 0 1px var(--accent), 0 14px 30px -20px var(--glow); }
+.rows-table li { transition: background-color 0.2s; }
+.rows-table li:hover { background: linear-gradient(to left, color-mix(in srgb, var(--accent) 7%, transparent), transparent 80%); }
+
+/* ---------- arriving on screen ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .hero .copy > *, .hero aside { animation: rise 0.7s var(--ease-out) both; }
+  .hero .copy > :nth-child(2) { animation-delay: 0.08s; }
+  .hero .copy > :nth-child(3) { animation-delay: 0.16s; }
+  .hero .copy > :nth-child(4) { animation-delay: 0.24s; }
+  .hero aside { animation-delay: 0.32s; }
+  .band h1, .band .lede, .band .crumbs { animation: rise 0.6s var(--ease-out) both; }
+  .band .lede { animation-delay: 0.08s; }
+  .wings .wing-tile { animation: pop 0.55s var(--ease-spring) both; }
+  .wings .wing-tile:nth-child(2) { animation-delay: 0.05s; }
+  .wings .wing-tile:nth-child(3) { animation-delay: 0.1s; }
+  .wings .wing-tile:nth-child(4) { animation-delay: 0.15s; }
+  .wings .wing-tile:nth-child(5) { animation-delay: 0.2s; }
+  .wings .wing-tile:nth-child(6) { animation-delay: 0.25s; }
+  .wings .wing-tile:nth-child(7) { animation-delay: 0.3s; }
+  .wings .wing-tile:nth-child(8) { animation-delay: 0.35s; }
+  .cards > *, .ideas > .idea { animation: rise 0.5s var(--ease-out) both; }
+  .cards > :nth-child(2), .ideas > .idea:nth-child(2) { animation-delay: 0.05s; }
+  .cards > :nth-child(3), .ideas > .idea:nth-child(3) { animation-delay: 0.1s; }
+  .cards > :nth-child(4), .ideas > .idea:nth-child(4) { animation-delay: 0.15s; }
+  .cards > :nth-child(n + 5), .ideas > .idea:nth-child(n + 5) { animation-delay: 0.2s; }
+  /* Below the fold, things rise as they scroll in (where the browser supports it). */
+  @supports (animation-timeline: view()) {
+    .feed a, .toc li, .block > .section-head, .tagged li, .file-list li {
+      animation: rise-soft linear both; animation-timeline: view(); animation-range: entry 0% entry 60%;
+    }
+  }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes rise-soft { from { opacity: 0; transform: translateY(14px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(22px) scale(0.94); } }
+
+/* ---------- on a phone ---------- */
+@media (max-width: 720px) {
+  /* The wing links scroll sideways: fade the far edge so that shows. */
+  .bar nav { -webkit-mask-image: linear-gradient(to left, #000 85%, transparent); mask-image: linear-gradient(to left, #000 85%, transparent); padding-inline-end: 24px; }
+  .bar nav a::after { bottom: 2px; }
+}
+@media (max-width: 560px) {
+  /* Two tiles a row instead of eight screens of color. */
+  .wings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .wing-tile { min-height: 150px; padding: 18px 16px; gap: 6px; border-radius: 18px; }
+  .wing-tile .name { font-size: 24px; }
+  .wing-tile .what { font-size: 13px; line-height: 1.4; }
+  .wing-tile svg { width: 26px; height: 26px; }
+  .wing-tile::after { width: 90px; height: 90px; border-width: 12px; }
+  .wing-tile .name::after { display: none; }
+  .hero::before { inset: 0 -16px -20px; }
+  .paper.prose > p:first-of-type::first-letter { font-size: 2.4em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .cover { transform: none; }
+  @view-transition { navigation: none; }
+}

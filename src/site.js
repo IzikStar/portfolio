@@ -112,6 +112,7 @@ ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Secular+One&family=Heebo:wght@300;400;500;700&family=Frank+Ruhl+Libre:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/creative.css">
 ${script ? '<script src="/site.js" defer></script>' : ''}
 </head>
 <body${wing ? ` data-wing="${e(wing)}"` : ''}>
