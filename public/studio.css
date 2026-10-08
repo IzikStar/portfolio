@@ -518,3 +518,15 @@ details.box.batch > summary { font-family: var(--display); font-size: 20px; }
 .idea.folded { display: flex; flex-direction: column; }
 .idea.folded .idea-foot { margin-top: auto; }
 .idea > .msg:empty { display: none; }
+
+/* On a wide screen the side menu stays put, a full screen tall, and only the
+   page beside it scrolls. A short window lets the menu scroll on its own. */
+@media (min-width: 901px) {
+  .studio-side { position: sticky; top: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding-block: 18px; }
+  .studio-side::-webkit-scrollbar { display: none; }
+  .studio-side .mark { margin-bottom: 10px; }
+  .studio-side .group { margin: 10px 12px 2px; }
+  .studio-side a { padding-block: 5px; font-size: 15px; line-height: 1.35; }
+  .studio-side .foot { padding-top: 10px; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .studio-side .foot a { font-size: 14px; color: var(--muted); }
+}
