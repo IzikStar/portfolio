@@ -10,14 +10,14 @@ const STR = {
     code: 'קוד', live: 'אתר חי', playGame: 'לשחק', privateCode: 'הקוד פרטי',
     play: 'נגן', copy: 'העתקת הכתובת', copied: 'הועתק', print: 'הדפסה',
     open: 'לפתיחה', watch: 'לצפייה', listen: 'להאזנה', read: 'לקריאה',
-    reach: 'אפשר לכתוב לי', skills: 'כלים ושפות', timeline: 'בקצרה', sections: 'מקטעים',
+    reach: 'אפשר לכתוב לי', skills: 'כלים ושפות', timeline: 'בקצרה', sections: 'מקטעים', kicker: 'קורות חיים', tools: 'כלים שאני עובד איתם', projectsN: 'פרויקטים', toolsN: 'כלים ושפות', write: 'בוא נדבר',
     other: 'English', otherShort: 'EN', skip: 'לתוכן', count: (n) => (n === 1 ? 'פריט אחד' : `${n} פריטים`),
   },
   en: {
     code: 'Code', live: 'Live site', playGame: 'Play it', privateCode: 'Code is private',
     play: 'Play', copy: 'Copy address', copied: 'Copied', print: 'Print',
     open: 'Open', watch: 'Watch', listen: 'Listen', read: 'Read',
-    reach: 'Get in touch', skills: 'Tools and languages', timeline: 'In short', sections: 'Sections',
+    reach: 'Get in touch', skills: 'Tools and languages', timeline: 'In short', sections: 'Sections', kicker: 'Résumé', tools: 'Tools I work with', projectsN: 'projects', toolsN: 'tools and languages', write: "Let's talk",
     other: 'עברית', otherShort: 'עב', skip: 'Skip to content', count: (n) => (n === 1 ? '1 item' : `${n} items`),
   },
 };
@@ -111,20 +111,21 @@ export function renderCvPage({ cv, projects = [], items = {}, lang = 'he', previ
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#f6f4ee" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1513" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0e1412">
 ${preview ? '<meta name="robots" content="noindex">' : ''}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6b5f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='serif' font-weight='700'%3EI%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/cv.css">
+${preview ? '' : "<script>if('IntersectionObserver' in window&&!matchMedia('(prefers-reduced-motion: reduce)').matches)document.documentElement.classList.add('js')</script>"}
 <script type="application/ld+json">${JSON.stringify(person).replace(/</g, '\\u003c')}</script>
 </head>`;
 
   // ---------- top bar ----------
   const nav = sections.map((s) => `<a href="#${esc(s.id)}">${esc(p(s.nav) || p(s.title))}</a>`).join('');
   const bar = `<header class="bar">
+  <span class="progress" aria-hidden="true"></span>
   <div class="wrap">
     <a class="mark" href="#top">${esc(name)}</a>
     <nav aria-label="${t.sections}">${nav}</nav>
@@ -147,26 +148,42 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
       ${contactLinks.length ? `<ul>${contactLinks.map((l) => `<li><a href="${esc(l.href)}"${external(l.href) ? ' rel="noopener me"' : ''}><span>${esc(p(l.label))}</span><span class="host">${esc(printable(l.href) || l.href)}</span></a></li>`).join('')}</ul>` : ''}
     </aside>`
     : '';
+  const stats = [
+    projects.length ? `<li><b>${projects.length}</b><span>${t.projectsN}</span></li>` : '',
+    cv.skills?.length ? `<li><b>${cv.skills.length}</b><span>${t.toolsN}</span></li>` : '',
+  ].join('');
   const hero = `<section class="hero" id="top">
   <div class="wrap">
-    <div class="hero-main">
-      ${p(cv.avail) ? `<p class="avail"><span class="pulse" aria-hidden="true"></span>${esc(p(cv.avail))}</p>` : ''}
-      <h1>${esc(name)}</h1>
-      ${roles.length ? `<p class="roles">${roles.map((r) => `<span>${esc(r)}</span>`).join('')}</p>` : ''}
-      ${p(cv.lede) ? `<p class="lede">${esc(p(cv.lede))}</p>` : ''}
-      ${buttons ? `<div class="actions">${buttons}</div>` : ''}
+    <div class="hero-top">
+      ${p(cv.avail) ? `<p class="avail"><span class="pulse" aria-hidden="true"></span>${esc(p(cv.avail))}</p>` : '<span></span>'}
+      <span class="kicker" aria-hidden="true">${t.kicker} · ${new Date().getFullYear()}</span>
     </div>
-    ${card}
+    <h1>${esc(name)}</h1>
+    <div class="hero-grid">
+      <div class="hero-main">
+        ${roles.length ? `<p class="roles">${roles.map((r) => `<span>${esc(r)}</span>`).join('')}</p>` : ''}
+        ${p(cv.lede) ? `<p class="lede">${esc(p(cv.lede))}</p>` : ''}
+        ${buttons ? `<div class="actions">${buttons}</div>` : ''}
+        ${stats ? `<ul class="stats">${stats}</ul>` : ''}
+      </div>
+      ${card}
+    </div>
   </div>
 </section>`;
 
+  // The tools, running past as one band under the hero. The copy is for the loop.
+  const tools = (cv.skills ?? []).map((s) => `<span>${esc(s)}</span>`).join('<i aria-hidden="true"></i>');
+  const marquee = cv.skills?.length
+    ? `<div class="marquee" role="region" aria-label="${t.tools}"><div class="track"><div class="run">${tools}<i aria-hidden="true"></i></div><div class="run" aria-hidden="true">${tools}<i></i></div></div></div>`
+    : '';
+
   // ---------- sections ----------
-  const headOf = (s, i, extra = '') => `<header class="head">
+  const headOf = (s, i, extra = '') => `<header class="head" data-reveal>
       <span class="num" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
       <h2>${esc(p(s.title))}</h2>${extra}
     </header>${p(s.intro) ? `<p class="intro">${esc(p(s.intro))}</p>` : ''}`;
 
-  const project = (x) => {
+  const project = (x, i) => {
     const links = x.links.map((l) => link(l.href, t[l.k] ?? l.k)).join('');
     const note = x.note && p(x.note) ? `<span class="note">${esc(p(x.note))}</span>` : x.links.every((l) => l.k !== 'code') ? `<span class="note">${t.privateCode}</span>` : '';
     const media = x.img
@@ -174,7 +191,8 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
       : x.facts?.length
         ? `<dl class="facts">${x.facts.map((f) => `<div><dt>${esc(f[lang] || f.he || '')}</dt><dd>${esc(pick(f.v, lang))}</dd></div>`).join('')}</dl>`
         : '';
-    return `<article class="project${media ? '' : ' plain'}">
+    return `<article class="project${media ? '' : ' plain'}" data-reveal>
+      <span class="idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
       <div class="text">
         ${p(x.tag) ? `<span class="tag">${esc(p(x.tag))}</span>` : ''}
         <h3>${esc(p(x.name))}</h3>
@@ -229,7 +247,7 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
     const audio = it.versions.find(isAudio);
     const video = it.versions.find(isVideo);
     const media = video ? embed(video, it.title) : it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy" decoding="async">` : '';
-    return `<article class="card" data-id="${esc(it.id)}">
+    return `<article class="card" data-reveal data-id="${esc(it.id)}">
       ${media ? `<div class="card-media">${media}</div>` : ''}
       <div class="card-body">
         <h3 dir="auto">${esc(it.title)}</h3>
@@ -243,18 +261,19 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
   const about = () => {
     const paras = p(cv.about).split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
     const timeline = cv.timeline?.length
-      ? `<div class="side-block"><h3>${t.timeline}</h3><ol class="timeline">${cv.timeline
+      ? `<div class="side-block" data-reveal><h3>${t.timeline}</h3><ol class="timeline">${cv.timeline
           .map((x) => `<li><span class="when">${esc(p(x.when))}</span><strong>${esc(p(x.what))}</strong>${p(x.detail) ? `<span class="detail">${esc(p(x.detail))}</span>` : ''}</li>`)
           .join('')}</ol></div>`
       : '';
-    const skills = cv.skills?.length ? `<div class="side-block"><h3>${t.skills}</h3><ul class="chips skills">${cv.skills.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>` : '';
+    const skills = cv.skills?.length ? `<div class="side-block" data-reveal><h3>${t.skills}</h3><ul class="chips skills">${cv.skills.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>` : '';
     return `<div class="about">
-      <div class="about-text">${paras.map((x) => `<p>${esc(x).replace(/\n/g, '<br>')}</p>`).join('')}</div>
+      <div class="about-text" data-reveal>${paras.map((x) => `<p>${esc(x).replace(/\n/g, '<br>')}</p>`).join('')}</div>
       ${timeline || skills ? `<div class="about-side">${timeline}${skills}</div>` : ''}
     </div>`;
   };
 
-  const contact = () => `<div class="contact">
+  const contact = () => `<div class="contact" data-reveal>
+      <p class="write" aria-hidden="true">${t.write}</p>
       ${cv.email ? `<a class="email big" href="mailto:${esc(cv.email)}">${esc(cv.email)}</a>
       <button class="btn" type="button" data-copy="${esc(cv.email)}" data-copied="${esc(t.copied)}" hidden>${t.copy}</button>` : ''}
       ${contactLinks.map((l) => `<a class="btn" href="${esc(l.href)}"${external(l.href) ? ` rel="noopener" data-url="${esc(printable(l.href))}"` : ''}>${esc(p(l.label))}</a>`).join('')}
@@ -264,7 +283,7 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
     .map((s, i) => {
       let inner;
       let extra = '';
-      if (s.id === 'code') inner = `<div class="projects">${projects.map(project).join('')}</div>`;
+      if (s.id === 'code') inner = `<div class="projects">${projects.map((x, i) => project(x, i)).join('')}</div>`;
       else if (s.id === 'about') inner = about();
       else if (s.id === 'contact') inner = contact();
       else {
@@ -289,6 +308,7 @@ ${preview ? '<meta name="robots" content="noindex">' : ''}
 ${bar}
 <main id="main">
 ${hero}
+${marquee}
 ${body}
 </main>
 ${footer}
