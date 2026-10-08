@@ -238,7 +238,7 @@ a { color: inherit; }
 .media.audio audio { display: block; width: 100%; height: 48px; color-scheme: dark; }
 .media video { max-height: 80vh; background: #000; }
 .media.audio.framed { padding: 0; }
-.media.audio iframe { aspect-ratio: auto; height: 140px; }
+.media.audio iframe { aspect-ratio: auto; height: 84px; }
 .media.doc iframe { aspect-ratio: 4 / 3; }
 .media-note { font-size: 14px; color: var(--muted); margin-top: 8px; }
 .media-open { margin-top: 8px; font-size: 14px; }

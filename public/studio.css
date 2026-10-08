@@ -79,7 +79,7 @@
 .board[hidden] { display: none; }
 .board-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .board-head .kicker { margin: 0; }
-.board-head select { width: auto !important; margin-inline-start: auto; padding: 4px 10px !important; }
+.board-head select { width: auto !important; margin-inline-start: auto; padding-block: 4px !important; padding-inline: 12px 34px !important; }
 .board .age { color: var(--muted); font-size: 14px; }
 .board .actions { gap: 8px; }
 .spark-text { font-family: var(--display); font-size: clamp(21px, 2.6vw, 27px); line-height: 1.35; overflow-wrap: anywhere; }
@@ -96,7 +96,7 @@
 .idea .muse-ask { display: flex; gap: 6px; }
 .idea .muse-ask input { flex: 1; min-width: 0; }
 .muse-model-slot { margin-inline-start: auto; }
-.muse-model-slot select, .idea .muse-model select { width: auto !important; padding: 4px 10px !important; font-size: 14px; }
+.muse-model-slot select, .idea .muse-model select { width: auto !important; padding-block: 4px !important; padding-inline: 12px 34px !important; font-size: 14px; }
 .idea .muse-model { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .idea .muse-out { background: var(--ground); border-radius: 12px; padding: 12px; font-size: 15px; }
 .idea .muse-out:empty { display: none; }
@@ -126,7 +126,7 @@
 .idea .panel textarea { min-height: 5rem; }
 .idea-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 13px; color: var(--muted); }
 .idea-top time { white-space: nowrap; }
-.idea-top .wing-pick { width: auto !important; padding: 2px 10px !important; border-radius: 999px !important; font-size: 14px !important; color: var(--accent); max-width: 10rem; min-width: 0; }
+.idea-top .wing-pick { width: auto !important; padding-block: 2px !important; padding-inline: 12px 30px !important; background-position: left 10px center !important; background-size: 14px !important; border-radius: 999px !important; font-size: 14px !important; color: var(--accent); max-width: 10rem; min-width: 0; }
 .idea:not([data-wing]) .wing-pick { color: var(--muted); }
 .idea-top .quiet { font: inherit; font-size: 13px; background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 8px; min-height: 32px; color: var(--muted); cursor: pointer; }
 .idea-top .quiet:hover { border-color: var(--line-strong); color: var(--ink); }
@@ -488,3 +488,33 @@ details.box.batch > summary { font-family: var(--display); font-size: 20px; }
 }
 /* An empty status line takes no room in the column (it stays for screen readers). */
 .studio > section > .msg:empty { position: absolute; }
+
+/* The notebook: every idea starts folded to its title, a few lines and a
+   count of what is inside. A click unfolds it across the whole row. */
+.ideas-page { width: 100%; max-width: 90rem; margin-inline: auto; }
+.ideas { grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 16px; grid-auto-flow: row dense; }
+.idea { gap: 12px; }
+.idea.folded { cursor: pointer; align-content: start; }
+.idea.folded:hover { border-color: var(--line-strong); }
+.idea.folded > :not(.idea-top, h3, .text, .chips, .idea-foot) { display: none; }
+.idea.folded .idea-top .edit, .idea.folded .idea-top .to-notebook { display: none; }
+.idea.folded h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 19px; }
+.idea.folded .text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; max-height: none; overflow: hidden; color: var(--soft); font-size: 15px; line-height: 1.6; }
+.idea.folded h3 + .text { -webkit-line-clamp: 3; }
+.idea.folded .chips li:nth-child(n + 4) { display: none; }
+.idea:not(.folded) { grid-column: 1 / -1; padding: 24px; }
+.idea:not(.folded) > * { max-width: 46rem; }
+.idea:not(.folded) > .idea-top, .idea:not(.folded) > .idea-foot { max-width: none; }
+.idea:not(.folded) .text { max-height: none; font-size: 17px; line-height: 1.75; }
+.idea:not(.folded) h3 { font-size: 26px; }
+.idea-foot { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 2px; }
+.idea-foot .holds { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idea-foot .fold-toggle { margin-inline-start: auto; font: inherit; font-size: 13px; background: none; border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 12px; min-height: 30px; color: var(--soft); cursor: pointer; }
+.idea-foot .fold-toggle:hover { color: var(--ink); border-color: var(--soft); }
+.resurface .idea:not(.folded) { padding: 16px; }
+/* Drive's own audio player when the site's player cannot get the file. */
+.media.audio.framed iframe { aspect-ratio: auto; height: 84px; }
+.ideas { align-items: stretch; }
+.idea.folded { display: flex; flex-direction: column; }
+.idea.folded .idea-foot { margin-top: auto; }
+.idea > .msg:empty { display: none; }
