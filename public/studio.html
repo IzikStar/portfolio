@@ -255,13 +255,12 @@
     <section id="view-projects" hidden>
       <div class="toolbar" style="margin-bottom: 1rem">
         <button class="btn primary" type="button" id="new-project">פרויקט חדש</button>
-        <button class="btn" type="button" id="import-cv" hidden>ייבוא הפרויקטים מקורות החיים</button>
         <button class="btn" type="button" id="sync-all">רענון של כולם מהמקור</button>
         <span class="msg" id="projects-msg" role="status"></span>
       </div>
       <p class="hint">הפרויקטים שמסומנים "בקורות החיים" מופיעים ב־/cv לפי הסדר כאן. את הבחירה והסדר אפשר לעשות גם <a href="#cv">בעמוד קורות החיים</a>. כל פרויקט שפתוח לכולם מופיע גם באגף התוכנה.</p>
       <ol class="rows-table" id="projects"></ol>
-      <p class="empty" id="projects-empty" hidden>עוד אין פרויקטים. אפשר לייבא את מה שכבר מופיע בקורות החיים.</p>
+      <p class="empty" id="projects-empty" hidden>עוד אין פרויקטים.</p>
     </section>
 
     <section id="view-project" class="editor" hidden>
@@ -398,16 +397,6 @@
           <button class="btn primary" type="button" id="save-socials">שמירה</button>
           <span class="msg" id="socials-msg" role="status"></span>
         </div>
-      </div>
-      <div class="box">
-        <h2>הפריטים מדף הניהול הישן</h2>
-        <p class="hint">דף הניהול הישן (/admin) ירד, ומה שהעלית בו עבר לאגפים: מוזיקה לשירים, קריינות לדיבובים, מערכונים ומאמרים. מה שהיה גלוי נשאר פתוח לכולם, ומה שהיה מוסתר נכנס כטיוטה פרטית. הקבצים הועתקו, והמקור שמור בצד. ההעברה רצה לבד פעם אחת. הכפתור מריץ אותה שוב, ומה שכבר עבר לא יוכפל.</p>
-        <p class="msg" id="legacy-auto"></p>
-        <div class="toolbar">
-          <button class="btn" type="button" id="import-legacy">העברה לאגפים</button>
-          <span class="msg" id="legacy-msg" role="status"></span>
-        </div>
-        <ul class="people" id="legacy-list"></ul>
       </div>
     </section>
 

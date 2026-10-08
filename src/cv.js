@@ -32,8 +32,8 @@ export const DEFAULT_CV = {
     b('יוצר מערכונים', 'Sketch comedy'),
   ],
   lede: b(
-    'בשנתיים האחרונות אני בונה מערכות פרודקשן בחיל האוויר: אימות משתמשים בארכיטקטורה של 8 שירותים, תכנון מחדש של אלגוריתמים ותשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים.',
-    'For the last two years I have built production systems in the Israeli Air Force: authentication across an 8-service architecture, algorithm redesigns, and a regression framework that validates about 120,000 engineering cases.',
+    'בשנתיים האחרונות אני מפתח בחיל האוויר, ובזמן הפנוי בונה פרויקטים משלי: מנוע שחמט, מאמן הגייה, סוכן שעוזר לי לחפש עבודה. כאן יש את הקוד, וגם מוזיקה, כתיבה ומערכונים.',
+    "For the last two years I've been a developer in the Israeli Air Force, and in my free time I build my own projects: a chess engine, a pronunciation coach, an agent that helps me look for work. The code is here, and so are music, writing and sketches.",
   ),
   buttons: [
     { label: b('לפרויקטים', 'See projects'), href: '#code' },
@@ -44,9 +44,16 @@ export const DEFAULT_CV = {
     'אני מפתח Full-Stack. בשנתיים האחרונות כתבתי קוד שרץ בפרודקשן בחיל האוויר, בעיקר ב־TypeScript, React, NestJS, Java ו־PostgreSQL. הכי נהניתי לעבוד על התחברות והרשאות, על אלגוריתמים ועל בדיקות. חוץ מקוד אני גם כותב, מנגן, מדבב ועושה עוד כל מיני שטויות 😝',
     "I'm a full-stack developer. For the last two years I wrote production code in the Israeli Air Force, mostly in TypeScript, React, NestJS, Java and PostgreSQL. The parts I enjoyed most were login and permissions, algorithms and tests. Outside code I also write, play music, do voice acting and all sorts of other nonsense 😝",
   ),
-  skills: ['TypeScript', 'JavaScript', 'Java', 'SQL', 'React', 'Redux Toolkit', 'NestJS', 'Node.js', 'Spring Boot', 'PostgreSQL', 'Redis', 'JWT / OAuth 2.0 / SSO', 'Docker', 'OpenShift'],
+  skills: ['TypeScript', 'JavaScript', 'Java', 'Python', 'SQL', 'React', 'Redux Toolkit', 'Tailwind', 'NestJS', 'Node.js', 'Express', 'Spring Boot', 'FastAPI', 'PostgreSQL', 'MongoDB', 'Redis', 'SQLite', 'JWT / OAuth 2.0 / SSO', 'WebSocket', 'Jest / Vitest / JUnit', 'Playwright', 'Docker', 'OpenShift', 'GitHub Actions', 'Nx', 'Cloudflare Workers', 'MCP', 'Azure Speech / OpenAI API'],
   timeline: [
-    { when: b('2024 עד 2026', '2024 to 2026'), what: b('מפתח Full-Stack, חיל האוויר', 'Full-stack developer, Israeli Air Force'), detail: b('', '') },
+    {
+      when: b('2024 עד 2026', '2024 to 2026'),
+      what: b('מפתח Full-Stack, חיל האוויר', 'Full-stack developer, Israeli Air Force'),
+      detail: b(
+        'בין הדברים שעשיתי: אימות משתמשים למערכת של 8 שירותים, תכנון מחדש של כמה אלגוריתמים, ותשתית רגרסיה שבודקת כ־120,000 מקרים הנדסיים.',
+        'Among other things: user authentication for an 8-service system, redesigns of a few algorithms, and a regression framework that checks about 120,000 engineering cases.',
+      ),
+    },
     { when: b('דצמבר 2026', 'December 2026'), what: b('פנוי לתפקיד הבא', 'Open to the next role'), detail: b('Full-Stack או Backend', 'Full-stack or backend') },
   ],
   email: 'itschakme@gmail.com',

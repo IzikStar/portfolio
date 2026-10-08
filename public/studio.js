@@ -1275,7 +1275,7 @@
     $('ed-key').value = entry?.meta?.key ?? '';
     $('ed-comments').checked = entry?.meta?.comments !== false;
     $('ed-versions').replaceChildren(...(entry?.meta?.versions ?? []).map(versionRow));
-    $('ed-projects').replaceChildren(...(entry?.meta?.projects ?? []).map(projectRow));
+    $('ed-projects').replaceChildren(...(entry?.meta?.projects ?? []).map((p) => projectFileRow(p)));
     showDriveLink($('ed-drive'), driveFolder($('ed-space').value));
     $('ed-credits').replaceChildren(...(entry?.meta?.credits ?? []).map(creditRow));
     modeFor($('ed-kind').value);
@@ -1745,7 +1745,6 @@
       const all = [...a.entries, ...b.entries];
       const onCv = all.filter((p) => p.meta?.cv?.show).sort((x, y) => (x.meta.cv.order ?? 999) - (y.meta.cv.order ?? 999));
       const rest = all.filter((p) => !p.meta?.cv?.show);
-      $('import-cv').hidden = all.some((p) => p.source === 'import');
       $('projects-empty').hidden = all.length > 0;
       $('projects').replaceChildren(...[...onCv, ...rest].map((p) => projectRow(p, onCv)));
     } catch (err) {
@@ -1788,24 +1787,19 @@
   }
 
   $('new-project').addEventListener('click', () => (location.hash = '#project-new'));
-  $('import-cv').addEventListener('click', async () => {
-    try {
-      const { created } = await send('/api/studio/import-cv', 'POST');
-      say('projects-msg', `יובאו ${created} פרויקטים`, 'ok');
-      loadProjects();
-    } catch (err) {
-      report('projects-msg')(err);
-    }
-  });
   $('sync-all').addEventListener('click', async () => {
     say('projects-msg', 'מרענן...');
     const [a, b] = await Promise.all([call('/api/studio/entries?kind=project'), call('/api/studio/entries?kind=work')]).catch(() => [{ entries: [] }, { entries: [] }]);
     const withSource = [...a.entries, ...b.entries].filter((p) => p.meta?.source);
-    let ok = 0;
+    const failed = [];
     for (const p of withSource) {
-      await send(`/api/studio/entries/${p.id}/sync`, 'POST').then(() => ok++, () => {});
+      await send(`/api/studio/entries/${p.id}/sync`, 'POST').catch((err) => failed.push(`${p.title}: ${err.message}`));
     }
-    say('projects-msg', `רוענו ${ok} מתוך ${withSource.length}`, ok === withSource.length ? 'ok' : 'err');
+    const noSource = [...a.entries, ...b.entries].filter((p) => !p.meta?.source).map((p) => p.title);
+    const parts = [`רוענו ${withSource.length - failed.length} מתוך ${withSource.length} (כוכבים, שפות ותאריך עדכון. הטקסטים שכתבת נשארים)`];
+    if (noSource.length) parts.push(`בלי מקור: ${noSource.join(', ')}`);
+    if (failed.length) parts.push(`נכשלו: ${failed.join('; ')}`);
+    say('projects-msg', parts.join('. '), failed.length ? 'err' : 'ok');
     loadProjects();
   });
 
@@ -2383,9 +2377,8 @@
 
   async function loadSettings() {
     try {
-      const { socials, legacy } = await call('/api/studio/settings');
+      const { socials } = await call('/api/studio/settings');
       $('socials').replaceChildren(...socials.map(socialRow));
-      $('legacy-auto').textContent = legacy?.state === 'done' ? `ההעברה האוטומטית רצה ב־${fmt(legacy.at)}: עברו ${legacy.created} פריטים${legacy.skipped ? `, ${legacy.skipped} כבר היו כאן` : ''}.` : legacy?.state === 'running' ? 'ההעברה האוטומטית רצה עכשיו.' : 'ההעברה האוטומטית עוד לא רצה.';
     } catch (err) {
       report('socials-msg')(err);
     }
@@ -2408,27 +2401,6 @@
       say('socials-msg', 'נשמר', 'ok');
     } catch (err) {
       report('socials-msg')(err);
-    }
-  });
-
-  $('import-legacy').addEventListener('click', async () => {
-    say('legacy-msg', 'מעביר...');
-    try {
-      const { created, skipped, total } = await send('/api/studio/import-legacy', 'POST', {});
-      say('legacy-msg', total ? `עברו ${created.length} פריטים${skipped ? `, ${skipped} כבר היו כאן` : ''}.` : 'אין פריטים בדף הישן.', 'ok');
-      $('legacy-list').replaceChildren(
-        ...created.map((x) =>
-          h(
-            'li',
-            {},
-            h('a', { className: 'who', href: `#item/${x.id}`, dir: 'auto', textContent: x.title }),
-            h('span', { className: 'meta' }, h('span', { textContent: KIND[x.kind] }), h('span', { className: 'badge', textContent: x.status === 'published' ? 'לכולם' : 'טיוטה פרטית' })),
-          ),
-        ),
-      );
-      if (created.length) loadSpaces().catch(() => {});
-    } catch (err) {
-      report('legacy-msg')(err);
     }
   });
 
@@ -2548,7 +2520,7 @@
   const projectKindOf = (name) => (/\.(cpr|bak)$/i.test(name) ? 'cubase' : /\.zip$/i.test(name) ? 'zip' : null);
   let projectTarget = null;
 
-  function projectRow(p = {}) {
+  function projectFileRow(p = {}) {
     const tag = (n, f) => {
       n.dataset.f = f;
       return n;
@@ -2604,7 +2576,7 @@
     return list.length ? list : undefined;
   }
   $('ed-add-project').addEventListener('click', () => {
-    const row = projectRow();
+    const row = projectFileRow();
     $('ed-projects').append(row);
     row.querySelector('input').focus();
   });
