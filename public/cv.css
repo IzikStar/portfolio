@@ -15,11 +15,6 @@
   --accent-wash: #e0ece7;
   --signal: #b8481a;
   --chip: #e9ebe3;
-  --inv-bg: #121816;
-  --inv-ink: #f1eee6;
-  --inv-muted: #9aa8a3;
-  --inv-line: #2b3633;
-  --inv-accent: #7fd6c3;
   --shadow: 0 1px 2px rgb(18 24 22 / 0.05), 0 24px 48px -28px rgb(18 24 22 / 0.28);
 
   --display: 'Frank Ruhl Libre', 'Times New Roman', serif;
@@ -32,7 +27,7 @@
   --step-1: 1.22rem;
   --step-2: clamp(1.4rem, 2.4vw, 1.75rem);
   --step-3: clamp(2.4rem, 6.4vw, 5rem);
-  --step-4: clamp(3.6rem, 16.5vw, 12.5rem);
+  --step-4: clamp(3.4rem, 15vw, 10rem);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -55,11 +50,6 @@
     --accent-wash: #132d28;
     --signal: #f08a4b;
     --chip: #1b2523;
-    --inv-bg: #e9efec;
-    --inv-ink: #0e1412;
-    --inv-muted: #4f5c58;
-    --inv-line: #c8d2ce;
-    --inv-accent: #0b5e53;
     --shadow: 0 24px 48px -30px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
@@ -76,11 +66,6 @@
   --accent-wash: #132d28;
   --signal: #f08a4b;
   --chip: #1b2523;
-  --inv-bg: #e9efec;
-  --inv-ink: #0e1412;
-  --inv-muted: #4f5c58;
-  --inv-line: #c8d2ce;
-  --inv-accent: #0b5e53;
   --shadow: 0 24px 48px -30px rgb(0 0 0 / 0.7);
   color-scheme: dark;
 }
@@ -304,9 +289,8 @@ a:hover > .arrow { transform: translate(2px, -2px); }
 [dir='rtl'] .marquee .track { animation-name: marquee-rtl; }
 .marquee:hover .track { animation-play-state: paused; }
 .marquee .run { display: flex; align-items: center; gap: clamp(1.1rem, 2.4vw, 2rem); padding-inline-end: clamp(1.1rem, 2.4vw, 2rem); direction: ltr; }
-.marquee span { font: 700 clamp(1.5rem, 3.4vw, 2.6rem) / 1.1 var(--display); letter-spacing: -0.015em; white-space: nowrap; color: var(--ink); }
-.marquee span:nth-child(4n + 3) { color: transparent; -webkit-text-stroke: 1px var(--ink); }
-.marquee i { width: 0.5rem; height: 0.5rem; background: var(--signal); transform: rotate(45deg); flex: none; }
+.marquee span { font: 500 clamp(1.15rem, 2.4vw, 1.8rem) / 1.1 var(--display); letter-spacing: -0.01em; white-space: nowrap; color: var(--muted); }
+.marquee i { width: 0.35rem; height: 0.35rem; background: color-mix(in srgb, var(--signal) 70%, transparent); transform: rotate(45deg); flex: none; }
 /* Constant speed is the point of a ticker, so this one loop runs linear. */
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes marquee-rtl { to { transform: translateX(50%); } }
@@ -453,34 +437,23 @@ section.block + section.block { border-top: 1px solid var(--line); }
 .timeline strong { font-weight: 600; font-size: var(--step-1); }
 .timeline .detail { color: var(--muted); font-size: var(--step--1); }
 
-/* ---------- contact: the last chapter turns the page over ---------- */
-section.block-contact { background: var(--inv-bg); color: var(--inv-ink); border-top: 0; padding-block: clamp(4.5rem, 12vw, 9rem); }
-.block-contact .head .num { color: var(--inv-accent); }
-.block-contact .head h2 { color: var(--inv-muted); font-size: clamp(1.1rem, 2vw, 1.4rem); font-family: var(--mono); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.6; }
-.block-contact .intro { color: var(--inv-muted); }
+/* ---------- contact: a calm last word ---------- */
 .contact { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
-.contact .write { flex-basis: 100%; font: 900 clamp(3.2rem, 11vw, 9.5rem) / 0.86 var(--display); letter-spacing: -0.04em; margin-bottom: clamp(1.25rem, 3vw, 2.25rem); }
-.contact .write::after { content: '.'; color: var(--signal); }
+.contact .write { flex-basis: 100%; font: 700 clamp(1.6rem, 3.4vw, 2.4rem) / 1.1 var(--display); letter-spacing: -0.015em; color: var(--soft); margin-bottom: 0.5rem; }
 .contact .email.big {
-  font: 500 clamp(1.15rem, 3.6vw, 2.5rem) / 1.2 var(--mono);
+  font: 500 clamp(1.1rem, 2.8vw, 1.9rem) / 1.25 var(--mono);
   direction: ltr;
-  color: var(--inv-ink);
-  text-decoration: none;
-  background: linear-gradient(var(--inv-accent), var(--inv-accent)) no-repeat 0 100% / 100% 2px;
-  padding-bottom: 0.15em;
+  color: var(--ink);
+  text-decoration: underline 1px var(--accent);
+  text-underline-offset: 0.25em;
   overflow-wrap: anywhere;
-  flex-basis: 100%;
   margin-bottom: 1.25rem;
-  transition: color 0.3s var(--ease-quart), background-size 0.6s var(--ease-out);
 }
-.contact .email.big:hover { color: var(--inv-accent); background-size: 100% 4px; }
+.contact .email.big:hover { color: var(--accent); text-decoration-thickness: 2px; }
+.contact > .email.big { flex-basis: 100%; }
 [dir='rtl'] .contact .email.big { text-align: right; }
-.block-contact .btn { background: transparent; color: var(--inv-ink); border-color: var(--inv-line); }
-.block-contact .btn:hover { border-color: var(--inv-ink); background: var(--inv-ink); color: var(--inv-bg); }
-.block-contact :focus-visible { outline-color: var(--inv-accent); }
 
-.foot { padding-block: 1.75rem 2.5rem; color: var(--muted); font: 400 0.78rem / 1.5 var(--mono); border-top: 1px solid var(--line); }
-.block-contact + .foot, main:has(.block-contact:last-child) + .foot { background: var(--inv-bg); color: var(--inv-muted); border-top-color: var(--inv-line); }
+.foot { padding-block: 1.5rem 2.25rem; color: var(--muted); font-size: var(--step--1); border-top: 1px solid var(--line); }
 .foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem; }
 
 /* ---------- scroll: things arrive as they come into view (only with JS) ---------- */
@@ -504,7 +477,6 @@ section.block-contact { background: var(--inv-bg); color: var(--inv-ink); border
   :root, :root[data-theme='dark'], :root:not([data-theme='light']) {
     --bg: #fff; --surface: #fff; --ink: #000; --soft: #222; --muted: #444; --line: #c9c9c9;
     --accent: #0b5e53; --accent-wash: #fff; --chip: #f1f1f1; --signal: #8a3412; --shadow: none;
-    --inv-bg: #fff; --inv-ink: #000; --inv-muted: #444; --inv-line: #c9c9c9; --inv-accent: #0b5e53;
     color-scheme: light;
   }
   html { scroll-padding-top: 0; }
@@ -521,8 +493,8 @@ section.block-contact { background: var(--inv-bg); color: var(--inv-ink); border
   .avail { background: none; padding: 0; border: 0; }
   .reach { border: 1px solid var(--line); padding: 8pt 10pt; gap: 4pt; break-inside: avoid; }
   .reach li a { padding-block: 3pt; }
-  section.block, section.block-contact { padding-block: 9pt; border-top: 1px solid var(--line); background: none; color: inherit; }
-  .head h2, .block-contact .head h2 { font: 700 15pt / 1.1 var(--display); color: inherit; text-transform: none; letter-spacing: 0; }
+  section.block { padding-block: 9pt; border-top: 1px solid var(--line); }
+  .head h2 { font-size: 15pt; letter-spacing: 0; }
   .head + *, .intro + * { margin-top: 8pt; }
   .head + .intro { margin-top: 3pt; }
   .project, .project:nth-child(even), .project.plain { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'text'; padding: 7pt 0; break-inside: avoid; }
@@ -548,7 +520,7 @@ section.block-contact { background: var(--inv-bg); color: var(--inv-ink); border
   .timeline { gap: 5pt; }
   .timeline li:not(:last-child)::after { bottom: -5pt; }
   .block-contact { break-inside: avoid; }
-  .contact .btn { border: 0; padding: 0; min-height: 0; margin-inline-end: 12pt; color: inherit; background: none; }
+  .contact .btn { border: 0; padding: 0; min-height: 0; margin-inline-end: 12pt; }
   .contact .email.big { font-size: 12pt; color: inherit; background: none; margin-bottom: 4pt; }
   .foot { display: none; }
 }
@@ -557,6 +529,6 @@ section.block-contact { background: var(--inv-bg); color: var(--inv-ink); border
 [dir='rtl'] :is(h1, h2, h3, h4, .title, .who)[dir='auto'] { text-align: right; }
 
 /* Hebrew letters are never spaced apart, even in the mono labels. */
-:lang(he) :is(.kicker, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .head .num, .block-contact .head h2) { letter-spacing: 0; }
+:lang(he) :is(.kicker, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .head .num) { letter-spacing: 0; }
 /* A monospace space is too wide between Hebrew words, so Hebrew labels use the sans. */
-:lang(he) :is(.kicker, .avail, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .block-contact .head h2, .foot, .timeline .when, .tool, .head .count) { font-family: var(--body); }
+:lang(he) :is(.kicker, .avail, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .timeline .when, .tool, .head .count) { font-family: var(--body); }
