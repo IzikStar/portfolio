@@ -22,6 +22,7 @@ import { requestJoin, publicCommunities, studioCommunities, createCommunity, upd
 import { postComment, deleteComment, studioComments, setCommentStatus } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, listFiles, deleteFile, serveFile } from './files.js';
+import { streamDrive } from './drive-stream.js';
 import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
 import { previewPage, linkInfo } from './studio-tools.js';
@@ -98,6 +99,8 @@ async function pages(request, env, url, ctx) {
   }
   const f = path.match(/^\/files\/([a-z0-9-]+)$/);
   if (f) return (await serveFile(request, env, (await viewer(request, env)).acc, f[1])) ?? notFound(request, env);
+  const dr = path.match(/^\/media\/drive\/([\w-]+)$/);
+  if (dr) return (await streamDrive(request, env, (await viewer(request, env)).acc, dr[1], url.searchParams.get('k'))) ?? notFound(request, env);
 
   const parts = path.split('/').slice(1);
   if (!WINGS.some((w) => w.id === parts[0]) || parts.length > 4 || parts.some((x) => !x)) return null;

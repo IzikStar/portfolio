@@ -159,6 +159,12 @@
         <a class="btn" id="w-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
       </div>
       <p class="msg" id="w-msg" role="status"></p>
+      <div class="dropzone" id="w-drop">
+        <input type="file" multiple hidden>
+        <svg class="drop-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <div class="drop-text"><strong>העלאת קבצים</strong><span>גוררים לכאן, או <button type="button" class="link pick-files">בוחרים מהמחשב</button>. כל קובץ נהיה טיוטה חדשה באגף. הקלטות, סרטונים, תמונות, PDF או פרויקט קיובייס, עד 25MB לקובץ.</span></div>
+        <ul class="drop-list"></ul>
+      </div>
       <div class="box" id="w-spaces-box">
         <h2>בתוך האגף</h2>
         <div class="spaces" id="w-spaces"></div>
@@ -220,6 +226,12 @@
           <h2 style="margin:0; flex:1">מה יש בפנים</h2>
           <button class="btn accent" type="button" id="s-new-item">פריט חדש כאן</button>
         </div>
+        <div class="dropzone" id="s-drop">
+        <input type="file" multiple hidden>
+        <svg class="drop-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <div class="drop-text"><strong>העלאת קבצים</strong><span>גוררים לכאן, או <button type="button" class="link pick-files">בוחרים מהמחשב</button>. כל קובץ נהיה טיוטה חדשה כאן. הקלטות, סרטונים, תמונות, PDF או פרויקט קיובייס, עד 25MB לקובץ.</span></div>
+        <ul class="drop-list"></ul>
+      </div>
         <div class="pick-bar" id="s-pickbar"></div>
         <ol class="rows-table" id="s-items"></ol>
         <p class="empty" id="s-items-empty" hidden>עוד ריק.</p>
@@ -504,6 +516,13 @@
         <div class="toolbar" id="ed-notice-actions"></div>
       </div>
       <input type="text" class="title-input" id="ed-title" placeholder="כותרת" dir="auto" aria-label="כותרת">
+      <fieldset class="source-box media-box" id="ed-media">
+        <legend>הקלטות, סרטונים וגרסאות</legend>
+        <p class="hint">קישור מהדרייב או מיוטיוב, או קובץ שמעלים (אפשר גם לגרור לכאן). גרסה "לקהילה" מופיעה לשאר עם מנעול. בדרייב צריך לשתף את הקובץ ככל מי שיש לו קישור.</p>
+        <div class="versions-editor" id="ed-versions"></div>
+        <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden><a class="btn small" id="ed-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a></div>
+        <details class="batch" data-batch="item"></details>
+      </fieldset>
       <button class="btn small more-toggle" type="button" id="ed-more-toggle" aria-expanded="false" aria-controls="ed-more">פרטים, גרסאות והגדרות</button>
       <div class="more-box" id="ed-more">
       <div class="settings">
@@ -539,13 +558,6 @@
         <label class="field">קאפו<input type="text" id="ed-capo" dir="ltr"></label>
         <label class="field">סולם<input type="text" id="ed-key" dir="ltr"></label>
       </div>
-      <fieldset class="source-box">
-        <legend>הקלטות, סרטונים וגרסאות</legend>
-        <p class="hint">קישור מהדרייב, מיוטיוב, או קובץ שמעלים. גרסה "לקהילה" מופיעה לשאר עם מנעול. בדרייב צריך לשתף את הקובץ ככל מי שיש לו קישור.</p>
-        <div class="versions-editor" id="ed-versions"></div>
-        <div class="toolbar"><button class="btn small" type="button" id="ed-add-version">הוספת גרסה</button><input type="file" id="ed-version-file" accept="audio/*,video/*,image/*,application/pdf" hidden><a class="btn small" id="ed-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a></div>
-        <details class="batch" data-batch="item"></details>
-      </fieldset>
       <fieldset class="source-box">
         <legend>פרויקטים</legend>
         <p class="hint">קבצי העבודה: פרויקט קיובייס (.cpr, או גיבוי .bak) או ZIP עם הכל. בעמוד הם מופיעים כקישורי הורדה: לך תמיד, ולאחרים רק אם בחרת. אפשר להעלות לכאן קובץ עד 25MB. פרויקט גדול יותר מעלים לדרייב ומדביקים את הקישור.</p>

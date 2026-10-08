@@ -963,12 +963,13 @@
     const path = e.status === 'published' ? itemPath(e) : null;
     const where = state.byId.get(e.spaceId);
     const href = e.kind === 'project' || e.kind === 'work' ? `#project/${e.id}` : `#item/${e.id}`;
+    const [play, panel] = rowPlayer(e);
     return h(
       'li',
       {},
       h('input', { type: 'checkbox', className: 'pick', value: e.id, ariaLabel: `בחירת ${e.title || 'פריט'}` }),
       h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'בלי כותרת' }),
-      path ? h('a', { className: 'btn small', href: path, target: '_blank', textContent: 'באתר ↗' }) : h('span'),
+      h('span', { className: 'row-actions' }, play, path ? h('a', { className: 'btn small ghost', href: path, target: '_blank', textContent: 'באתר ↗' }) : null),
       h(
         'div',
         { className: 'meta' },
@@ -979,7 +980,34 @@
         h('span', { className: `badge vis-${e.visibility}`, textContent: VIS[e.visibility] }),
         h('time', { textContent: `עודכן ${fmt(e.updatedAt)}` }),
       ),
+      panel,
     );
+  }
+
+  // An item's recordings and videos, played right in the list.
+  function rowPlayer(e) {
+    const vs = (e.meta?.versions ?? []).filter((v) => v && typeof v.url === 'string' && v.url);
+    if (!vs.length) return [null, null];
+    const panel = h('div', { className: 'row-player', hidden: true });
+    const show = async (i) => {
+      const chips = vs.length > 1
+        ? h('div', { className: 'filters' }, ...vs.map((v, j) => h('button', { type: 'button', textContent: v.label || `גרסה ${j + 1}`, ariaPressed: String(i === j), onclick: () => show(j) })))
+        : null;
+      panel.replaceChildren(...[chips, await player(vs[i].url, vs[i].kind)].filter(Boolean));
+    };
+    const btn = h('button', { className: 'btn small play', type: 'button', ariaExpanded: 'false', title: vs.map((v) => v.label).filter(Boolean).join(' · ') });
+    const label = (open) => btn.replaceChildren(h('span', { className: 'play-icon', ariaHidden: 'true' }), open ? 'סגירה' : vs.length > 1 ? `נגינה · ${vs.length}` : 'נגינה');
+    label(false);
+    btn.addEventListener('click', async () => {
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+      btn.classList.toggle('on', open);
+      label(open);
+      if (open && !panel.childElementCount) await show(0);
+      if (!open) for (const m of panel.querySelectorAll('audio, video')) m.pause();
+    });
+    return [btn, panel];
   }
 
   function request(m, communityId, done, msg = 'g-status') {
@@ -1021,6 +1049,8 @@
       .catch(() => {});
     $('w-view').href = `/${id}`;
     $('w-new-space').hidden = id === 'software' || id === 'articles' || id === 'torah';
+    $('w-drop').hidden = id === 'software';
+    $('w-drop').querySelector('.drop-list').replaceChildren();
     await loadSpaces().catch(report('w-msg'));
     showDriveLink($('w-drive'), driveFolder(id));
     const kids = state.spaces.filter((x) => x.parentId && inside(id).includes(x.id) && x.id !== id);
@@ -1115,6 +1145,8 @@
     $('s-status').textContent = isWing ? 'הגדרות האגף' : `${SPACE_KIND[x.kind] ?? ''} ב${wingOf(id)?.title ?? ''}`;
     const kinds = WING_KINDS[x.wing] ?? [];
     $('s-new-item').hidden = !kinds.length || kinds[0] === 'project';
+    $('s-drop').hidden = $('s-new-item').hidden;
+    $('s-drop').querySelector('.drop-list').replaceChildren();
     try {
       const { entries } = await call(`/api/studio/entries?space=${encodeURIComponent(id)}`);
       entries.sort((a, b) => (a.meta?.order ?? 1e9) - (b.meta?.order ?? 1e9) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
@@ -1713,11 +1745,12 @@
   });
 
   // A file for a version row: upload it and put its address in the row.
-  $('ed-version-file').addEventListener('change', async () => {
+  $('ed-version-file').addEventListener('change', () => {
     const file = $('ed-version-file').files[0];
     $('ed-version-file').value = '';
-    const row = versionTarget;
-    if (!file || !row) return;
+    if (file && versionTarget) uploadVersion(file, versionTarget);
+  });
+  async function uploadVersion(file, row) {
     try {
       if (!editor.entry) {
         if (!$('ed-title').value.trim()) $('ed-title').value = file.name.replace(/\.[^.]+$/, '');
@@ -1733,6 +1766,29 @@
       row.dispatchEvent(new Event('input')); // saves, and shows the player
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, 'err');
+    }
+  }
+  // Recordings and videos dropped on the box become new versions, one by one.
+  const mediaBox = $('ed-versions').closest('fieldset');
+  mediaBox.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer || ![...ev.dataTransfer.types].includes('Files')) return;
+    ev.preventDefault();
+    mediaBox.classList.add('over');
+  });
+  mediaBox.addEventListener('dragleave', (ev) => {
+    if (!mediaBox.contains(ev.relatedTarget)) mediaBox.classList.remove('over');
+  });
+  mediaBox.addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    mediaBox.classList.remove('over');
+    for (const file of ev.dataTransfer?.files ?? []) {
+      if (file.size > 25 * 1024 * 1024) {
+        status(`${file.name} גדול מ־25MB: מעלים לדרייב ומדביקים את הקישור`, 'err');
+        continue;
+      }
+      const row = versionRow();
+      $('ed-versions').append(row);
+      await uploadVersion(file, row);
     }
   });
 
@@ -2453,7 +2509,20 @@
     const yt = ytId(url);
     if (yt && /^[\w-]+$/.test(yt)) return frame(`https://www.youtube-nocookie.com/embed/${yt}`, false);
     const drive = drId(url);
-    if (drive && /^[\w-]+$/.test(drive)) return frame(`https://drive.google.com/file/d/${drive}/preview`, kind === 'audio');
+    if (drive && /^[\w-]+$/.test(drive)) {
+      const open = h('a', { className: 'media-open', href: `https://drive.google.com/file/d/${drive}/view`, target: '_blank', rel: 'noopener', textContent: 'פתיחה בדרייב ↗' });
+      if (kind !== 'audio' && kind !== 'video') return h('div', { className: 'player' }, frame(`https://drive.google.com/file/d/${drive}/preview`, false), open);
+      // The site's own player, through /media/drive; Drive's frame if Drive will not hand the file over.
+      const el = kind === 'audio'
+        ? h('audio', { controls: true, preload: 'metadata', src: `/media/drive/${drive}?k=audio` })
+        : h('video', { controls: true, preload: 'metadata', playsInline: true, poster: `https://drive.google.com/thumbnail?id=${drive}&sz=w1280`, src: `/media/drive/${drive}?k=video` });
+      const box = h('div', { className: `media${kind === 'audio' ? ' audio' : ''}` }, el);
+      el.addEventListener('error', () => {
+        box.classList.add('framed');
+        el.replaceWith(frame(`https://drive.google.com/file/d/${drive}/preview`, kind === 'audio').firstChild);
+      }, { once: true });
+      return h('div', { className: 'player' }, box, open);
+    }
     let k = kind;
     if (!k && /^\/files\/[a-z0-9-]+$/.test(url)) {
       const type = await fileType(url);
@@ -2870,6 +2939,74 @@
     $(barId).replaceChildren(toggle, count, all, go);
     set(false);
   }
+  // ---------- dropping files in: each one becomes a new draft ----------
+  function dropzone(zone, target) {
+    const input = zone.querySelector('input[type="file"]');
+    const list = zone.querySelector('.drop-list');
+    zone.querySelector('.pick-files').addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      const files = [...input.files];
+      input.value = '';
+      take(files);
+    });
+    zone.addEventListener('dragover', (ev) => {
+      if (!ev.dataTransfer || ![...ev.dataTransfer.types].includes('Files')) return;
+      ev.preventDefault();
+      zone.classList.add('over');
+    });
+    zone.addEventListener('dragleave', (ev) => {
+      if (!zone.contains(ev.relatedTarget)) zone.classList.remove('over');
+    });
+    zone.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      zone.classList.remove('over');
+      take([...(ev.dataTransfer?.files ?? [])]);
+    });
+    async function take(files) {
+      if (!files.length) return;
+      let made = 0;
+      for (const f of files) made += (await one(f)) ? 1 : 0;
+      if (made) target().done();
+    }
+    async function one(file) {
+      const state = h('span', { className: 'state', textContent: 'מעלה...' });
+      const li = h('li', {}, h('span', { className: 'name', dir: 'auto', textContent: file.name }), state);
+      list.prepend(li);
+      const fail = (text) => {
+        li.className = 'err';
+        state.textContent = text;
+        return false;
+      };
+      const type = file.type.split(';')[0];
+      const ok = /^(audio|video)\//.test(type) || type === 'application/pdf' || /^image\/(png|jpeg|webp|gif)$/.test(type) || projectKindOf(file.name);
+      if (!ok) return fail('סוג קובץ שהאתר לא מציג');
+      if (file.size > 25 * 1024 * 1024) return fail('גדול מ־25MB: מעלים לדרייב ומדביקים את הקישור');
+      const { spaceId, kind } = target();
+      try {
+        let entry = await send('/api/studio/entries', 'POST', { kind, spaceId, title: file.name.replace(/\.[^.]+$/, '').slice(0, 200), status: 'draft' });
+        const f = await upload(entry.id, file);
+        const meta = { ...entry.meta };
+        const alt = f.name.replace(/[\[\]]/g, '');
+        let body;
+        if (f.kind === 'audio' || f.kind === 'video') meta.versions = [{ label: f.kind === 'audio' ? 'הקלטה' : 'סרטון', url: f.url, kind: f.kind }];
+        else if (f.project) meta.projects = [{ label: f.name, url: f.url, kind: f.project, visibility: 'private' }];
+        else body = f.kind === 'image' ? `![${alt}](${f.url})\n` : `[${alt}](${f.url})\n`;
+        entry = await send(`/api/studio/entries/${entry.id}`, 'PATCH', { meta, ...(body ? { body } : {}) });
+        li.className = 'ok';
+        state.replaceChildren(h('a', { href: `#item/${entry.id}`, textContent: 'נשמר כטיוטה · פתיחה' }));
+        return true;
+      } catch (err) {
+        if (err instanceof AuthError) return false;
+        return fail(err.message);
+      }
+    }
+  }
+  dropzone($('w-drop'), () => ({ spaceId: wingView.filter ?? wingView.id, kind: $('w-kind').value === 'project' ? 'article' : $('w-kind').value, done: loadWingItems }));
+  dropzone($('s-drop'), () => {
+    const x = state.byId.get(spaceView.id);
+    return { spaceId: spaceView.id, kind: (WING_KINDS[x?.wing] ?? ['article'])[0], done: () => openSpace(spaceView.id) };
+  });
+
   pickBar('w-pickbar', 'w-items', () => wingView.filter ?? wingView.id, () => openWing(wingView.id));
   pickBar('s-pickbar', 's-items', () => spaceView.id, () => openSpace(spaceView.id));
 
