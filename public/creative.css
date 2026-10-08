@@ -285,14 +285,8 @@ body::after {
 .pulse .week span { transition: transform 0.3s var(--ease-spring); }
 .pulse .week span.on { box-shadow: 0 0 12px -2px var(--glow); }
 
-/* Ideas sit on the board like notes, a little crooked until you pick one up. */
-.idea { transition: transform 0.35s var(--ease-spring), box-shadow 0.3s, border-color 0.25s; }
-@media (min-width: 701px) {
-  .ideas > .idea:nth-child(3n + 1) { transform: rotate(-0.6deg); }
-  .ideas > .idea:nth-child(3n + 2) { transform: rotate(0.5deg); }
-  .ideas > .idea:nth-child(5n) { transform: rotate(-0.3deg); }
-  .ideas > .idea:hover, .ideas > .idea:focus-within, .ideas > .idea.open { transform: none; }
-}
+/* Ideas lift a little under the pointer. */
+.idea { transition: box-shadow 0.3s, border-color 0.25s; }
 .idea:hover { box-shadow: 0 18px 34px -22px var(--glow), inset 0 3px var(--accent); }
 .idea:not([data-wing]):hover { box-shadow: 0 18px 34px -22px rgb(0 0 0 / 0.9); }
 .idea.pinned { box-shadow: 0 0 0 1px var(--accent), 0 14px 30px -20px var(--glow); }

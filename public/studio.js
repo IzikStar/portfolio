@@ -266,7 +266,8 @@
   const WING_IDS = Object.keys(WING_NAME);
   const DAY = 86_400_000;
   const SAVED = ['נשמר.', 'נכנס למחברת.', 'תפוס.', 'רשום.'];
-  const ideasView = { list: [], sparks: null, wing: '', tag: '', spark: null, oldId: null, pending: null, answering: '', scope: '' };
+  // open: the ideas unfolded on this visit. Every card starts folded.
+  const ideasView = { list: [], sparks: null, wing: '', tag: '', spark: null, oldId: null, pending: null, answering: '', scope: '', open: new Set() };
   const shortDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short' });
   const longDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric' });
   const when = (iso) => (new Date(iso).getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(new Date(iso));
@@ -448,6 +449,19 @@
     const wing = idea.meta.wing;
     const node = h('article', { className: `idea${idea.pinned ? ' pinned' : ''}` });
     if (wing) node.dataset.wing = wing;
+    // Folded, a card shows its title, a few lines and what is inside it;
+    // a click on it unfolds the rest.
+    const unfold = (on) => {
+      node.classList.toggle('folded', !on);
+      toggle.textContent = on ? 'קיפול' : 'פתיחה';
+      toggle.setAttribute('aria-expanded', String(on));
+      if (on) ideasView.open.add(idea.id);
+      else ideasView.open.delete(idea.id);
+    };
+    const toggle = h('button', { className: 'quiet fold-toggle', type: 'button', onclick: () => unfold(node.classList.contains('folded')) });
+    node.addEventListener('click', (e) => {
+      if (node.classList.contains('folded') && !e.target.closest('a, button, select, input, textarea, audio, video, summary')) unfold(true);
+    });
     const msg = h('small', { className: 'msg' });
     const panel = h('div', { className: 'panel' });
     const act = (label, fn, cls = '') => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn });
@@ -521,6 +535,7 @@
     };
 
     const edit = () => {
+      unfold(true);
       const area = h('textarea', { value: idea.body, dir: 'auto', ariaLabel: 'הרעיון' });
       const tagInput = h('input', { type: 'text', value: idea.tags.join(', '), dir: 'auto', placeholder: 'תגיות, מופרדות בפסיק', ariaLabel: 'תגיות' });
       const fileInput = h('input', { type: 'file', accept: 'image/*,audio/*,video/*,application/pdf,.cpr,.bak,.zip', hidden: true });
@@ -649,16 +664,17 @@
       : null;
 
     const notes = idea.meta.notes ?? [];
+    const holds = [
+      idea.files.length ? (idea.files.length === 1 ? 'קובץ' : `${idea.files.length} קבצים`) : '',
+      notes.length ? (notes.length === 1 ? 'מחשבה' : `${notes.length} מחשבות`) : '',
+      saved.length ? (saved.length === 1 ? 'תשובה מהעוזר' : `${saved.length} תשובות מהעוזר`) : '',
+    ].filter(Boolean);
     node.append(
       ...[
-        h('div', { className: 'idea-top' }, wingPick, wing && !ideasView.scope ? h('a', { className: 'to-notebook', href: `#ideas/${wing}`, textContent: 'למחברת ←' }) : null, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet', type: 'button', textContent: 'עריכה', onclick: edit })),
+        h('div', { className: 'idea-top' }, wingPick, wing && !ideasView.scope ? h('a', { className: 'to-notebook', href: `#ideas/${wing}`, textContent: 'למחברת ←' }) : null, h('time', { dateTime: idea.createdAt, textContent: when(idea.createdAt) }), pin, h('button', { className: 'quiet edit', type: 'button', textContent: 'עריכה', onclick: edit })),
         idea.title ? h('h3', { dir: 'auto', textContent: idea.title }) : null,
         weekly,
         idea.body.trim() ? h('div', { className: 'text', dir: 'auto', textContent: idea.body }) : null,
-        idea.body.length > 500 ? h('button', { className: 'quiet more', type: 'button', textContent: 'להמשיך לקרוא', onclick: (e) => {
-          node.classList.add('open');
-          e.target.remove();
-        } }) : null,
         idea.files.length ? h('div', { className: 'files' }, ...idea.files.map(fileView)) : null,
         idea.meta.spark ? h('p', { className: 'from-spark', dir: 'auto', textContent: `מתוך ניצוץ: ${idea.meta.spark}` }) : null,
         was,
@@ -668,8 +684,10 @@
         h('div', { className: 'actions' }, act('עוד מחשבה', addNote), act('עוזר כתיבה', muse), act('לפתח לטיוטה', grow)),
         panel,
         msg,
+        h('div', { className: 'idea-foot' }, holds.length ? h('span', { className: 'holds', textContent: holds.join(' · ') }) : null, toggle),
       ].filter(Boolean),
     );
+    unfold(ideasView.open.has(idea.id));
     return node;
   }
 
