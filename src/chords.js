@@ -69,3 +69,17 @@ export function hasChords(source) {
   const text = String(source ?? '');
   return /\[[A-H][^\]]{0,12}\]/.test(text) || text.split('\n').some((l) => l.trim() && isChordLine(l));
 }
+
+// Lyrics and chords filed under another kind (a sketch with a song in it):
+// most of it reads as a sheet when at least two lines carry chords and they
+// are a good share of the text.
+export function isSheet(source) {
+  const lines = String(source ?? '').split('\n').filter((l) => l.trim());
+  const withChords = lines.filter((l) => isChordLine(l) || /\[[A-H][^\]]{0,12}\]/.test(l)).length;
+  return withChords >= 2 && withChords >= lines.length * 0.25;
+}
+
+// Hebrew text reads right to left even when a line opens with a Latin chord.
+export function textDir(source) {
+  return /[\u0590-\u05FF]/.test(String(source ?? '')) ? 'rtl' : 'auto';
+}
