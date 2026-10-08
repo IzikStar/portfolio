@@ -106,6 +106,35 @@
     true,
   );
 
+  // ---------- reading progress and scroll reveals ----------
+  const bar = document.querySelector('.progress');
+  if (bar) {
+    let ticking = false;
+    const paint = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      bar.style.setProperty('--p', max > 0 ? Math.min(1, scrollY / max).toFixed(4) : 0);
+      ticking = false;
+    };
+    addEventListener('scroll', () => ticking || (ticking = requestAnimationFrame(paint)), { passive: true });
+    paint();
+  }
+  const reveal = [...document.querySelectorAll('[data-reveal]')];
+  if (document.documentElement.classList.contains('js') && reveal.length) {
+    const ro = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          if (!en.isIntersecting) continue;
+          en.target.classList.add('in');
+          ro.unobserve(en.target);
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
+    );
+    reveal.forEach((el) => ro.observe(el));
+    // Printing shows everything, seen or not.
+    addEventListener('beforeprint', () => reveal.forEach((el) => el.classList.add('in')));
+  }
+
   // ---------- the section in view, marked in the top bar ----------
   const links = new Map([...document.querySelectorAll('.bar nav a')].map((a) => [a.getAttribute('href').slice(1), a]));
   if ('IntersectionObserver' in window && links.size) {
