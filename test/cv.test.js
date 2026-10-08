@@ -50,7 +50,7 @@ const studioCv = async (o) => (await call(o, '/api/studio/cv')).json();
 const saveCv = (o, cv) => call(o, '/api/studio/cv', 'PUT', { cv });
 
 describe('the CV page', () => {
-  it('says by default what it said before it became editable', async () => {
+  it('says what the defaults say until the owner edits it', async () => {
     const res = await req('/cv');
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toMatch(/text\/html/);
@@ -58,7 +58,7 @@ describe('the CV page', () => {
     expect(html).toContain('<html lang="he" dir="rtl">');
     expect(html).toContain('<h1>יצחק שטרן</h1>');
     expect(html).toContain('פנוי לעבודה מדצמבר 2026');
-    expect(html).toContain('תשתית רגרסיה שמאמתת כ־120,000 מקרים הנדסיים');
+    expect(html).toContain('תשתית רגרסיה שבודקת כ־120,000 מקרים הנדסיים');
     // The projects that were written into the old page, until they are imported.
     expect(html).toContain('טובים');
     expect(html).toContain('https://github.com/IzikStar/izik-star-chess-engine');
