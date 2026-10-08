@@ -21,7 +21,7 @@ import { access, listSpaces, studioSpaces, createSpace, updateSpace, deleteSpace
 import { requestJoin, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
 import { postComment, deleteComment, studioComments, setCommentStatus } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
-import { uploadFile, listFiles, deleteFile, serveFile } from './files.js';
+import { uploadFile, putFile, listFiles, deleteFile, serveFile } from './files.js';
 import { streamDrive } from './drive-stream.js';
 import { cvPage, studioCv, saveCv, previewCv, importLegacyOnce } from './cv.js';
 import { moveEntries } from './moves.js';
@@ -233,6 +233,7 @@ async function studio(request, env, url) {
   if (path === '/api/studio/cv' && method === 'PUT') return saveCv(request, env);
   if (path === '/api/studio/cv/preview' && method === 'POST') return previewCv(request, env);
   if (path === '/api/studio/files' && method === 'POST') return uploadFile(request, env);
+  if (path === '/api/studio/files' && method === 'PUT') return putFile(request, env, url);
   const fm = path.match(/^\/api\/studio\/files\/([a-z0-9-]+)$/);
   if (fm && method === 'DELETE') return deleteFile(env, fm[1]);
   const lf = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/files$/);

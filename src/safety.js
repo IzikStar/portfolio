@@ -14,6 +14,7 @@ import { db, WINGS } from './db.js';
 import { HttpError, json } from './http.js';
 import { fromRow } from './entries.js';
 import { dropMentions } from './mentions.js';
+import { getBlob, deleteBlob } from './blobs.js';
 
 export const REVISION_GAP_MS = 10 * 60_000;
 export const MAX_REVISIONS = 100;
@@ -164,7 +165,7 @@ export async function restoreTrash(env, id) {
 async function purge(env, d, rows) {
   for (const t of rows) {
     const { files = [] } = JSON.parse(t.data);
-    await Promise.all(files.map((f) => env.MEDIA.delete(`blob:${f.id}`)));
+    await Promise.all(files.map((f) => deleteBlob(env, f.id)));
     await d.batch([d.prepare('DELETE FROM trash WHERE id = ?').bind(t.id), d.prepare('DELETE FROM revisions WHERE entry_id = ?').bind(t.id)]);
   }
   return rows.length;
@@ -274,7 +275,7 @@ export async function exportAll(env) {
       skipped.push(f);
       continue;
     }
-    const value = await env.MEDIA?.get(`blob:${f.id}`, 'arrayBuffer');
+    const value = env.MEDIA ? await getBlob(env, f.id) : null;
     if (!value) {
       skipped.push(f);
       continue;

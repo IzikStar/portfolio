@@ -88,7 +88,7 @@ describe('entry files', () => {
     const e = await entry(o, {});
     expect((await upload(o, e.id, { type: 'text/html', name: 'x.html' })).status).toBe(400);
     expect((await upload(o, e.id, { type: 'image/svg+xml', name: 'x.svg' })).status).toBe(400);
-    expect((await upload(o, e.id, { size: 25 * 1024 * 1024 + 1 })).status).toBe(413);
+    expect((await upload(o, e.id, { size: 95 * 1024 * 1024 + 1 })).status).toBe(413);
     expect((await upload(o, 'no-such-entry')).status).toBe(400);
     expect((await upload('admin_session=nope', e.id)).status).toBe(401);
   });

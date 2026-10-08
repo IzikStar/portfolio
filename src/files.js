@@ -1,13 +1,13 @@
 // Files attached to entries: images in articles, a project's picture, audio,
-// video or PDFs. Bytes live in KV ("blob:<id>", 25 MB per value); the files
-// table says which entry owns each one, and a file is visible to exactly the
-// people who may see its entry.
+// video or PDFs. Bytes live in KV (src/blobs.js, in pieces past 20 MB); the
+// files table says which entry owns each one, and a file is visible to
+// exactly the people who may see its entry.
 import { db } from './db.js';
 import { HttpError, json } from './http.js';
 import { getEntry } from './entries.js';
 import { canSee, isPublicEntry } from './spaces.js';
 import { MAX_FILE_BYTES, fileKind, downloadKind, DOWNLOAD_TYPE } from './limits.js';
-import { serveBytes } from './bytes.js';
+import { putBlob, deleteBlob, serveBlob } from './blobs.js';
 import { projectList, mayDownload } from './project-files.js';
 
 // What the studio calls a file: a media kind, or 'download' for project files.
@@ -17,22 +17,48 @@ export async function uploadFile(request, env) {
   const form = await request.formData();
   const file = form.get('file');
   const entryId = String(form.get('entryId') ?? '');
+  if (!(file instanceof File)) throw new HttpError(400, 'Choose a file.');
   checkFile(file);
   if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
   return json(await attachFile(env, entryId, file), 201);
 }
 
-// Throws unless `file` is something we can store and serve; says how we store it.
+// The studio's upload: the file itself is the request body (no form), so a
+// big video streams into KV a piece at a time instead of sitting in memory.
+// PUT /api/studio/files?entryId=...&name=..., Content-Type: the file's type.
+export async function putFile(request, env, url) {
+  const entryId = url.searchParams.get('entryId') ?? '';
+  const name = String(url.searchParams.get('name') || 'file').slice(0, 200);
+  const size = Number(request.headers.get('Content-Length') ?? NaN);
+  const { type, download } = checkFile({ name, type: request.headers.get('Content-Type') ?? '', size: Number.isFinite(size) ? size : 1 });
+  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  if (!request.body) throw new HttpError(400, 'Choose a file.');
+  const id = crypto.randomUUID();
+  let stored;
+  try {
+    stored = await putBlob(env, id, request.body, type, MAX_FILE_BYTES);
+  } catch (err) {
+    if (err instanceof RangeError) throw new HttpError(413, TOO_BIG);
+    throw err;
+  }
+  if (!stored) throw new HttpError(400, 'Choose a file.');
+  return json(await addRow(env, { id, entryId, name, type, size: stored, download }), 201);
+}
+
+const TOO_BIG = `The file is over ${MAX_FILE_BYTES / 1024 / 1024} MB. Upload it to Drive or YouTube and paste the link instead.`;
+
+// Throws unless `file` ({ name, type, size }) is something we can store and
+// serve; says how we store it.
 export function checkFile(file) {
-  if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Choose a file.');
+  if (!file || !(file.size > 0)) throw new HttpError(400, 'Choose a file.');
   // A recorder's type can carry a codec ("audio/webm;codecs=opus"); keep the plain type.
-  const plain = file.type.split(';')[0].trim();
+  const plain = String(file.type ?? '').split(';')[0].trim().toLowerCase();
   // Cubase projects and archives are kept by name as opaque bytes, whatever
   // type the browser guessed; everything else must be a type we show safely.
   const download = !fileKind(plain) && downloadKind(file.name);
   const type = download ? DOWNLOAD_TYPE : plain;
   if (!fileKind(type) && !download) throw new HttpError(400, 'Unsupported file type. Use an image (PNG, JPG, WebP, GIF), audio, video, PDF, or a Cubase project (.cpr, .bak, .zip).');
-  if (file.size > MAX_FILE_BYTES) throw new HttpError(413, 'The file is over 25 MB. Upload it to YouTube or Drive and link to it instead.');
+  if (file.size > MAX_FILE_BYTES) throw new HttpError(413, TOO_BIG);
   return { type, download };
 }
 
@@ -41,13 +67,17 @@ export async function attachFile(env, entryId, file) {
   const { type, download } = checkFile(file);
   const id = crypto.randomUUID();
   const name = String(file.name || 'file').slice(0, 200);
-  await env.MEDIA.put(`blob:${id}`, await file.arrayBuffer(), { metadata: { type } });
+  await putBlob(env, id, await file.arrayBuffer(), type);
+  return addRow(env, { id, entryId, name, type, size: file.size, download });
+}
+
+async function addRow(env, { id, entryId, name, type, size, download }) {
   const d = await db(env);
   await d
     .prepare('INSERT INTO files (id, entry_id, name, type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, entryId, name, type, file.size, new Date().toISOString())
+    .bind(id, entryId, name, type, size, new Date().toISOString())
     .run();
-  return { ...fileInfo({ id, name, type, size: file.size }), ...(download ? { project: download } : {}) };
+  return { ...fileInfo({ id, name, type, size }), ...(download ? { project: download } : {}) };
 }
 
 export const fileInfo = (f) => ({ id: f.id, url: `/files/${f.id}`, name: f.name, type: f.type, kind: kindOf(f.type), size: f.size });
@@ -62,7 +92,7 @@ export async function deleteFile(env, id) {
   const d = await db(env);
   const { meta } = await d.prepare('DELETE FROM files WHERE id = ?').bind(id).run();
   if (!meta.changes) throw new HttpError(404, 'That file no longer exists.');
-  await env.MEDIA.delete(`blob:${id}`);
+  await deleteBlob(env, id);
   return json({ ok: true });
 }
 
@@ -80,12 +110,11 @@ export async function serveFile(request, env, acc, id) {
     const p = projectList(entry).find((x) => x.url === `/files/${id}`);
     if (!p || !mayDownload(acc, entry, p)) return null;
   }
-  const { value } = await env.MEDIA.getWithMetadata(`blob:${id}`, 'arrayBuffer');
-  if (!value) return null;
   const isPublic = isPublicEntry(acc, entry);
   // Public files can sit in any cache; the rest stay private to the viewer.
   const cache = isPublic ? 'public, max-age=86400' : 'private, max-age=300';
-  const res = serveBytes(request, value, download ? DOWNLOAD_TYPE : row.type, download ? 'private, max-age=300' : cache);
+  const res = await serveBlob(request, env, id, download ? DOWNLOAD_TYPE : row.type, download ? 'private, max-age=300' : cache);
+  if (!res) return null;
   res.headers.set('Vary', 'Cookie');
   if (download) res.headers.set('Content-Disposition', `attachment; filename="${asciiName(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`);
   return res;
