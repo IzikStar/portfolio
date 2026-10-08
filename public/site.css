@@ -337,3 +337,6 @@ button.link:hover { color: var(--ink); }
 .post-form textarea { width: 100%; resize: vertical; line-height: 1.6; }
 .post-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .post-edit { padding: 22px; border-radius: 18px; background: var(--raised); }
+
+/* English titles on a Hebrew page still line up on the right. */
+[dir='rtl'] :is(h1, h2, h3, h4, .title, .who)[dir='auto'] { text-align: right; }

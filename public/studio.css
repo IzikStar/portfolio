@@ -345,3 +345,6 @@ details.box.batch > summary { font-family: var(--display); font-size: 22px; }
   .rows-table a.title { font-size: 17px; }
   .history-dialog, .move-dialog { padding: 18px; }
 }
+
+/* English titles on a Hebrew page still line up on the right. */
+[dir='rtl'] :is(h1, h2, h3, h4, .title, .who)[dir='auto'] { text-align: right; }

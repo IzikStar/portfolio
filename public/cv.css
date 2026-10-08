@@ -369,3 +369,6 @@ section.block { padding-block: clamp(2.75rem, 7vw, 4.5rem); border-top: 1px soli
   .contact .email.big { font-size: 12pt; }
   .foot { display: none; }
 }
+
+/* English titles on a Hebrew page still line up on the right. */
+[dir='rtl'] :is(h1, h2, h3, h4, .title, .who)[dir='auto'] { text-align: right; }
