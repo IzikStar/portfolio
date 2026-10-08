@@ -20,7 +20,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
     about: 'הטקסט, ציר הזמן והכלים.',
     contact: 'המייל והקישורים בסוף העמוד, וגם בכרטיס שלמעלה.',
   };
-  const ST = { cv: null, defaults: null, entries: [], byId: new Map(), seeded: false, dirty: false, lang: 'he', width: 'desk', built: false, open: new Set() };
+  const ST = { cv: null, defaults: null, entries: [], byId: new Map(), dirty: false, lang: 'he', width: 'desk', built: false, open: new Set() };
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const fmtTime = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit' });
 
@@ -207,18 +207,7 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
     ];
     if (s.id === 'code') {
       parts.push(h('h4', { textContent: 'פרויקטים' }), h('p', { className: 'hint', textContent: PICK_HINT }));
-      if (ST.seeded) {
-        parts.push(
-          h(
-            'div',
-            { className: 'cvs-note' },
-            h('p', { textContent: 'הפרויקטים עוד לא בסטודיו, אז העמוד מציג את הרשימה שהייתה כתובה בו. אחרי הייבוא תוכל לבחור ולסדר אותם כאן, ולערוך כל אחד באגף התוכנה.' }),
-            small('ייבוא הפרויקטים לסטודיו', '', importProjects, 'primary'),
-          ),
-        );
-      } else {
-        parts.push(picker(cv.projects, (e) => e.kind === 'project' || e.kind === 'work', 'software'));
-      }
+      parts.push(picker(cv.projects, (e) => e.kind === 'project' || e.kind === 'work', 'software'));
     } else if (HOME_WING[s.id]) {
       parts.push(h('h4', { textContent: 'מה מופיע כאן' }), h('p', { className: 'hint', textContent: PICK_HINT }));
       cv.items[s.id] ??= [];
@@ -336,7 +325,6 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
     ST.defaults = data.defaults;
     ST.entries = data.entries;
     ST.byId = new Map(data.entries.map((e) => [e.id, e]));
-    ST.seeded = data.seeded;
   }
 
   async function open() {
@@ -362,22 +350,6 @@ window.studioCv = ({ call, send, h, AuthError, wingOf }) => {
       buildForm();
       ST.dirty = false;
       status(`נשמר ${fmtTime.format(new Date())}`);
-      preview.now();
-    } catch (err) {
-      if (!(err instanceof AuthError)) status(err.message, true);
-    }
-  }
-
-  async function importProjects() {
-    status('מייבא...');
-    try {
-      await send('/api/studio/import-cv', 'POST');
-      const keep = ST.dirty ? ST.cv : null;
-      take(await call('/api/studio/cv'));
-      // Keep what was typed but not saved yet; the project list comes from the import.
-      if (keep) ST.cv = { ...keep, projects: ST.cv.projects };
-      buildForm();
-      status(ST.dirty ? 'הפרויקטים יובאו. יש שינויים שלא נשמרו' : 'הפרויקטים יובאו');
       preview.now();
     } catch (err) {
       if (!(err instanceof AuthError)) status(err.message, true);
