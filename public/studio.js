@@ -910,7 +910,7 @@
 
   // Voice memo: tap to record, tap again and it is saved (with any text typed).
   const rec = { mr: null, timer: 0, t0: 0 };
-  const REC_MAX_MS = 30 * 60 * 1000; // about 15 MB at 64 kbps, well under the 25 MB cap
+  const REC_MAX_MS = 30 * 60 * 1000; // about 15 MB at 64 kbps, well under the upload cap
   const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
   function recUi(on) {
     pressed($('rec'), on).classList.toggle('recording', on);
@@ -1713,12 +1713,40 @@
   });
 
   // ---------- files ----------
-  async function upload(entryId, file) {
-    const form = new FormData();
-    form.set('entryId', entryId);
-    form.set('file', file);
-    return call('/api/studio/files', { method: 'POST', body: form });
+  // The file goes up as the request body itself, so a big video streams
+  // into storage (src/blobs.js). onProgress gets 0..1 as it goes.
+  const MAX_UPLOAD = 95 * 1024 * 1024;
+  const TYPE_BY_EXT = { mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/mp4', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+  const typeOf = (file) => file.type || TYPE_BY_EXT[/\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase()] || 'application/octet-stream';
+  function upload(entryId, file, onProgress = () => {}) {
+    if (file.size > MAX_UPLOAD) return Promise.reject(new Error(`${file.name} גדול מ־95MB. מעלים אותו לדרייב ומדביקים כאן את הקישור.`));
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('PUT', `/api/studio/files?entryId=${encodeURIComponent(entryId)}&name=${encodeURIComponent(file.name)}`);
+      x.setRequestHeader('Content-Type', typeOf(file));
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+      x.onerror = () => reject(new Error(`ההעלאה של ${file.name} נקטעה. בודקים את החיבור ומנסים שוב.`));
+      x.onload = () => {
+        let data = {};
+        try {
+          data = JSON.parse(x.responseText);
+        } catch {
+          // no body
+        }
+        if (x.status === 401) {
+          showLogin('הכניסה פגה. צריך להיכנס שוב.');
+          return reject(new AuthError());
+        }
+        if (x.status === 413) return reject(new Error(`${file.name} גדול מ־95MB. מעלים אותו לדרייב ומדביקים כאן את הקישור.`));
+        if (x.status === 400 && /Unsupported/.test(data.error ?? '')) return reject(new Error(`את ${file.name} אי אפשר להעלות: רק תמונה, שמע, וידאו, PDF או פרויקט קיובייס.`));
+        if (x.status < 200 || x.status >= 300) return reject(new Error(data.error || `שגיאה ${x.status}`));
+        onProgress(1);
+        resolve(data);
+      };
+      x.send(file);
+    });
   }
+
 
   $('ed-upload').addEventListener('click', () => $('ed-file').click());
   $('ed-file').addEventListener('change', async () => {
@@ -1733,7 +1761,7 @@
         await save();
       }
       status(`מעלה ${file.name}...`);
-      const f = await upload(editor.entry.id, file);
+      const f = await upload(editor.entry.id, file, (p) => status(`מעלה ${file.name}... ${Math.round(p * 100)}%`));
       const alt = f.name.replace(/[\[\]]/g, '');
       const snippet = f.kind === 'image' ? `![${alt}](${f.url})` : `[${alt}](${f.url})`;
       const ta = $('ed-body');
@@ -1758,7 +1786,7 @@
         await save();
       }
       status(`מעלה ${file.name}...`);
-      const f = await upload(editor.entry.id, file);
+      const f = await upload(editor.entry.id, file, (p) => status(`מעלה ${file.name}... ${Math.round(p * 100)}%`));
       row.querySelector('[data-f="url"]').value = f.url;
       const label = row.querySelector('[data-f="label"]');
       if (!label.value) label.value = f.name.replace(/\.[^.]+$/, '');
@@ -1782,8 +1810,8 @@
     ev.preventDefault();
     mediaBox.classList.remove('over');
     for (const file of ev.dataTransfer?.files ?? []) {
-      if (file.size > 25 * 1024 * 1024) {
-        status(`${file.name} גדול מ־25MB: מעלים לדרייב ומדביקים את הקישור`, 'err');
+      if (file.size > MAX_UPLOAD) {
+        status(`${file.name} גדול מ־95MB: מעלים לדרייב ומדביקים את הקישור`, 'err');
         continue;
       }
       const row = versionRow();
@@ -2654,7 +2682,7 @@
     $('ed-project-file').value = '';
     const row = projectTarget;
     if (!file || !row) return;
-    if (file.size > 25 * 1024 * 1024) return void status('הקובץ גדול מ־25MB. מעלים אותו לדרייב ומדביקים כאן את הקישור.', 'err');
+    if (file.size > MAX_UPLOAD) return void status('הקובץ גדול מ־95MB. מעלים אותו לדרייב ומדביקים כאן את הקישור.', 'err');
     try {
       if (!editor.entry) {
         if (!$('ed-title').value.trim()) $('ed-title').value = file.name.replace(/\.[^.]+$/, '');
@@ -2662,7 +2690,7 @@
         await save();
       }
       status(`מעלה ${file.name}...`);
-      const f = await upload(editor.entry.id, file);
+      const f = await upload(editor.entry.id, file, (p) => status(`מעלה ${file.name}... ${Math.round(p * 100)}%`));
       row.querySelector('[data-f="url"]').value = f.url;
       const label = row.querySelector('[data-f="label"]');
       if (!label.value) label.value = f.name.replace(/\.[^.]+$/, '');
@@ -2980,11 +3008,13 @@
       const type = file.type.split(';')[0];
       const ok = /^(audio|video)\//.test(type) || type === 'application/pdf' || /^image\/(png|jpeg|webp|gif)$/.test(type) || projectKindOf(file.name);
       if (!ok) return fail('סוג קובץ שהאתר לא מציג');
-      if (file.size > 25 * 1024 * 1024) return fail('גדול מ־25MB: מעלים לדרייב ומדביקים את הקישור');
+      if (file.size > MAX_UPLOAD) return fail('גדול מ־95MB: מעלים לדרייב ומדביקים את הקישור');
       const { spaceId, kind } = target();
       try {
         let entry = await send('/api/studio/entries', 'POST', { kind, spaceId, title: file.name.replace(/\.[^.]+$/, '').slice(0, 200), status: 'draft' });
-        const f = await upload(entry.id, file);
+        const f = await upload(entry.id, file, (p) => {
+          state.textContent = `מעלה... ${Math.round(p * 100)}%`;
+        });
         const meta = { ...entry.meta };
         const alt = f.name.replace(/[\[\]]/g, '');
         let body;

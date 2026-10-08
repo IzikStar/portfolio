@@ -256,10 +256,10 @@ describe('download-only file types', () => {
     expect((await req(png.url, { headers: { Cookie: o } })).headers.get('Content-Disposition')).toBe('inline');
   });
 
-  it('keeps the 25 MB cap for project files', async () => {
+  it('keeps the 95 MB cap for project files', async () => {
     const o = await owner();
     const x = await entry(o, { kind: 'song', title: 'Song' });
-    expect((await upload(o, x.id, { name: 'big.cpr', size: 25 * 1024 * 1024 + 1 })).status).toBe(413);
+    expect((await upload(o, x.id, { name: 'big.cpr', size: 95 * 1024 * 1024 + 1 })).status).toBe(413);
   });
 });
 
