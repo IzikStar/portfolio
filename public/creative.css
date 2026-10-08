@@ -1,7 +1,7 @@
 /* The creative layer: loaded after site.css (and studio.css in the studio).
    It keeps the site's tokens, fonts and wing colors and adds texture, light
    and motion: grain on the ground, the eight wing colors glowing behind the
-   home page, a pattern per wing in its header band, books with a spine,
+   home page, the wing's icon large in its header band, books as objects,
    ideas as notes on a board. Everything that moves stops under
    prefers-reduced-motion, and nothing here hides or reorders content. */
 
@@ -98,6 +98,10 @@ body::after {
 @keyframes ink-sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
 .kicker { display: inline-flex; align-items: center; gap: 10px; }
 .kicker::before { content: ''; width: 28px; height: 2px; border-radius: 2px; background: currentColor; }
+/* Each craft above the greeting in its own wing's color. */
+.kicker [data-wing] { color: var(--accent); text-decoration: none; }
+.kicker a[data-wing]:hover { text-decoration: underline; text-underline-offset: 5px; }
+.kicker [aria-hidden] { color: var(--muted); }
 .hero aside a { transition: color 0.2s, transform 0.2s var(--ease-out); }
 .hero aside a:hover { color: var(--accent); transform: translateX(-4px); }
 
@@ -149,35 +153,16 @@ body::after {
   background: radial-gradient(circle, var(--glow), transparent 70%); pointer-events: none;
 }
 
-/* ---------- a wing's header band: light, grain and a pattern of its own ---------- */
+/* ---------- a wing's header band: flat color, the wing's icon huge and quiet ---------- */
 .band { position: relative; isolation: isolate; overflow: hidden; }
-.band::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    radial-gradient(70% 120% at 100% 0%, rgb(255 255 255 / 0.32), transparent 60%),
-    var(--band-pattern, none),
-    var(--grain);
-  background-size: 100% 100%, var(--band-size, auto), 160px;
-  mix-blend-mode: soft-light; opacity: 0.9;
-}
-.band::after {
-  content: ''; position: absolute; z-index: -1; width: 46vmax; height: 46vmax; inset-inline-start: -14vmax; bottom: -30vmax;
-  border-radius: 50%; border: 3vmax solid currentColor; opacity: 0.07; pointer-events: none;
-  animation: slow-turn 60s linear infinite;
-}
-@keyframes slow-turn { to { transform: rotate(360deg); } }
-.band h1 { letter-spacing: -0.01em; }
+.band .wrap { padding-block: clamp(56px, 9vw, 104px) 0; }
+.band h1 { font-size: clamp(64px, 12vw, 176px); line-height: 0.88; letter-spacing: -0.03em; }
+/* The icon bleeds off the far edge, behind the title. */
+.band-mark { position: absolute; z-index: -1; inset-inline-end: -60px; top: 50%; translate: 0 -50%; opacity: 0.13; pointer-events: none; }
+.band-mark svg { width: clamp(260px, 36vw, 520px); height: auto; stroke-width: 1.1; }
 .band nav a { transition: background-color 0.2s; }
 .band nav a:not([aria-current='page']):hover { background: rgb(0 0 0 / 0.1); }
-/* Staff lines for music, ruled paper for books, a dot grid for code and so on. */
-[data-wing='music'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 9px, rgb(0 0 0 / 0.4) 9px 10px, transparent 10px 19px, rgb(0 0 0 / 0.4) 19px 20px, transparent 20px 29px, rgb(0 0 0 / 0.4) 29px 30px, transparent 30px 39px, rgb(0 0 0 / 0.4) 39px 40px, transparent 40px 49px, rgb(0 0 0 / 0.4) 49px 50px, transparent 50px 96px); }
-[data-wing='books'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 31px, rgb(0 0 0 / 0.3) 31px 32px); }
-[data-wing='sketches'] .band { --band-pattern: radial-gradient(circle, rgb(0 0 0 / 0.35) 2px, transparent 3px); --band-size: 22px 22px; }
-[data-wing='humor'] .band { --band-pattern: repeating-linear-gradient(-45deg, transparent 0 18px, rgb(0 0 0 / 0.22) 18px 20px); }
-[data-wing='torah'] .band { --band-pattern: repeating-linear-gradient(90deg, transparent 0 46px, rgb(0 0 0 / 0.25) 46px 47px); }
-[data-wing='articles'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 27px, rgb(0 0 0 / 0.22) 27px 28px); }
-[data-wing='software'] .band { --band-pattern: radial-gradient(circle, rgb(0 0 0 / 0.4) 1.4px, transparent 2px); --band-size: 18px 18px; }
-[data-wing='videos'] .band { --band-pattern: repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.2) 3px 4px); }
+@media (max-width: 560px) { .band-mark { inset-inline-end: -90px; opacity: 0.1; } .cover { transform: none; } }
 
 /* ---------- cards ---------- */
 .card {
@@ -196,16 +181,27 @@ body::after {
 .card:hover img { transform: scale(1.03); }
 
 /* Books get a spine and a page edge. */
-.card.book, .cover { position: relative; box-shadow: inset 14px 0 18px -10px rgb(0 0 0 / 0.35), 0 16px 30px -18px rgb(0 0 0 / 0.8); }
+.card.book { position: relative; box-shadow: inset 14px 0 18px -10px rgb(0 0 0 / 0.35), 0 16px 30px -18px rgb(0 0 0 / 0.8); }
 .card.book::before { display: none; }
-.card.book::after, .cover::after {
+.card.book::after {
   content: ''; position: absolute; inset-block: 0; inset-inline-end: 10px; width: 3px; pointer-events: none;
   background: linear-gradient(to right, rgb(0 0 0 / 0.18), rgb(255 255 255 / 0.25), rgb(0 0 0 / 0.12));
 }
 .card.book:hover { transform: perspective(800px) translateY(-4px) rotateY(8deg); transform-origin: left; border-color: transparent; }
 .card.book:hover .title { color: inherit; }
-.cover { transform-origin: left; transform: perspective(900px) rotateY(7deg); transition: transform 0.5s var(--ease-out); }
-.cover:hover { transform: perspective(900px) rotateY(0); }
+/* A book's own page: the cover as an object, with a spine, light from above and a real shadow. */
+.cover {
+  position: relative; border-radius: 6px 22px 22px 6px; padding: 30px 30px 30px 40px;
+  background:
+    linear-gradient(to left, transparent calc(100% - 18px), rgb(0 0 0 / 0.18) calc(100% - 18px), rgb(255 255 255 / 0.12) calc(100% - 15px), transparent calc(100% - 10px)),
+    radial-gradient(120% 70% at 70% 0%, rgb(255 255 255 / 0.22), transparent 60%),
+    var(--accent);
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(0 0 0 / 0.1);
+  transform: perspective(900px) rotateY(-8deg); transform-origin: right; transition: transform 0.9s var(--ease-out);
+}
+.cover:hover { transform: perspective(900px) rotateY(0deg); }
+.cover .t { font-size: clamp(38px, 4vw, 52px); line-height: 0.95; letter-spacing: -0.01em; }
+.book-head h1 { font-size: clamp(56px, 9vw, 128px); line-height: 0.9; letter-spacing: -0.02em; }
 
 /* ---------- reading ---------- */
 .paper { position: relative; box-shadow: 0 1px 0 rgb(255 255 255 / 0.4) inset, 0 30px 60px -30px rgb(0 0 0 / 0.9); }
