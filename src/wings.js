@@ -14,7 +14,7 @@ import { card, getEntry, listFeed, listInSpace } from './entries.js';
 import { entryFilter, canSee, inAny } from './spaces.js';
 import { outsideOf, knows, pathOf } from './communities.js';
 import { projectView } from './projects.js';
-import { renderChords, hasChords } from './chords.js';
+import { renderChords, hasChords, isSheet, textDir } from './chords.js';
 import { mediaEmbed } from './media.js';
 import { commentsBlock, commentsOf, canComment } from './comments.js';
 import { projectFilesBlock } from './project-files.js';
@@ -108,7 +108,7 @@ function itemCard(v, entry) {
   <span class="meta">${badge(entry, v)}</span>
 </a>`;
   }
-  const chips = [entry.kind === 'song' && entry.body.trim() ? 'אקורדים' : null, ...versionTypes(entry)].filter(Boolean);
+  const chips = [(entry.kind === 'song' && entry.body.trim()) || isSheet(entry.body) ? 'אקורדים' : null, ...versionTypes(entry)].filter(Boolean);
   return `<a class="card" href="${href}">
   <span class="title" dir="auto">${e(entry.title)}</span>
   ${chips.length ? `<span class="chips">${chips.map((t) => `<span class="chip on">${e(t)}</span>`).join('')}</span>` : c.summary ? `<p dir="auto">${e(c.summary)}</p>` : ''}
@@ -298,7 +298,7 @@ function versionsBlock(v, entry) {
   // A locked version shows only when one of its communities is not hidden from this viewer.
   const showLock = outsideOf(acc, entry.communities).length > 0;
   const tabs = [];
-  if (entry.kind === 'song' && entry.body.trim()) {
+  if ((entry.kind === 'song' && entry.body.trim()) || isSheet(entry.body)) {
     const chords = hasChords(entry.body);
     const tools = chords
       ? `<div class="tools" data-transpose><span>${entry.meta?.capo ? `קאפו ${e(entry.meta.capo)} · ` : ''}${entry.meta?.key ? `סולם ${e(entry.meta.key)} · ` : ''}טרנספוזיציה</span><button type="button" data-step="-1" aria-label="חצי טון למטה">−</button><output>0</output><button type="button" data-step="1" aria-label="חצי טון למעלה">+</button><button type="button" data-plain aria-pressed="false">בלי אקורדים</button></div>`
@@ -359,7 +359,7 @@ export async function entryPage(env, v, entry) {
     ${entry.tags.length ? `<ul class="chips">${entry.tags.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : ''}`;
     const reading = entry.kind === 'chapter' ? 'paper prose' : entry.kind === 'article' || entry.kind === 'torah' ? 'prose read' : 'prose';
     const anchors = canComment(v, entry) ? ' data-anchors' : '';
-    const text = entry.kind !== 'song' && entry.body.trim() ? `<div class="${reading}" dir="auto"${anchors}>${renderMarkdown(entry.body)}</div>` : '';
+    const text = entry.kind !== 'song' && entry.body.trim() && !isSheet(entry.body) ? `<div class="${reading}" dir="${textDir(entry.body)}"${anchors}>${renderMarkdown(entry.body)}</div>` : '';
     main = `${versionsBlock(v, entry)}${text}${projectFilesBlock(v, entry)}`;
     if (entry.kind === 'chapter' || space.kind === 'series') {
       const { prev, next } = await siblings(env, v, entry);

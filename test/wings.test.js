@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import worker from '../src/worker.js';
 import { FakeD1 } from './fake-d1.js';
-import { renderChords, hasChords } from '../src/chords.js';
+import { renderChords, hasChords, isSheet, textDir } from '../src/chords.js';
 import { mediaEmbed, youtubeId, driveId } from '../src/media.js';
 
 const ORIGIN = 'https://site.test';
@@ -243,6 +243,15 @@ describe('chord sheets', () => {
     expect(hasChords('just words\nAnd More')).toBe(false);
     expect(hasChords('Am F\nwords')).toBe(true);
     expect(hasChords('[G]words')).toBe(true);
+  });
+
+  it('reads lyrics with chords under any kind as a sheet, right to left', () => {
+    const song = 'AM Dm\nפעם כשהייתי קטן\nAm Dm\nרציתי לקנות לוויתן\n\nE7\nAm\nאבל לא קניתי';
+    expect(isSheet(song)).toBe(true);
+    expect(renderChords(song)).toContain('dir="rtl"');
+    expect(isSheet('מאמר ארוך\nעם שורה אחת\nA\nועוד הרבה טקסט\nועוד\nועוד\nועוד\nועוד')).toBe(false);
+    expect(textDir('Am\nשלום')).toBe('rtl');
+    expect(textDir('Hello')).toBe('auto');
   });
 });
 
