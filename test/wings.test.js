@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import worker from '../src/worker.js';
 import { FakeD1 } from './fake-d1.js';
 import { renderChords, hasChords } from '../src/chords.js';
@@ -153,11 +153,76 @@ describe('a song', () => {
     expect(text).toContain('מילים ואקורדים');
     expect(text).toContain('קאפו 2');
     expect(text).toContain('<span class="ch">Am</span>');
-    expect(text).toContain('drive.google.com/file/d/1AqeoQQOknTv5Zv9Y6j9HkmHIcRbGzDho/preview');
+    expect(text).toContain('<audio controls preload="metadata" src="/media/drive/1AqeoQQOknTv5Zv9Y6j9HkmHIcRbGzDho?k=audio"');
+    expect(text).toContain('drive.google.com/file/d/1AqeoQQOknTv5Zv9Y6j9HkmHIcRbGzDho/view');
     expect(text).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
     expect(text).not.toContain('abcdefghijk');
     expect(text).toContain('הגרסה הזאת פתוחה רק לקהילה');
     expect((await page('/music/ma-aseh', o)).text).toContain('abcdefghijk');
+  });
+});
+
+describe('Drive recordings in the site\'s own player', () => {
+  const ID = '1AqeoQQOknTv5Zv9Y6j9HkmHIcRbGzDho';
+  const LOCKED = '1LockedLockedLockedLocked00';
+  let asked;
+  beforeEach(() => {
+    asked = [];
+    vi.stubGlobal('fetch', async (url, init = {}) => {
+      asked.push({ url: String(url), range: init.headers?.Range });
+      if (String(url).includes('notshared')) return new Response('<html>sign in</html>', { headers: { 'Content-Type': 'text/html' } });
+      return new Response('bytes', {
+        status: init.headers?.Range ? 206 : 200,
+        headers: { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="song.mp3"', 'Content-Length': '5', ...(init.headers?.Range ? { 'Content-Range': 'bytes 0-4/5' } : {}) },
+      });
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function setup() {
+    const o = await owner();
+    const fans = await (await call(o, '/api/studio/communities', 'POST', { title: 'Fans' })).json();
+    await entry(o, {
+      kind: 'song',
+      title: 'Stream',
+      communities: [fans.id],
+      meta: { versions: [
+        { label: 'הקלטה', url: `https://drive.google.com/file/d/${ID}/view`, kind: 'audio' },
+        { label: 'דמו', url: `https://drive.google.com/file/d/${LOCKED}/view`, kind: 'audio', visibility: 'community' },
+      ] },
+    });
+    return o;
+  }
+
+  it('passes a shared file through with a type and ranges', async () => {
+    await setup();
+    const res = await req(`/media/drive/${ID}?k=audio`, { headers: { Range: 'bytes=0-4' } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
+    expect(res.headers.get('Content-Range')).toBe('bytes 0-4/5');
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400');
+    expect(await res.text()).toBe('bytes');
+    expect(asked[0]).toEqual({ url: `https://drive.usercontent.google.com/download?id=${ID}&export=download&confirm=t`, range: 'bytes=0-4' });
+  });
+
+  it('plays only files a visible version names', async () => {
+    const o = await setup();
+    expect((await req(`/media/drive/${LOCKED}`)).status).toBe(404);
+    expect((await req('/media/drive/1SomeoneElsesFile0000000')).status).toBe(404);
+    expect(asked).toHaveLength(0);
+    const own = await call(o, `/media/drive/${LOCKED}`);
+    expect(own.status).toBe(200);
+    expect(own.headers.get('Cache-Control')).toBe('private, max-age=3600');
+  });
+
+  it('answers 502 when Drive sends a page instead of the file', async () => {
+    const o = await owner();
+    expect((await call(o, '/media/drive/notshared0000000')).status).toBe(502);
+  });
+
+  it('keeps Drive\'s frame for files that are not audio or video', () => {
+    expect(mediaEmbed(`https://drive.google.com/file/d/${ID}/view`, { title: 'doc' })).toContain(`drive.google.com/file/d/${ID}/preview`);
+    expect(mediaEmbed(`https://drive.google.com/file/d/${ID}/view`, { kind: 'video' })).toContain(`<video controls preload="metadata" playsinline poster=`);
   });
 });
 

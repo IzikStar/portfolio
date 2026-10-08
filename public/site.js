@@ -356,4 +356,23 @@
       }
     }
   });
+  // ---------- Drive recordings ----------
+  // A Drive file plays in the site's own player (/media/drive). When Drive
+  // will not hand it over, show Drive's own frame in its place.
+  document.addEventListener(
+    'error',
+    (ev) => {
+      const el = ev.target;
+      const box = el instanceof HTMLMediaElement && el.closest('[data-drive]');
+      if (!box || !/^[\w-]+$/.test(box.dataset.drive)) return;
+      const f = document.createElement('iframe');
+      f.src = `https://drive.google.com/file/d/${box.dataset.drive}/preview`;
+      f.title = el.title || 'נגן';
+      f.allow = 'autoplay; fullscreen';
+      f.allowFullscreen = true;
+      box.classList.add('framed');
+      el.replaceWith(f);
+    },
+    true,
+  );
 })();

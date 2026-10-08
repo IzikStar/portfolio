@@ -11,7 +11,20 @@
   --glow: color-mix(in srgb, var(--accent) 35%, transparent);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   accent-color: var(--accent);
+  /* Native lists, pickers and scrollbars in the dark too. */
+  color-scheme: dark;
 }
+
+/* Selects with their own chevron instead of the system's. */
+.field select, .page-preview select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-inline-end: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239a9183' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left 12px center; background-size: 16px;
+}
+select option { background: var(--raised-2); color: var(--ink); }
+/* Embedded players keep the light scheme they expect, so the browser does not
+   paint an opaque white backdrop behind them. */
+iframe { color-scheme: light; }
 
 /* Pages fade into each other where the browser can (same-site links). */
 @view-transition { navigation: auto; }

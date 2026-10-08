@@ -44,7 +44,13 @@ export function mediaEmbed(href, { title = '', kind } = {}) {
   const drive = driveId(url);
   if (drive && /^[\w-]+$/.test(drive)) {
     const audio = kind === 'audio' || AUDIO_EXT.test(title);
-    return `<div class="media${audio ? ' audio' : ''}"><iframe src="https://drive.google.com/file/d/${drive}/preview" title="${t}" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe></div>`;
+    const video = !audio && (kind === 'video' || VIDEO_EXT.test(title));
+    const open = `<p class="media-open"><a href="https://drive.google.com/file/d/${drive}/view" target="_blank" rel="noopener">פתיחה בדרייב ↗</a></p>`;
+    // Audio and video play in the site's own player, through /media/drive
+    // (src/drive-stream.js); site.js swaps in Drive's frame if that fails.
+    if (audio) return `<div class="media audio" data-drive="${drive}"><audio controls preload="metadata" src="/media/drive/${drive}?k=audio" title="${t}"></audio></div>${open}`;
+    if (video) return `<div class="media" data-drive="${drive}"><video controls preload="metadata" playsinline poster="https://drive.google.com/thumbnail?id=${drive}&amp;sz=w1280" src="/media/drive/${drive}?k=video" title="${t}"></video></div>${open}`;
+    return `<div class="media doc"><iframe src="https://drive.google.com/file/d/${drive}/preview" title="${t}" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe></div>${open}`;
   }
   if (kind === 'audio' || AUDIO_EXT.test(url)) return `<div class="media audio"><audio controls preload="none" src="${e(url)}"></audio></div>`;
   if (kind === 'video' || VIDEO_EXT.test(url)) return `<div class="media"><video controls preload="metadata" playsinline src="${e(url)}"></video></div>`;
