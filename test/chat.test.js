@@ -215,7 +215,7 @@ describe('community chat', () => {
     // Comments on it show up in the chat as a count.
     const { posts } = await (await call(o, '/api/studio/posts')).json();
     expect((await call(eli.cookie, '/api/comments', 'POST', { postId: posts[0].id, body: 'Ha!' })).status).toBe(201);
-    expect((await history(dana.cookie, jokes.id)).messages[0].post.comments).toBe(1);
+    expect((await history(dana.cookie, jokes.id)).messages.find((m) => m.id === joke.id).post.comments).toBe(1);
 
     // The owner opens it to everyone; outsiders read it, the community comments.
     const open = await (await call(o, `/api/chat/messages/${joke.id}/post`, 'POST', { public: true })).json();

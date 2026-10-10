@@ -309,6 +309,7 @@ describe("the owner's own member account", () => {
     expect((await login('itsme', env.ADMIN_PASSWORD)).status).toBe(200);
     expect((await login('itsme', 'longenough')).status).toBe(200);
     expect((await login('someone', env.ADMIN_PASSWORD)).status).toBe(401);
+    expect((await call(o, `/api/studio/members/${me.id}`, 'DELETE')).status).toBe(409);
   });
 });
 

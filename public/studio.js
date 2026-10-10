@@ -2116,7 +2116,7 @@
           person(u, [
             ...(u.isOwner ? [] : [['זה החשבון שלי', () => confirm(`${u.displayName} הוא החשבון שלך? הוא ייכנס לכל הקהילות, גם לחדשות.`) && send('/api/studio/settings/owner-member', 'PUT', { userId: u.id }).then(reloadPeople, report('invite-msg'))]]),
             u.status === 'active' ? ['השעיה', () => setStatus(u, 'suspended')] : ['החזרה', () => setStatus(u, 'active'), 'primary'],
-            ['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger'],
+            ...(u.isOwner ? [] : [['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger']]),
           ]),
         ),
       );
