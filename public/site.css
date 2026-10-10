@@ -341,8 +341,8 @@ mark.noted:hover { background: rgb(233 162 59 / 0.36); }
 .tagged time, .tagged .role { margin-inline-start: auto; font-size: 14px; color: var(--muted); }
 .blog-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; color: var(--muted); }
 .blog-links a { color: var(--ink); text-decoration-color: var(--accent); text-underline-offset: 3px; }
-.blog { display: grid; gap: 24px; }
-.posts { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.blog { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.posts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .post-card { display: grid; gap: 8px; padding: 22px; border-radius: 18px; background: var(--raised); }
 .post-card.pinned { box-shadow: inset 3px 0 var(--accent); }
 .post-card .title { font-family: var(--display); font-size: 26px; line-height: 1.15; text-decoration: none; overflow-wrap: anywhere; }
@@ -367,6 +367,7 @@ mark.noted:hover { background: rgb(233 162 59 / 0.36); }
 .chat-door .chat-title { font-family: var(--display); font-size: 22px; line-height: 1.2; }
 .chat-door .chat-last { color: var(--soft); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-door time { flex: none; font-size: 13px; color: var(--muted); }
+@media (max-width: 560px) { .chat-door { gap: 12px; padding: 14px 16px; } .chat-door .chat-title { font-size: 19px; } .chat-door time { align-self: flex-start; font-size: 12px; } }
 
 /* The page is the chat: header, pinned strip, messages, the box to write in. */
 body[data-page='chat'] { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
@@ -467,3 +468,10 @@ body[data-page='chat'] .site-foot { display: none; }
 .chat-to-btn.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .chat-people .chat-dm { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: transparent; color: var(--soft); font: inherit; font-size: 13px; cursor: pointer; }
 .chat-people .chat-dm:hover { border-color: var(--accent); color: var(--ink); }
+
+/* On a touch screen, give the small community and chat controls a finger-sized target. */
+@media (pointer: coarse) {
+  .bar .who a { display: inline-flex; align-items: center; min-height: 40px; }
+  .chat-menu-btn { width: 40px; height: 40px; }
+  .chat-people-btn, .chat-people .chat-dm, .chat-people select { min-height: 40px; }
+}
