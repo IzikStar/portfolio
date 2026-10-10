@@ -2410,6 +2410,7 @@
       $('g-slug').value = c.slug;
       $('g-sort').value = c.sort ?? 0;
       $('g-hidden').checked = c.hidden;
+      $('g-hall').checked = Boolean(c.meta?.hall);
       $('g-view').href = c.path;
       $('g-chat').href = `${c.path}/chat`;
       siteHere(c.path);
@@ -2444,6 +2445,7 @@
         slug: $('g-slug').value,
         sort: $('g-sort').value,
         hidden: $('g-hidden').checked,
+        hall: $('g-hall').checked,
       });
       await openGroup(groupView.id);
       say('g-status', 'נשמר', 'ok');

@@ -125,7 +125,7 @@
       card.lastChild.dir = 'auto';
       b.append(card);
     }
-    if (m.hall?.length && !m.deleted) {
+    if (start.hall && m.hall?.length && !m.deleted) {
       const row = el('span', 'hall-marks');
       for (const x of m.hall) {
         const a = el('a', 'hall-mark', `🏆 ${x.name}`);
@@ -253,6 +253,10 @@
       ol.append(li);
     }
     if (starred.length) box.append(ol);
+    if (start.hall) box.append(hallLinks());
+    starsEl.replaceChildren(box);
+  }
+  function hallLinks() {
     const hall = el('div', 'stars-hall');
     const link = el('a', 'btn small', '🏆 היכל התהילה');
     link.href = start.hall;
@@ -263,8 +267,7 @@
       a.dir = 'auto';
       hall.append(a);
     }
-    box.append(hall);
-    starsEl.replaceChildren(box);
+    return hall;
   }
   starsBtn.addEventListener('click', () => {
     const open = starsEl.hidden;
@@ -577,7 +580,7 @@
         say(m.starred ? 'הכוכב הוסר.' : 'סומנה בכוכב. כולם רואים אותה ב־★ למעלה.');
       });
     }
-    if (canWrite && shared && (cast.length || owner)) item('🏆 להיכל התהילה…', () => hallMenu(row, m), false, true);
+    if (start.hall && canWrite && shared && (cast.length || owner)) item('🏆 להיכל התהילה…', () => hallMenu(row, m), false, true);
     if (isMine(m) && canWrite) item('עריכה', () => setEdit(m));
     if (isMine(m) || owner) {
       if (!m.post && shared && canWrite) {
