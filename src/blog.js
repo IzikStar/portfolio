@@ -10,7 +10,7 @@ import { escapeHtml as e, renderMarkdown, excerpt } from './markdown.js';
 import { slugify, listFeed } from './entries.js';
 import { render, fmtDate, entryPath, wingOf } from './site.js';
 import { communityBox } from './wings.js';
-import { knows, pathOf } from './communities.js';
+import { knows, pathOf, notOwnerMember } from './communities.js';
 import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comments.js';
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip, personHref } from './mentions.js';
 import { chatPage, CHAT, HALL, chatLink, chatSide, hallPage } from './chat.js';
@@ -83,7 +83,7 @@ async function blogPage(env, v, c) {
   const [{ results }, feed, { results: counts }] = await Promise.all([
     d.prepare(`${POST_SELECT} WHERE p.space_id = ? ORDER BY p.pinned DESC, p.created_at DESC LIMIT 200`).bind(c.id).all(),
     listFeed(env, acc, 300),
-    d.prepare('SELECT status, COUNT(*) AS n FROM community_members WHERE community_id = ? GROUP BY status').bind(c.id).all(),
+    d.prepare(`SELECT status, COUNT(*) AS n FROM community_members WHERE community_id = ? AND ${notOwnerMember('user_id')} GROUP BY status`).bind(c.id).all(),
   ]);
   const count = (status) => counts.find((r) => r.status === status)?.n ?? 0;
   const posts = results.map(postFromRow).filter((p) => canReadPost(v, p));

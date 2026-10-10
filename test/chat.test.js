@@ -457,3 +457,30 @@ describe('the live room', () => {
     expect(stays.deserializeAttachment().checked).toBeGreaterThan(0);
   });
 });
+
+describe("the owner's own member account", () => {
+  it('is the owner in the chat and in member lists, never a second row', async () => {
+    const o = await owner();
+    const c = await club(o, 'Once');
+    const me = await joinTo(o, 'Once', 'itsme', 'Itschak');
+    const friend = await joinTo(o, 'Once', 'friend', 'Friend');
+    await call(o, '/api/studio/settings/owner-member', 'PUT', { userId: me.id });
+
+    // The chat lists the owner once, as the owner.
+    const { members } = await (await call(friend.cookie, `/api/chat/${c.id}/members`)).json();
+    expect(members.map((m) => m.id)).toEqual(['owner', friend.id]);
+
+    // Signed in with that account, he writes as the owner.
+    expect((await say(me.cookie, c.id, 'hello from my phone')).status).toBe(201);
+    const { messages } = await (await call(friend.cookie, `/api/chat/${c.id}/messages`)).json();
+    expect(messages.at(-1)).toMatchObject({ userId: null, author: expect.any(String) });
+    const chat = await page(`${c.path}/chat`, me.cookie);
+    expect(chat.text).toContain('"me":"owner"');
+
+    // The studio's community view and counts leave the account out too.
+    const listed = await (await call(o, `/api/studio/communities/${c.id}/members`)).json();
+    expect(listed.members.map((m) => m.userId)).toEqual([friend.id]);
+    const { communities } = await (await call(o, '/api/studio/communities')).json();
+    expect(communities.find((x) => x.id === c.id).members).toBe(1);
+  });
+});

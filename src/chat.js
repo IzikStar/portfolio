@@ -35,7 +35,7 @@ import { db, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
 import { escapeHtml as e, excerpt } from './markdown.js';
 import { render, fmtDate } from './site.js';
-import { knows, pathOf } from './communities.js';
+import { knows, pathOf, ownerMemberId, notOwnerMember } from './communities.js';
 import { communityBox } from './wings.js';
 import { OWNER_NAME } from './comments.js';
 import { cleanMentions } from './mentions.js';
@@ -61,6 +61,13 @@ function room(v, id) {
   return c;
 }
 
+// The owner's own member account (settings 'owner_member') is the owner here
+// too, as it is for notifications (push.js): one person, one name, one row.
+async function asOwner(env, v) {
+  if (v.acc.owner || !v.member || v.member.id !== (await ownerMemberId(env))) return v;
+  return { ...v, acc: { ...v.acc, owner: true } };
+}
+
 // The id a viewer goes by in the chat: a member's id, or "owner".
 const meOf = (v) => (v.acc.owner ? 'owner' : v.member.id);
 const isMine = (v, m) => (v.acc.owner ? m.userId === null : m.userId === v.member?.id);
@@ -80,13 +87,14 @@ async function mustWrite(env, v, c) {
   if (!(await canWrite(env, v, c))) throw new HttpError(403, 'In this chat you can read but not write.');
 }
 
-// Who is in the chat (the owner first), with who may write.
+// Who is in the chat (the owner first), with who may write. The owner's own
+// member account is the owner's row, not a second one.
 async function members(env, c) {
   const d = await db(env);
   const { results } = await d
     .prepare(
       `SELECT u.id, u.display_name, m.chat_role FROM community_members m JOIN users u ON u.id = m.user_id
-       WHERE m.community_id = ? AND m.status = 'active' AND u.status = 'active' ORDER BY u.display_name`,
+       WHERE m.community_id = ? AND m.status = 'active' AND u.status = 'active' AND ${notOwnerMember('u.id')} ORDER BY u.display_name`,
     )
     .bind(c.id)
     .all();
@@ -207,7 +215,8 @@ async function changed(env, c, id) {
 
 // ---------- API ----------
 
-export async function chatApi(request, env, url, v) {
+export async function chatApi(request, env, url, viewer) {
+  const v = await asOwner(env, viewer);
   const path = url.pathname;
   const method = request.method;
   // The socket is a GET, but it is one a page on another site could open with our cookie.
@@ -584,7 +593,8 @@ export async function chatSide(env, c) {
 const lines = (text) => e(text).replace(/\n/g, '<br>');
 
 // /community/<slug>/hall: every character, and the messages in its hall of fame.
-export async function hallPage(env, v, c) {
+export async function hallPage(env, viewer, c) {
+  const v = await asOwner(env, viewer);
   const path = hallPath(c);
   const crumbs = `<div class="crumbs"><a href="/community">הקהילות</a> · <a href="${pathOf(c)}">${e(c.title)}</a></div>`;
   if (!inChat(v, c)) {
@@ -668,7 +678,8 @@ export async function hallPage(env, v, c) {
 // JSON for a <script type="application/json"> block.
 const safeJson = (data) => JSON.stringify(data).replace(/[<\u2028\u2029]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
-export async function chatPage(env, v, c) {
+export async function chatPage(env, viewer, c) {
+  const v = await asOwner(env, viewer);
   const path = chatPath(c);
   if (!inChat(v, c)) {
     const body = `<section class="band"><div class="wrap narrow">

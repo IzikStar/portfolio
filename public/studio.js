@@ -2425,7 +2425,7 @@
       const inside = new Set(shown.map((m) => m.userId));
       $('g-add').replaceChildren(
         h('option', { value: '', textContent: 'הוספת חבר קיים לקהילה' }),
-        ...users.filter((u) => u.status === 'active' && !inside.has(u.id)).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (@${u.username})` })),
+        ...users.filter((u) => u.status === 'active' && !u.isOwner && !inside.has(u.id)).map((u) => h('option', { value: u.id, textContent: `${u.displayName} (@${u.username})` })),
       );
       const open = entries.filter((x) => (x.communities ?? []).includes(id));
       $('g-items').replaceChildren(...open.map(itemRow));

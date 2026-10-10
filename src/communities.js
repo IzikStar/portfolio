@@ -147,6 +147,10 @@ export async function publicCommunities(env, acc) {
 // there like any member.
 export const OWNER_MEMBER = 'owner_member';
 
+// SQL: this user id is not the owner's member account (the owner has a row of
+// his own wherever people are listed, so the account must not add a second).
+export const notOwnerMember = (col) => `${col} IS NOT (SELECT value FROM settings WHERE key = '${OWNER_MEMBER}')`;
+
 export async function ownerMemberId(env) {
   const d = await db(env);
   const row = await d.prepare('SELECT value FROM settings WHERE key = ?').bind(OWNER_MEMBER).first();
@@ -228,7 +232,7 @@ export async function studioCommunities(env) {
   const d = await db(env);
   const [list, members, entries, spaces] = await Promise.all([
     loadCommunities(env),
-    d.prepare('SELECT community_id, status, COUNT(*) AS n FROM community_members GROUP BY community_id, status').all(),
+    d.prepare(`SELECT community_id, status, COUNT(*) AS n FROM community_members WHERE ${notOwnerMember('user_id')} GROUP BY community_id, status`).all(),
     d.prepare('SELECT j.value AS id, COUNT(*) AS n FROM entries, json_each(entries.communities) j GROUP BY j.value').all(),
     d.prepare('SELECT j.value AS id, COUNT(*) AS n FROM spaces, json_each(spaces.communities) j GROUP BY j.value').all(),
   ]);
@@ -295,14 +299,14 @@ export async function deleteCommunity(env, id) {
   return json({ ok: true });
 }
 
-// Requests and members of one community.
+// Requests and members of one community (the owner's own account aside).
 export async function communityMembers(env, id) {
   await getCommunity(env, id);
   const d = await db(env);
   const { results } = await d
     .prepare(
       `SELECT m.user_id, m.status, m.note, m.created_at, m.decided_at, u.username, u.display_name, u.status AS user_status
-       FROM community_members m JOIN users u ON u.id = m.user_id WHERE m.community_id = ? ORDER BY m.status = 'pending' DESC, m.created_at DESC`,
+       FROM community_members m JOIN users u ON u.id = m.user_id WHERE m.community_id = ? AND ${notOwnerMember('m.user_id')} ORDER BY m.status = 'pending' DESC, m.created_at DESC`,
     )
     .bind(id)
     .all();
