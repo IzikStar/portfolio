@@ -189,7 +189,7 @@ describe('tagging members', () => {
     expect(c.body).toBe(`Ask @{${yossi.id}} and `);
 
     const seen = await page('/music/tune', yossi.cookie);
-    expect(seen.text).toContain('<span class="mention" dir="auto">@Yossi</span>');
+    expect(seen.text).toContain('<a class="mention" dir="auto" href="/community">@Yossi</a>');
     expect(seen.text).not.toContain('Reader');
 
     // The tagged member sees it on their page; the outsider sees nothing.
@@ -205,8 +205,30 @@ describe('tagging members', () => {
     // In a post too.
     const { post } = await write(dana.cookie, 'Musicians', { title: 'Thanks', body: `Thanks @{${yossi.id}}! And @{${reader.id}}` });
     expect(post.body).toBe(`Thanks @{${yossi.id}}! And `);
-    expect((await page(post.path, yossi.cookie)).text).toContain('<span class="mention" dir="auto">@Yossi K</span>');
+    // Your own name leads to your page; someone else's is a plain name.
+    expect((await page(post.path, yossi.cookie)).text).toContain('<a class="mention" dir="auto" href="/community">@Yossi K</a>');
+    expect((await page(post.path, dana.cookie)).text).toContain('<span class="mention" dir="auto">@Yossi K</span>');
     expect((await page('/community', yossi.cookie)).text).toContain(post.path);
+
+    // The owner's names lead to each person's page in the studio.
+    const asOwner = (await page(post.path, o)).text;
+    expect(asOwner).toContain(`<a class="mention" dir="auto" href="/studio#person/${yossi.id}">@Yossi K</a>`);
+    expect(asOwner).toContain(`<a class="mention" dir="auto" href="/studio#person/${dana.id}">Dana</a>`);
+    expect(asOwner).toContain(`href="/studio#group/${music}">סטודיו</a>`);
+    const tune = (await page('/music/tune', o)).text;
+    expect(tune).toContain(`<a class="who" href="/studio#person/${dana.id}">Dana</a>`);
+    expect(tune).toContain(`href="/studio#item/${song.id}">סטודיו</a>`);
+
+    // And that page has what they wrote and where they were tagged.
+    const yp2 = await (await call(o, `/api/studio/members/${yossi.id}`)).json();
+    expect(yp2.person).toMatchObject({ id: yossi.id, displayName: 'Yossi K', communities: { [music]: 'active' } });
+    expect(yp2.tagged.map((t) => t.path)).toEqual([post.path, `/music/tune#c-${c.id}`]);
+    const dp = await (await call(o, `/api/studio/members/${dana.id}`)).json();
+    expect(dp.comments).toMatchObject([{ id: c.id, on: { id: song.id, title: 'Tune', path: `/music/tune#c-${c.id}` } }]);
+    expect(dp.comments[0].body).toBe('Ask @Yossi K and');
+    expect(dp.posts.map((x) => x.path)).toContain(post.path);
+    expect((await call(dana.cookie, `/api/studio/members/${dana.id}`)).status).toBe(401);
+    expect((await call(o, '/api/studio/members/00000000-0000-0000-0000-000000000000')).status).toBe(404);
 
     // Losing access to the post takes it off the list.
     await call(o, `/api/studio/communities/${music}/members`, 'PATCH', { userId: yossi.id, status: 'removed' });
@@ -231,5 +253,8 @@ describe('tagging members', () => {
     const mine = await page('/community', dana.cookie);
     expect(mine.text).toContain('הקרדיטים שלכם');
     expect(mine.text).toContain('href="/music/credited"');
+    expect((await page('/music/credited', o)).text).toContain(`שירה: <a class="mention" dir="auto" href="/studio#person/${dana.id}">Dana</a>`);
+    const dp = await (await call(o, `/api/studio/members/${dana.id}`)).json();
+    expect(dp.credits).toMatchObject([{ id: song.id, title: 'Credited', roles: ['שירה'], path: '/music/credited' }]);
   });
 });

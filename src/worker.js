@@ -32,6 +32,7 @@ import { listIdeas, captureIdea, updateIdea, growIdea, backToIdea, getSparks, sa
 import { museIdea, dropMuse, getPulse, runPulse, seePulse, runWeekly, museCron, saveModel } from './muse.js';
 import { communityRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
+import { personPage } from './people.js';
 import { chatApi } from './chat.js';
 
 // The live room behind each community chat (bound as CHAT in wrangler.toml).
@@ -250,6 +251,7 @@ async function studio(request, env, url) {
   const mc = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)\/communities$/);
   if (mc && method === 'PUT') return setMemberships(request, env, mc[1]);
   let mm = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)$/);
+  if (mm && method === 'GET') return personPage(env, mm[1]);
   if (mm && method === 'PATCH') return setMemberStatus(request, env, mm[1]);
   if (mm && method === 'DELETE') return removeMember(env, mm[1]);
   mm = path.match(/^\/api\/studio\/invites\/([A-Za-z0-9_-]+)$/);

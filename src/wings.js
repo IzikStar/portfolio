@@ -231,7 +231,7 @@ export async function wingPage(env, v, wingId) {
   <section class="block">${grid}${lockedNote(locked.n)}</section>
   ${communityBox(v, locked.ids, path, { members: locked.members })}
 </div>`;
-  return render(env, v, { title: wing.title, description: wing.summary || WING_INFO[wingId].what, path, wing: wingId, body, script: true });
+  return render(env, v, { title: wing.title, description: wing.summary || WING_INFO[wingId].what, path, wing: wingId, body, script: true, studio: `wing/${wingId}` });
 }
 
 const byOrder = (a, b) => (a.meta?.order ?? 1e9) - (b.meta?.order ?? 1e9) || String(a.publishedAt).localeCompare(String(b.publishedAt));
@@ -289,7 +289,7 @@ export async function spacePage(env, v, space) {
 </div>`;
   }
   const noindex = space.visibility !== 'public';
-  return render(env, v, { title: space.title, description: space.summary, path, wing: wing.id, body, noindex, script: true });
+  return render(env, v, { title: space.title, description: space.summary, path, wing: wing.id, body, noindex, script: true, studio: `space/${space.id}` });
 }
 
 // ---------- one item ----------
@@ -372,7 +372,7 @@ export async function entryPage(env, v, entry) {
   const body = `<article class="wrap article">
   <header>
     ${header}
-    ${await creditsLine(env, entry)}
+    ${await creditsLine(env, entry, v)}
   </header>
   ${main}
   ${commentsBlock(v, entry, canComment(v, entry) ? await commentsOf(env, entry.id) : [])}
@@ -387,6 +387,7 @@ export async function entryPage(env, v, entry) {
     body,
     noindex: !isPublic,
     script: true,
+    studio: entry.kind === 'project' || entry.kind === 'work' ? `project/${entry.id}` : `item/${entry.id}`,
   });
 }
 
@@ -459,7 +460,7 @@ export async function communityPage(env, v) {
   ${others.length ? cards(others) : '<p class="empty">עוד אין קהילות פתוחות. בקרוב.</p>'}
   <div class="actions" style="margin-top:24px"><a class="btn primary" href="/join">בקשה להצטרף, לכמה קהילות בבת אחת</a><a class="btn" href="/login?next=/join">כבר יש לכם חשבון? כניסה</a></div>
 </div>`;
-    return render(env, v, { title: 'קהילות', description: 'הקהילות של יצחק שטרן.', path: '/community', body, script: true });
+    return render(env, v, { title: 'קהילות', description: 'הקהילות של יצחק שטרן.', path: '/community', body, script: true, studio: 'communities' });
   }
   const feed = (await listFeed(env, acc, 60)).filter((x) => entryPath(acc, x) && (acc.owner || x.visibility !== 'public'));
   const items = feed.length
@@ -478,5 +479,5 @@ export async function communityPage(env, v) {
   <div class="section-head" style="margin-top:32px"><h2>רק לכם</h2></div>
   ${items}
 </div>`;
-  return render(env, v, { title: 'קהילות', path: '/community', body, noindex: true, script: true });
+  return render(env, v, { title: 'קהילות', path: '/community', body, noindex: true, script: true, studio: 'communities' });
 }

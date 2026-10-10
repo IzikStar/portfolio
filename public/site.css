@@ -470,8 +470,35 @@ body[data-page='chat'] .site-foot { display: none; }
 .chat-people .chat-dm:hover { border-color: var(--accent); color: var(--ink); }
 
 /* On a touch screen, give the small community and chat controls a finger-sized target. */
-@media (pointer: coarse) {
+@media (hover: none), (pointer: coarse) {
   .bar .who a { display: inline-flex; align-items: center; min-height: 40px; }
   .chat-menu-btn { width: 40px; height: 40px; }
   .chat-people-btn, .chat-people .chat-dm, .chat-people select { min-height: 40px; }
 }
+
+/* ---------- names that lead somewhere ----------
+   A tagged person, a writer or a credit is a link when there is a page to go to
+   (for the owner, that person's page in the studio). */
+a.mention { text-decoration: none; }
+a.mention:hover, a.mention:focus-visible { background: var(--accent); color: var(--on-accent); }
+.comment .meta a.who { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+
+/* ---------- taps and selection ----------
+   Only what can be tapped reacts to a tap: no grey flash on a plain line, and
+   buttons, tabs and headings never start a text selection. On touch screens
+   nothing starts one except the text that is there to be read (articles,
+   chapters, lyrics, comments, posts, chat messages, notes in the studio),
+   because selecting words is how a comment is attached; fields stay editable. */
+html { -webkit-tap-highlight-color: transparent; }
+button, .btn, summary, select, label, nav, [role='tab'], .bar, .crumbs, .badge, .kicker, .count,
+:where(h1, h2, h3, h4) { -webkit-user-select: none; user-select: none; }
+button, .btn, summary, a, [role='tab'] { touch-action: manipulation; }
+@media (hover: none), (pointer: coarse) {
+  body { -webkit-user-select: none; user-select: none; }
+  :is(a, button, .btn, summary, [role='tab']):active { opacity: 0.7; }
+}
+:is(.prose, .sheet, .comment > p, .comment .quote, .chat-msg .text, .post-card p, .note, .idea .text, .muse-text, .muse-out, pre, code),
+:is(.prose, .sheet, .comment > p, .chat-msg .text, .note, .idea .text, .muse-text, .muse-out) * { -webkit-user-select: text; user-select: text; }
+input, textarea, [contenteditable]:not([contenteditable='false']) { -webkit-user-select: text; user-select: text; }
+.chat-msg a.who { display: block; text-decoration: none; }
+.chat-people a.name { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--line-strong); }

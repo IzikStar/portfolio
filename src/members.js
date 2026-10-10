@@ -191,6 +191,20 @@ export async function me(request, env) {
 
 // ---------- owner (studio) ----------
 
+// One person as the studio shows them. `communities`: { communityId: 'active' | 'pending' }.
+export const personOut = (u, communities, ownerId) => ({
+  id: u.id,
+  username: u.username,
+  displayName: u.display_name,
+  status: u.status,
+  note: u.request_note,
+  viaInvite: Boolean(u.invite_code),
+  createdAt: u.created_at,
+  lastLoginAt: u.last_login_at,
+  communities: communities ?? {},
+  isOwner: u.id === ownerId,
+});
+
 export async function listCommunity(env) {
   await syncOwnerMember(env);
   const ownerId = await ownerMemberId(env);
@@ -204,18 +218,7 @@ export async function listCommunity(env) {
   const where = new Map();
   for (const r of joined.results) where.set(r.user_id, { ...(where.get(r.user_id) ?? {}), [r.community_id]: r.status });
   return json({
-    users: users.results.map((u) => ({
-      id: u.id,
-      username: u.username,
-      displayName: u.display_name,
-      status: u.status,
-      note: u.request_note,
-      viaInvite: Boolean(u.invite_code),
-      createdAt: u.created_at,
-      lastLoginAt: u.last_login_at,
-      communities: where.get(u.id) ?? {},
-      isOwner: u.id === ownerId,
-    })),
+    users: users.results.map((u) => personOut(u, where.get(u.id), ownerId)),
     invites: invites.results.map((i) => ({
       code: i.code,
       note: i.note,

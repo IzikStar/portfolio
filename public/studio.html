@@ -28,6 +28,7 @@
 <div id="app" class="studio-shell" hidden>
   <nav class="studio-side" aria-label="סטודיו">
     <a class="mark" href="#ideas">הסטודיו</a>
+    <a class="to-site to-site-top" href="/">לאתר</a>
     <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-label="תפריט"><span class="nav-current" id="nav-current"></span><span class="count" id="nav-badge"></span><span class="burger" aria-hidden="true"></span></button>
     <a href="#ideas" data-tab="ideas">רעיונות</a>
     <span class="group">האגפים</span>
@@ -49,7 +50,7 @@
     <a href="#trash" data-tab="trash">גיבוי וסל מחזור<span class="count" id="trash-count"></span></a>
     <a href="#settings" data-tab="settings">הגדרות</a>
     <div class="foot">
-      <a href="/" target="_blank" rel="noopener">לאתר ↗</a>
+      <a href="/" id="to-site" class="to-site">לאתר</a>
       <a href="#" id="logout">יציאה</a>
     </div>
   </nav>
@@ -155,7 +156,7 @@
         <button class="btn" type="button" id="w-new">פריט חדש</button>
         <button class="btn" type="button" id="w-new-space">ספר, סדרה או אוסף חדש</button>
         <a class="btn" id="w-settings">הגדרות האגף</a>
-        <a class="btn" id="w-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <a class="btn" id="w-view">לעמוד באתר</a>
         <a class="btn" id="w-drive" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
       </div>
       <p class="msg" id="w-msg" role="status"></p>
@@ -215,7 +216,7 @@
       </div>
       <div class="toolbar">
         <button class="btn primary" type="button" id="s-save">שמירה</button>
-        <a class="btn" id="s-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <a class="btn" id="s-view">לעמוד באתר</a>
         <a class="btn" id="s-drive-open" target="_blank" rel="noopener" hidden>התיקייה בדרייב ↗</a>
         <button class="btn danger" type="button" id="s-delete">מחיקה</button>
       </div>
@@ -249,7 +250,7 @@
       <div class="cvs-bar">
         <button class="btn primary" type="button" id="cv-save">שמירה</button>
         <span class="msg" id="cv-status" role="status"></span>
-        <a class="btn small" href="/cv" target="_blank" rel="noopener">לעמוד באתר ↗</a>
+        <a class="btn small" href="/cv">לעמוד באתר</a>
       </div>
       <div class="cvs-panes" id="cv-panes">
         <div class="cvs-form" id="cv-form"></div>
@@ -343,7 +344,7 @@
       </label>
       <div class="toolbar">
         <button class="btn primary" type="button" id="p-save">שמירה</button>
-        <a class="btn" id="p-view" target="_blank" rel="noopener" hidden>לעמוד באתר ↗</a>
+        <a class="btn" id="p-view" hidden>לעמוד באתר</a>
         <button class="btn danger" type="button" id="p-delete">מחיקה</button>
       </div>
     </section>
@@ -364,7 +365,7 @@
     <section id="view-blog" hidden>
       <div class="head">
         <h1>בלוגים</h1>
-        <a class="btn" id="b-open" target="_blank" rel="noopener" hidden>לבלוג באתר ↗</a>
+        <a class="btn" id="b-open" hidden>לבלוג באתר</a>
       </div>
       <p class="hint">מה שהחברים כותבים בבלוג של כל קהילה. פוסט נשאר בתוך הקהילה עד שפותחים אותו לכולם. פוסט מוסתר רואים רק אתה ומי שכתב אותו. כדי לכתוב פוסט משלך, נכנסים לבלוג באתר.</p>
       <div class="toolbar" style="margin-block: 12px">
@@ -415,7 +416,7 @@
     <section id="view-communities" hidden>
       <div class="head">
         <h1>קהילות</h1>
-        <a class="btn" href="/community" target="_blank" rel="noopener">עמוד הקהילות באתר ↗</a>
+        <a class="btn" href="/community">עמוד הקהילות באתר</a>
       </div>
       <p class="hint">קהילה היא קבוצת אנשים שאתה מגדיר, בלי קשר לאגפים. כל פריט, ספר או סדרה אפשר לפתוח לקהילה אחת או כמה. לקהילה בהזמנה בלבד אי אפשר לבקש להצטרף. קהילה נסתרת לא מופיעה באתר למי שלא בתוכה, וגם מה שפתוח רק לה לא מופיע אצלו בכלל, אפילו לא עם מנעול.</p>
       <form class="invite-form" id="g-new">
@@ -444,8 +445,8 @@
       </div>
       <div class="toolbar">
         <button class="btn primary" type="button" id="g-save">שמירה</button>
-        <a class="btn" id="g-view" target="_blank" rel="noopener">לעמוד באתר ↗</a>
-        <a class="btn" id="g-chat" target="_blank" rel="noopener">לצ׳אט ↗</a>
+        <a class="btn" id="g-view">לעמוד באתר</a>
+        <a class="btn" id="g-chat">לצ׳אט</a>
         <button class="btn danger" type="button" id="g-delete">מחיקה</button>
       </div>
       <div class="two">
@@ -498,6 +499,21 @@
         <h2>חברים</h2>
         <ul class="people" id="members"></ul>
         <p class="empty" id="members-empty">עוד אין חברים.</p>
+      </div>
+    </section>
+
+    <section id="view-person" class="person-page" hidden>
+      <div class="toolbar">
+        <a class="btn small" href="#community">כל החברים</a>
+        <span class="status" id="pp-status" role="status"></span>
+      </div>
+      <ul class="people" id="pp-card"></ul>
+      <div class="pp-grid">
+        <div class="pp-block"><h2>בקהילות</h2><ul class="people" id="pp-comms"></ul><p class="empty" id="pp-comms-empty" hidden>עוד לא בשום קהילה.</p></div>
+        <div class="pp-block"><h2>תגובות</h2><ul class="people" id="pp-comments"></ul><p class="empty" id="pp-comments-empty" hidden>עוד לא הגיב/ה על כלום.</p></div>
+        <div class="pp-block"><h2>פוסטים</h2><ul class="people" id="pp-posts"></ul><p class="empty" id="pp-posts-empty" hidden>עוד לא כתב/ה פוסטים.</p></div>
+        <div class="pp-block"><h2>קרדיטים</h2><ul class="people" id="pp-credits"></ul><p class="empty" id="pp-credits-empty" hidden>אין פריטים עם קרדיט לו/ה. מוסיפים קרדיט בעריכת פריט.</p></div>
+        <div class="pp-block"><h2>תייגו אותו/ה</h2><ul class="people" id="pp-tagged"></ul><p class="empty" id="pp-tagged-empty" hidden>עוד לא תייגו אותו/ה.</p></div>
       </div>
     </section>
 
@@ -592,7 +608,7 @@
       </div>
       <div class="toolbar ed-actions">
         <button class="btn primary" type="button" id="publish">פרסום</button>
-        <a class="btn" id="view-link" target="_blank" rel="noopener" hidden>לעמוד באתר ↗</a>
+        <a class="btn" id="view-link" hidden>לעמוד באתר</a>
         <button class="btn danger" type="button" id="delete-article">מחיקה</button>
       </div>
       <aside class="page-preview" id="ed-page" hidden aria-label="איך זה ייראה באתר">
