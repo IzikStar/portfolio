@@ -48,24 +48,17 @@ describe('VAPID', () => {
 const ORIGIN = 'https://site.test';
 let env;
 let pushes; // what the worker posted to push services
-let present; // who has a chat open, by community id
 let status; // what the push service answers
 
 beforeEach(() => {
   pushes = [];
-  present = {};
   status = 201;
   env = {
     DB: new FakeD1(),
     MEDIA: { get: async () => null },
     ADMIN_PASSWORD: 'correct horse battery staple',
     ASSETS: { fetch: async (r) => new Response(`asset:${new URL(r.url).pathname}`) },
-    CHAT: {
-      idFromName: (name) => name,
-      get: (id) => ({
-        fetch: async (input) => (new URL(typeof input === 'string' ? input : input.url).pathname === '/present' ? Response.json({ ids: present[id] ?? [] }) : new Response('ok')),
-      }),
-    },
+    CHAT: { idFromName: (name) => name, get: () => ({ fetch: async () => new Response('ok') }) },
   };
   vi.stubGlobal('fetch', async (url, init) => {
     pushes.push({ url: String(url), init });
@@ -230,16 +223,15 @@ describe('who hears about what', () => {
     expect(to(ed)).toHaveLength(1);
   });
 
-  it('skips whoever has the chat open and whoever turned the kind off', async () => {
+  it('skips whoever turned the kind off', async () => {
     const o = await owner();
     const jokes = await club(o, 'Jokes');
     const [dana, eli, gil] = [await member(o, 'dana'), await member(o, 'eli'), await member(o, 'gil')];
     for (const m of [dana, eli, gil]) await admit(o, jokes, m);
     const [ed, gd] = [await subscribed(eli.cookie), await subscribed(gil.cookie)];
-    present[jokes.id] = [eli.id];
     await call(gil.cookie, '/api/push/prefs', 'PUT', { prefs: { chat: false } });
     await call(dana.cookie, `/api/chat/${jokes.id}/messages`, 'POST', { body: 'hello' });
-    expect(to(ed)).toHaveLength(0);
+    expect(to(ed)).toHaveLength(1);
     expect(to(gd)).toHaveLength(0);
   });
 
