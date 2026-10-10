@@ -244,25 +244,114 @@
     };
     form.querySelector('[data-clear-target]').addEventListener('click', () => aim(''));
 
-    // A marker beside every paragraph of the text, with how many notes it has.
-    const counts = {};
-    for (const li of box.querySelectorAll('.comment[data-anchor]')) counts[li.dataset.anchor] = (counts[li.dataset.anchor] ?? 0) + 1;
+    // Select words in the text to comment on them: a small "הגב" button
+    // appears beside the selection (mouse or touch). Notes already made are
+    // marked in the text; a tap on a mark jumps to its comments.
     const prose = document.querySelector('[data-anchors]');
     if (prose) {
-      [...prose.children].forEach((p, i) => {
+      const flat = (s) => s.replace(/\s+/g, ' ').trim();
+      const paras = [...prose.children];
+      paras.forEach((p, i) => {
         if (!p.textContent.trim()) return;
         p.id = `p-${i}`;
         p.classList.add('anchored');
-        const words = p.textContent.trim().replace(/\s+/g, ' ');
-        const q = words.length > 140 ? `${words.slice(0, 140)}…` : words;
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'pin';
-        b.textContent = counts[i] ? String(counts[i]) : '+';
-        if (counts[i]) b.classList.add('has');
-        b.setAttribute('aria-label', counts[i] ? `${counts[i]} הערות על הפסקה. הוספת הערה` : 'הערה על הפסקה הזאת');
-        b.addEventListener('click', () => aim(`על: ${q}`, i, q));
-        p.prepend(b);
+      });
+
+      // Wrap the stretch [from, from + len) of a paragraph's flattened text in marks.
+      const mark = (p, from, len, id) => {
+        const map = [];
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+        let space = true;
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          for (let k = 0; k < n.data.length; k++) {
+            if (/\s/.test(n.data[k])) {
+              if (space) continue;
+              space = true;
+            } else space = false;
+            map.push([n, k]);
+          }
+        }
+        const pieces = [];
+        for (const [n, k] of map.slice(from, from + len)) {
+          const last = pieces[pieces.length - 1];
+          if (last && last.n === n && last.end === k) last.end = k + 1;
+          else pieces.push({ n, start: k, end: k + 1 });
+        }
+        for (const { n, start, end } of pieces.reverse()) {
+          if (n.parentElement.closest('mark.noted')) continue;
+          const r = document.createRange();
+          r.setStart(n, start);
+          r.setEnd(n, end);
+          const m = document.createElement('mark');
+          m.className = 'noted';
+          m.dataset.note = id;
+          r.surroundContents(m);
+        }
+      };
+      for (const li of box.querySelectorAll('.comment[data-anchor]')) {
+        const p = paras[li.dataset.anchor];
+        const q = flat(li.querySelector('.quote')?.textContent ?? '').replace(/…$/, '');
+        if (!p || !q) continue;
+        const text = flat(p.textContent);
+        let at = text.indexOf(q);
+        let len = q.length;
+        if (at < 0) {
+          // A selection that ran past the paragraph: mark the part inside it.
+          at = text.indexOf(q.slice(0, 40));
+          len = at < 0 ? 0 : Math.min(q.length, text.length - at);
+        }
+        if (len) mark(p, at, len, li.id);
+        else p.classList.add('has-notes');
+      }
+      prose.addEventListener('click', (ev) => {
+        const m = ev.target.closest('mark.noted');
+        if (!m || String(getSelection()).trim()) return;
+        const li = document.getElementById(m.dataset.note);
+        li?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (li) history.replaceState(null, '', `#${li.id}`);
+      });
+
+      const ask = document.createElement('button');
+      ask.type = 'button';
+      ask.className = 'ask-note';
+      ask.textContent = 'הגב';
+      ask.hidden = true;
+      document.body.append(ask);
+      let picked = null;
+      const place = () => {
+        const sel = getSelection();
+        const range = sel.rangeCount && !sel.isCollapsed ? sel.getRangeAt(0) : null;
+        const words = range ? flat(sel.toString()) : '';
+        const start = range && (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement);
+        const p = start && prose.contains(start) ? paras.find((x) => x.contains(start)) : null;
+        if (!p || !words || !p.id) {
+          picked = null;
+          ask.hidden = true;
+          return;
+        }
+        picked = { anchor: paras.indexOf(p), quote: words.length > 158 ? `${words.slice(0, 158)}…` : words };
+        const rects = range.getClientRects();
+        const end = rects[rects.length - 1] ?? range.getBoundingClientRect();
+        ask.hidden = false;
+        const w = ask.offsetWidth;
+        // Below the selection's last line, so the phone's own copy menu above it stays clear.
+        const x = Math.min(Math.max(8, end.left + end.width / 2 - w / 2), document.documentElement.clientWidth - w - 8);
+        ask.style.left = `${x + scrollX}px`;
+        ask.style.top = `${end.bottom + scrollY + 10}px`;
+      };
+      let timer;
+      document.addEventListener('selectionchange', () => {
+        clearTimeout(timer);
+        timer = setTimeout(place, 120);
+      });
+      // Keep the selection alive while the button is pressed.
+      ask.addEventListener('pointerdown', (ev) => ev.preventDefault());
+      ask.addEventListener('click', () => {
+        if (!picked) return;
+        const { anchor: a, quote: q } = picked;
+        ask.hidden = true;
+        getSelection().removeAllRanges();
+        aim(`על: ${q}`, a, q);
       });
     }
 

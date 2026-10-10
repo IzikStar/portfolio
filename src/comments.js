@@ -97,7 +97,7 @@ export function commentsBlock(v, entry, comments, can = canComment(v, entry)) {
   for (const c of comments) if (c.replyTo) kids.set(c.replyTo, [...(kids.get(c.replyTo) ?? []), c]);
   return `<section class="comments" id="comments" data-comments="${e(entry.id)}"${entry.kind === 'post' ? ' data-on="post"' : ''}>
   <h2>תגובות${comments.length ? ` <small>${comments.length}</small>` : ''}</h2>
-  ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על כל הטקסט, או על פסקה אחת דרך הסימן שלידה.</p>'}
+  ${top.length ? `<ol class="comment-list">${top.map((c) => one(c, v, kids.get(c.id))).join('')}</ol>` : '<p class="hint">עוד אין תגובות. אפשר להגיב על כל הטקסט, או לסמן מילים בטקסט וללחוץ "הגב".</p>'}
   <form class="comment-form" data-comment-form>
     <div class="target" hidden><span></span><button type="button" class="link" data-clear-target>ביטול</button></div>
     <label class="field"><span class="sr-only">תגובה</span><textarea name="body" rows="4" maxlength="${MAX_BODY}" dir="auto" placeholder="מה חשבתם? @ ושם מתייג מישהו מהקהילה" data-people="${e(people)}" required></textarea></label>
