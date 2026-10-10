@@ -2097,6 +2097,7 @@
       $('members').replaceChildren(
         ...members.map((u) =>
           person(u, [
+            ...(u.isOwner ? [] : [['זה החשבון שלי', () => confirm(`${u.displayName} הוא החשבון שלך? הוא ייכנס לכל הקהילות, גם לחדשות.`) && send('/api/studio/settings/owner-member', 'PUT', { userId: u.id }).then(loadCommunity, report('invite-msg'))]]),
             u.status === 'active' ? ['השעיה', () => setStatus(u, 'suspended')] : ['החזרה', () => setStatus(u, 'active'), 'primary'],
             ['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger'],
           ]),
@@ -2118,7 +2119,7 @@
       'li',
       {},
       h('span', { className: 'who', dir: 'auto', textContent: u.displayName }),
-      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${u.username}` }), h('span', { className: 'badge', textContent: STATUS[u.status] ?? u.status }), h('time', { textContent: fmt(u.createdAt) }), u.viaInvite ? h('span', { textContent: 'דרך הזמנה' }) : null),
+      h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${u.username}` }), u.isOwner ? h('span', { className: 'badge vis-community', textContent: 'זה אתה · בכל הקהילות' }) : null, h('span', { className: 'badge', textContent: STATUS[u.status] ?? u.status }), h('time', { textContent: fmt(u.createdAt) }), u.viaInvite ? h('span', { textContent: 'דרך הזמנה' }) : null),
       h('span', { className: 'actions' }, ...actions.map(([label, fn, cls = '']) => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn }))),
       u.note ? h('span', { className: 'note', dir: 'auto', textContent: u.note }) : null,
       memberComms(u),
@@ -2176,12 +2177,12 @@
     const link = `${location.origin}/join?code=${inv.code}`;
     const expired = inv.expiresAt && inv.expiresAt < new Date().toISOString();
     const used = inv.uses >= inv.maxUses;
-    const state = expired ? 'פג תוקף' : used ? 'נוצל' : `${inv.uses}/${inv.maxUses} נוצלו${inv.expiresAt ? ` · עד ${fmt(inv.expiresAt)}` : ''}`;
+    const standing = expired ? 'פג תוקף' : used ? 'נוצל' : `${inv.uses}/${inv.maxUses} נוצלו${inv.expiresAt ? ` · עד ${fmt(inv.expiresAt)}` : ''}`;
     return h(
       'li',
       {},
       h('span', { className: 'who', dir: 'auto', textContent: inv.note || 'הזמנה' }),
-      h('span', { className: 'meta' }, h('span', { textContent: state }), ...(inv.communities ?? []).map((cid) => h('span', { className: 'badge', dir: 'auto', textContent: state.commById.get(cid)?.title ?? '' }))),
+      h('span', { className: 'meta' }, h('span', { textContent: standing }), ...(inv.communities ?? []).map((cid) => h('span', { className: 'badge', dir: 'auto', textContent: state.commById.get(cid)?.title ?? '' }))),
       h(
         'span',
         { className: 'actions' },

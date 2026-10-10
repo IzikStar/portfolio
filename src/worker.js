@@ -20,7 +20,7 @@ import { WINGS } from './db.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { access, listSpaces, studioSpaces, createSpace, updateSpace, deleteSpace } from './spaces.js';
-import { requestJoin, requestJoinMany, setMemberships, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
+import { requestJoin, requestJoinMany, setMemberships, setOwnerMember, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
 import { postComment, deleteComment, studioComments, setCommentStatus } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, putFile, listFiles, deleteFile, serveFile } from './files.js';
@@ -234,6 +234,7 @@ async function studio(request, env, url) {
   if (ps && method === 'PATCH') return moderatePost(request, env, ps[1]);
   if (path === '/api/studio/settings' && method === 'GET') return studioSettings(env);
   if (path === '/api/studio/settings/socials' && method === 'PUT') return saveSocials(request, env);
+  if (path === '/api/studio/settings/owner-member' && method === 'PUT') return setOwnerMember(request, env);
   if (path === '/api/studio/import-legacy' && method === 'POST') return importLegacy(env);
   if (path === '/api/studio/import-cv' && method === 'POST') return importCv(env);
   if (path === '/api/studio/cv' && method === 'GET') return studioCv(env);

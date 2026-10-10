@@ -134,6 +134,46 @@ export async function publicCommunities(env, acc) {
 
 // ---------- owner (studio) ----------
 
+// The owner's own member account (settings 'owner_member') belongs to every
+// community: it is put in each one, old and new, so it reads and comments
+// there like any member.
+export const OWNER_MEMBER = 'owner_member';
+
+export async function ownerMemberId(env) {
+  const d = await db(env);
+  const row = await d.prepare('SELECT value FROM settings WHERE key = ?').bind(OWNER_MEMBER).first();
+  return row?.value || null;
+}
+
+export async function syncOwnerMember(env) {
+  const id = await ownerMemberId(env);
+  if (!id) return;
+  const d = await db(env);
+  const now = new Date().toISOString();
+  await d
+    .prepare(
+      `INSERT INTO community_members (community_id, user_id, status, note, created_at, decided_at)
+       SELECT c.id, ?, 'active', '', ?, ? FROM communities c WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)
+       ON CONFLICT(community_id, user_id) DO UPDATE SET status = 'active', decided_at = excluded.decided_at WHERE community_members.status != 'active'`,
+    )
+    .bind(id, now, now, id)
+    .run();
+}
+
+export async function setOwnerMember(request, env) {
+  const { userId } = await readJson(request);
+  const d = await db(env);
+  const user = await d.prepare('SELECT id FROM users WHERE id = ?').bind(String(userId ?? '')).first();
+  if (!user) throw new HttpError(404, 'That member no longer exists.');
+  await d
+    .batch([
+      d.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(OWNER_MEMBER, user.id),
+      d.prepare(`UPDATE users SET status = 'active' WHERE id = ?`).bind(user.id),
+    ]);
+  await syncOwnerMember(env);
+  return json({ ok: true, userId: user.id });
+}
+
 function apply(c, body) {
   if ('title' in body) c.title = cleanText(body.title, 120);
   if ('summary' in body) c.summary = cleanText(body.summary, 1000);
@@ -176,6 +216,7 @@ async function write(env, c, insert) {
 }
 
 export async function studioCommunities(env) {
+  await syncOwnerMember(env);
   const d = await db(env);
   const [list, members, entries, spaces] = await Promise.all([
     loadCommunities(env),
@@ -204,6 +245,7 @@ export async function createCommunity(request, env) {
   const c = { id: crypto.randomUUID(), slug: '', title: '', summary: '', joinMode: 'request', hidden: false, meta: {}, sort: 0, createdAt: now, updatedAt: now };
   apply(c, await readJson(request));
   await write(env, c, true);
+  await syncOwnerMember(env);
   return json({ ...c, path: pathOf(c) }, 201);
 }
 
