@@ -52,10 +52,13 @@ export function renderChords(source) {
       }
       continue;
     }
+    // A run of chords in one bracket ("[C - F - G - C  Gaug]") is a chord row, not one long chord.
+    const run = line.trim().match(/^\[([^\]]+)\]$/);
+    const bare = run && /\s/.test(run[1].trim()) && isChordLine(run[1]) ? run[1] : line;
     if (!line.trim()) html += '<div class="gap"></div>';
-    else if (/\[[^\]]+\]/.test(line)) html += inlineLine(line);
-    else if (isChordLine(line)) {
-      html += `<div class="line chordline">${line.replace(/[^\s]+/g, (t) => (isChord(t) ? ch(t) : e(t)))}</div>`;
+    else if (bare === line && /\[[^\]]+\]/.test(line)) html += inlineLine(line);
+    else if (isChordLine(bare)) {
+      html += `<div class="line chordline">${bare.replace(/[^\s]+/g, (t) => (isChord(t) ? ch(t) : e(t)))}</div>`;
     } else html += `<div class="line">${e(line)}</div>`;
   }
   if (inChorus) html += '</div>';
