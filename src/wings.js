@@ -448,7 +448,7 @@ export async function communityPage(env, v) {
         (c) => `<div class="card community-card">
   <a class="title" href="${pathOf(c)}" dir="auto">${e(c.title)}</a>
   ${c.summary ? `<p dir="auto">${e(c.summary)}</p>` : ''}
-  <span class="meta">${state(c)}</span>
+  <span class="meta">${state(c)}${acc.owner || acc.communities.has(c.id) ? `<a class="btn small" href="${pathOf(c)}/chat">צ׳אט</a>` : ''}</span>
 </div>`,
       )
       .join('')}</div>`;

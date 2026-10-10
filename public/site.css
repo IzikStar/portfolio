@@ -464,3 +464,5 @@ body[data-page='chat'] .site-foot { display: none; }
 .chip-check input { accent-color: var(--on-accent); margin: 0; }
 .chat-to-btn { flex: none; min-height: 46px; max-width: 34%; padding: 4px 12px; border-radius: 23px; border: 1px solid var(--line-strong); background: transparent; color: var(--soft); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-to-btn.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.chat-people .chat-dm { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: transparent; color: var(--soft); font: inherit; font-size: 13px; cursor: pointer; }
+.chat-people .chat-dm:hover { border-color: var(--accent); color: var(--ink); }

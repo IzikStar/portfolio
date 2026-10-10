@@ -312,7 +312,7 @@
       grow();
       editing = null;
       setReply(null);
-      setTo(new Set());
+      // "למי?" stays as it was: a private conversation does not slip into the group.
       take([m], { keepBottom: true });
       say('');
     } catch (err) {
@@ -389,6 +389,12 @@
       const name = el('span', 'name', p.name);
       if (here.has(p.id)) name.classList.add('here');
       li.append(name);
+      if (p.id !== me && canWrite) {
+        const dm = el('button', 'chat-dm', 'הודעה פרטית');
+        dm.type = 'button';
+        dm.addEventListener('click', () => privateTo(p.id));
+        li.append(dm);
+      }
       if (p.id === 'owner') li.append(el('span', 'role', 'מנהל'));
       else if (owner) {
         const sel = el('select');
@@ -415,6 +421,17 @@
     }
     peopleEl.replaceChildren(ul);
   }
+  // Write to one person only: the "למי?" list set to just them.
+  function privateTo(id) {
+    if (!roster.some((p) => p.id === id) || id === me) return;
+    setReply(null);
+    setTo(new Set([id]));
+    peopleEl.hidden = true;
+    peopleBtn.setAttribute('aria-expanded', 'false');
+    say(`הודעה פרטית ל${nameOf(id)}: רק את/ה ו${nameOf(id)} תראו אותה.`);
+    ta.focus();
+  }
+
   peopleBtn.addEventListener('click', async () => {
     const open = peopleEl.hidden;
     peopleEl.hidden = !open;
@@ -636,4 +653,7 @@
   });
 
   if (location.hash.startsWith('#m-')) jump(location.hash.slice(3));
+  // /community/<slug>/chat?to=<id>: open ready to write to that person alone.
+  const to = new URLSearchParams(location.search).get('to');
+  if (to && canWrite) privateTo(to);
 })();
