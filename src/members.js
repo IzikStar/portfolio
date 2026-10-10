@@ -238,6 +238,7 @@ export async function setMemberStatus(request, env, id) {
 }
 
 export async function removeMember(env, id) {
+  if (id === (await ownerMemberId(env))) throw new HttpError(409, 'This is your own account; it cannot be removed.');
   const d = await db(env);
   const { meta } = await d.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   if (!meta.changes) throw new HttpError(404, 'That member no longer exists.');
