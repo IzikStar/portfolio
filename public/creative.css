@@ -237,6 +237,8 @@ body::after {
   background: radial-gradient(40% 50% at 70% 40%, rgb(233 162 59 / 0.16), transparent 70%), radial-gradient(35% 45% at 25% 60%, rgb(121 191 230 / 0.12), transparent 70%);
   filter: blur(10px);
 }
+/* On a phone the form fills the screen, so a halo wider than the form makes the whole page scroll sideways. */
+@media (max-width: 720px) { .member-form::before, .login::before { inset-inline: 0; } }
 
 /* ---------- footer ---------- */
 .site-foot { position: relative; border-top: 0; }
