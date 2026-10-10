@@ -283,6 +283,23 @@ describe('one account, many communities', () => {
   });
 });
 
+describe("the owner's own member account", () => {
+  it('belongs to every community, old and new', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha', joinMode: 'closed' });
+    const me = await member(o, 'itsme');
+    const res = await call(o, '/api/studio/settings/owner-member', 'PUT', { userId: me.id });
+    expect(res.status).toBe(200);
+    const b = await community(o, { title: 'Beta', hidden: true });
+    const { users } = await (await call(o, '/api/studio/community')).json();
+    expect(users.find((u) => u.id === me.id)).toMatchObject({ isOwner: true, communities: { [a.id]: 'active', [b.id]: 'active' } });
+    const { communities } = await (await call(me.cookie, '/api/communities')).json();
+    expect(communities.map((c) => c.membership)).toEqual(['active', 'active']);
+    expect((await call(o, '/api/studio/settings/owner-member', 'PUT', { userId: 'nobody' })).status).toBe(404);
+    expect((await call(me.cookie, '/api/studio/settings/owner-member', 'PUT', { userId: me.id })).status).toBe(401);
+  });
+});
+
 describe('studio spaces and communities', () => {
   it('counts items, and keeps full spaces from being deleted', async () => {
     const o = await owner();

@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { safeEqual } from './auth.js';
 import { access, knownCommunities } from './spaces.js';
-import { addRequests, addActive, cleanCommunityIds } from './communities.js';
+import { addRequests, addActive, cleanCommunityIds, ownerMemberId, syncOwnerMember } from './communities.js';
 
 export const MEMBER_COOKIE = 'member_session';
 const SESSION_DAYS = 30;
@@ -185,6 +185,8 @@ export async function me(request, env) {
 // ---------- owner (studio) ----------
 
 export async function listCommunity(env) {
+  await syncOwnerMember(env);
+  const ownerId = await ownerMemberId(env);
   const d = await db(env);
   const [users, invites, joined] = await Promise.all([
     d.prepare(`SELECT id, username, display_name, status, request_note, invite_code, created_at, last_login_at FROM users ORDER BY created_at DESC`).all(),
@@ -205,6 +207,7 @@ export async function listCommunity(env) {
       createdAt: u.created_at,
       lastLoginAt: u.last_login_at,
       communities: where.get(u.id) ?? {},
+      isOwner: u.id === ownerId,
     })),
     invites: invites.results.map((i) => ({
       code: i.code,
