@@ -38,6 +38,13 @@ export async function verifyPassword(password, stored) {
   return safeEqual(b64url(actual), hash);
 }
 
+// The owner's own member account also opens with the studio password
+// (ADMIN_PASSWORD), so he has one password and it follows when he changes it.
+async function passwordOk(env, user, password) {
+  if (await verifyPassword(password, user.password_hash)) return true;
+  return Boolean(env.ADMIN_PASSWORD) && user.id === (await ownerMemberId(env)) && (await safeEqual(password, env.ADMIN_PASSWORD));
+}
+
 // ---------- sessions ----------
 
 async function sign(message, env) {
@@ -108,7 +115,7 @@ export async function join(request, env) {
   // joins that account instead of asking for a second one.
   const existing = await d.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
   if (existing) {
-    if (!(await verifyPassword(password, existing.password_hash))) {
+    if (!(await passwordOk(env, existing, password))) {
       await new Promise((r) => setTimeout(r, 1000)); // as slow as a wrong sign-in
       throw new HttpError(409, 'That username is taken.');
     }
@@ -161,7 +168,7 @@ export async function memberLogin(request, env) {
   const body = await readJson(request);
   const d = await db(env);
   const user = await d.prepare('SELECT * FROM users WHERE username = ?').bind(cleanText(body.username, 30).normalize('NFKC')).first();
-  const ok = user && (await verifyPassword(String(body.password ?? ''), user.password_hash));
+  const ok = user && (await passwordOk(env, user, String(body.password ?? '')));
   if (!ok) {
     await new Promise((r) => setTimeout(r, 1000));
     throw new HttpError(401, 'Wrong username or password.');

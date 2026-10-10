@@ -298,6 +298,18 @@ describe("the owner's own member account", () => {
     expect((await call(o, '/api/studio/settings/owner-member', 'PUT', { userId: 'nobody' })).status).toBe(404);
     expect((await call(me.cookie, '/api/studio/settings/owner-member', 'PUT', { userId: me.id })).status).toBe(401);
   });
+
+  it('signs in with the studio password too, and only that account does', async () => {
+    const o = await owner();
+    const me = await member(o, 'itsme');
+    await member(o, 'someone');
+    const login = (username, password) => call(null, '/api/member/login', 'POST', { username, password });
+    expect((await login('itsme', env.ADMIN_PASSWORD)).status).toBe(401);
+    await call(o, '/api/studio/settings/owner-member', 'PUT', { userId: me.id });
+    expect((await login('itsme', env.ADMIN_PASSWORD)).status).toBe(200);
+    expect((await login('itsme', 'longenough')).status).toBe(200);
+    expect((await login('someone', env.ADMIN_PASSWORD)).status).toBe(401);
+  });
 });
 
 describe('studio spaces and communities', () => {
