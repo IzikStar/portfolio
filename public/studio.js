@@ -1028,7 +1028,8 @@
     return [btn, panel];
   }
 
-  function request(m, communityId, done, msg = 'g-status') {
+  // `chat`: the community chat's address, for a private message to an active member.
+  function request(m, communityId, done, msg = 'g-status', chat = null) {
     const decide = (status) => send(`/api/studio/communities/${communityId}/members`, 'PATCH', { userId: m.userId, status }).then(done, report(msg));
     return h(
       'li',
@@ -1043,7 +1044,12 @@
               h('button', { className: 'btn small primary', type: 'button', textContent: 'אישור', onclick: () => decide('active') }),
               h('button', { className: 'btn small danger', type: 'button', textContent: 'דחייה', onclick: () => decide('refused') }),
             ]
-          : [h('button', { className: 'btn small danger', type: 'button', textContent: m.status === 'active' ? 'הסרה' : 'מחיקה', onclick: () => confirm(`להוציא את ${m.displayName}?`) && decide('removed') })]),
+          : [
+              chat && m.status === 'active'
+                ? h('a', { className: 'btn small', href: `${chat}?to=${encodeURIComponent(m.userId)}`, target: '_blank', rel: 'noopener', textContent: 'הודעה פרטית' })
+                : null,
+              h('button', { className: 'btn small danger', type: 'button', textContent: m.status === 'active' ? 'הסרה' : 'מחיקה', onclick: () => confirm(`להוציא את ${m.displayName}?`) && decide('removed') }),
+            ]),
       ),
       m.note ? h('span', { className: 'note', dir: 'auto', textContent: m.note }) : null,
     );
@@ -2269,6 +2275,7 @@
       $('g-sort').value = c.sort ?? 0;
       $('g-hidden').checked = c.hidden;
       $('g-view').href = c.path;
+      $('g-chat').href = `${c.path}/chat`;
       say('g-status', `${c.members} חברים${c.requests ? ` · ${c.requests} בקשות` : ''}`);
       const [{ members }, { users }, { entries }] = await Promise.all([
         call(`/api/studio/communities/${id}/members`),
@@ -2276,7 +2283,7 @@
         call('/api/studio/entries'),
       ]);
       const shown = members.filter((m) => m.status !== 'refused');
-      $('g-members').replaceChildren(...shown.map((m) => request(m, id, () => openGroup(id))));
+      $('g-members').replaceChildren(...shown.map((m) => request(m, id, () => openGroup(id), 'g-status', `${c.path}/chat`)));
       $('g-members-empty').hidden = shown.length > 0;
       const inside = new Set(shown.map((m) => m.userId));
       $('g-add').replaceChildren(

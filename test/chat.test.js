@@ -104,6 +104,10 @@ describe('community chat', () => {
     expect(blog.text).toContain('href="/community/jokes/chat"');
     expect(blog.text).toContain('To get to the bridge');
     expect((await page('/community/jokes', outsider.cookie)).text).not.toContain('/community/jokes/chat');
+    // So does the list of communities, for the owner and the members.
+    expect((await page('/community', o)).text).toContain('href="/community/jokes/chat"');
+    expect((await page('/community', dana.cookie)).text).toContain('href="/community/jokes/chat"');
+    expect((await page('/community', outsider.cookie)).text).not.toContain('/community/jokes/chat');
   });
 
   it('keeps a hidden community\'s chat out of sight', async () => {
