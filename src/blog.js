@@ -13,6 +13,7 @@ import { communityBox } from './wings.js';
 import { knows, pathOf } from './communities.js';
 import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comments.js';
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip } from './mentions.js';
+import { chatPage, CHAT, chatLink } from './chat.js';
 import { POST_SELECT, postFromRow, getPost, postPath, canPost, canReadPost, canCommentPost, isWriter } from './posts.js';
 
 const MAX_TITLE = 160;
@@ -25,6 +26,7 @@ const PER_HOUR = 6;
 export async function communityRoute(env, v, slug, postSlug) {
   const c = v.acc.comms.find((x) => x.slug === slug);
   if (!knows(v.acc, c)) return null;
+  if (postSlug === CHAT) return chatPage(env, v, c);
   return postSlug === undefined ? blogPage(env, v, c) : postPage(env, v, c, postSlug);
 }
 
@@ -95,7 +97,7 @@ async function blogPage(env, v, c) {
   const body = `${head(c, c.summary ? e(c.summary) : '')}
 <div class="wrap narrow block blog">
   ${manage}
-  ${inside ? '' : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
+  ${inside ? await chatLink(env, c) : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
   ${shelf}
   <section class="block"><div class="section-head"><h2>הבלוג</h2></div>
   ${write}
@@ -145,7 +147,7 @@ async function postPage(env, v, c, slug) {
 
 // ---------- API (members and the owner) ----------
 
-async function writeAllowed(env, v) {
+export async function writeAllowed(env, v) {
   if (v.acc.owner) return;
   const d = await db(env);
   const since = new Date(Date.now() - 3600_000).toISOString();
@@ -160,6 +162,43 @@ async function readPost(request) {
   return { title, raw: cleanText(body.body, MAX_BODY) };
 }
 
+// A new post in a community's blog, by the viewer (also used by the chat,
+// when a message becomes a post). "chat" is never a post's slug: that
+// address is the community's chat (src/chat.js).
+// `by` credits someone else ({ userId, author }): the writer of a chat message.
+export async function addPost(env, v, space, title, text, { open = false, by = null } = {}) {
+  const { acc } = v;
+  const now = new Date().toISOString();
+  const post = {
+    id: crypto.randomUUID(),
+    spaceId: space.id,
+    userId: by ? by.userId : acc.owner ? null : v.member.id,
+    author: by ? by.author : acc.owner ? OWNER_NAME : v.member.displayName,
+    title,
+    body: text,
+    public: open,
+    createdAt: now,
+  };
+  const base = slugify(title) || post.id.slice(0, 8);
+  const d = await db(env);
+  for (let n = base === CHAT ? 2 : 1; ; n++) {
+    post.slug = n === 1 ? base : `${base}-${n}`;
+    try {
+      await d
+        .prepare(
+          `INSERT INTO posts (id, space_id, slug, user_id, author, title, body, status, public, pinned, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'visible', ?, 0, ?, ?)`,
+        )
+        .bind(post.id, post.spaceId, post.slug, post.userId, post.author, post.title, post.body, open ? 1 : 0, now, now)
+        .run();
+      break;
+    } catch (err) {
+      if (!/UNIQUE/i.test(String(err?.message)) || n > 50) throw err;
+    }
+  }
+  return post;
+}
+
 // POST /api/blog/<spaceId>/posts
 export async function createPost(request, env, v, spaceId) {
   if (v.role === 'public') throw new HttpError(401, 'Sign in first.');
@@ -171,33 +210,7 @@ export async function createPost(request, env, v, spaceId) {
   const { title, raw } = await readPost(request);
   const { text, ids } = await cleanMentions(env, [space.id], raw);
   if (!text.trim()) throw new HttpError(400, 'Write something first.');
-  const now = new Date().toISOString();
-  const post = {
-    id: crypto.randomUUID(),
-    spaceId: space.id,
-    userId: acc.owner ? null : v.member.id,
-    author: acc.owner ? OWNER_NAME : v.member.displayName,
-    title,
-    body: text,
-    createdAt: now,
-  };
-  const base = slugify(title) || post.id.slice(0, 8);
-  const d = await db(env);
-  for (let n = 1; ; n++) {
-    post.slug = n === 1 ? base : `${base}-${n}`;
-    try {
-      await d
-        .prepare(
-          `INSERT INTO posts (id, space_id, slug, user_id, author, title, body, status, public, pinned, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'visible', 0, 0, ?, ?)`,
-        )
-        .bind(post.id, post.spaceId, post.slug, post.userId, post.author, post.title, post.body, now, now)
-        .run();
-      break;
-    } catch (err) {
-      if (!/UNIQUE/i.test(String(err?.message)) || n > 50) throw err;
-    }
-  }
+  const post = await addPost(env, v, space, title, text);
   await recordMentions(env, 'post', post.id, ids, post.userId);
   return json({ ...post, path: postPath(acc, post) }, 201);
 }

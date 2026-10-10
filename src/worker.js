@@ -7,6 +7,8 @@
 //   MEDIA          KV namespace
 //   DB             D1 database (platform entries, members, invites)
 //   ADMIN_PASSWORD secret, the only way into the studio
+//   CHAT           Durable Object (src/chat-room.js), optional: live community chats;
+//                  without it the chat page polls
 //   ANTHROPIC_API_KEY secret, optional: the writing partner on the ideas page (src/muse.js)
 
 import { HttpError, json, checkOrigin } from './http.js';
@@ -30,6 +32,10 @@ import { listIdeas, captureIdea, updateIdea, growIdea, backToIdea, getSparks, sa
 import { museIdea, dropMuse, getPulse, runPulse, seePulse, runWeekly, museCron, saveModel } from './muse.js';
 import { communityRoute, createPost, editPost, deletePost, studioPosts, moderatePost } from './blog.js';
 import { people } from './mentions.js';
+import { chatApi } from './chat.js';
+
+// The live room behind each community chat (bound as CHAT in wrangler.toml).
+export { ChatRoom } from './chat-room.js';
 
 // The main address. The other custom domains (and www.) redirect here;
 // the workers.dev address keeps working as is.
@@ -154,6 +160,7 @@ async function api(request, env, url, ctx) {
   }
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
   if (path.startsWith('/api/blog/') || path === '/api/people') return blogApi(request, env, url);
+  if (path.startsWith('/api/chat/')) return chatApi(request, env, url, await viewer(request, env));
 
   if (!path.startsWith('/api/admin/')) throw new HttpError(404, 'Not found.');
 

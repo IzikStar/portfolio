@@ -30,6 +30,16 @@ binding = "DB"
 database_name = "izikstar-platform"
 database_id = "1812a536-0ea5-46b0-bfdf-9536d9baf84e"
 
+# The live part of the community chats (src/chat-room.js): one room per
+# community holds the open WebSockets. SQLite-backed, as the free plan requires.
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]
+
 # Refresh projects from their sources (GitHub, web pages) every day at 03:00 UTC.
 [triggers]
 crons = ["0 3 * * *"]
@@ -50,3 +60,8 @@ id = "a570d681fd104ef1b2b2e3e679d9be17"
 binding = "DB"
 database_name = "izikstar-platform-preview"
 database_id = "e6b0e995-5423-4ffa-9021-2acc77e40292"
+
+# Each preview gets its own rooms; the binding has to be named here too.
+[[previews.durable_objects.bindings]]
+name = "CHAT"
+class_name = "ChatRoom"

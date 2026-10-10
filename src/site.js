@@ -87,7 +87,7 @@ export function html(markup, v, status = 200) {
   });
 }
 
-export function layout({ title, description = '', path, v, body, wing = null, noindex = false, links = [], script = false }) {
+export function layout({ title, description = '', path, v, body, wing = null, noindex = false, links = [], script = false, scripts = [], page = null }) {
   const { role, member, acc } = v;
   const here = (p) => (path === p || path.startsWith(`${p}/`) ? ' aria-current="page"' : '');
   const full = title ? `${title} · יצחק שטרן` : 'יצחק שטרן';
@@ -114,8 +114,9 @@ ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <link rel="stylesheet" href="/site.css">
 <link rel="stylesheet" href="/creative.css">
 ${script ? '<script src="/site.js" defer></script>' : ''}
+${scripts.map((src) => `<script src="${e(src)}" defer></script>`).join('')}
 </head>
-<body${wing ? ` data-wing="${e(wing)}"` : ''}>
+<body${wing ? ` data-wing="${e(wing)}"` : ''}${page ? ` data-page="${e(page)}"` : ''}>
 <a class="sr-only" href="#main">לתוכן</a>
 <header class="bar">
   <div class="wrap">

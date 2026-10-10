@@ -18,6 +18,8 @@
 //               or about a blog post: entry_id holds the id of either (both are UUIDs)
 //   posts       community blog posts, one blog per community; space_id holds the
 //               community's id (the column predates communities)
+//   chat_messages  each community's group chat (src/chat.js); changed_at moves
+//               on every edit, pin or delete, so a poll "since" sees changes too
 //   mentions    who was tagged where (@ in a comment or a post), for the member's page
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
@@ -123,6 +125,23 @@ const SCHEMA = [
   `CREATE UNIQUE INDEX IF NOT EXISTS posts_slug ON posts(space_id, slug)`,
   `CREATE INDEX IF NOT EXISTS posts_recent ON posts(space_id, pinned, created_at)`,
   `CREATE INDEX IF NOT EXISTS posts_user ON posts(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    community_id TEXT NOT NULL,
+    user_id TEXT,
+    author TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    reply_to TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    post_id TEXT,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    edited_at TEXT,
+    changed_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS chat_room ON chat_messages(community_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS chat_changes ON chat_messages(community_id, changed_at)`,
+  `CREATE INDEX IF NOT EXISTS chat_user ON chat_messages(user_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS mentions (
     source TEXT NOT NULL,
     source_id TEXT NOT NULL,
