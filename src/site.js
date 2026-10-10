@@ -25,6 +25,7 @@ const VIS_LABEL = { private: 'רק אני', community: 'לקהילות', members
 
 export const icon = (paths, size = 34) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const BELL = icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 18);
 export const LOCK = icon('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 16);
 
 const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' });
@@ -106,6 +107,11 @@ ${description ? `<meta property="og:description" content="${e(description)}">` :
 <meta property="og:image" content="${SITE}/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#13110e">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/img/app-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="יצחק שטרן">
 ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2313110e'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23e9a23b' font-family='sans-serif' font-weight='700'%3E%D7%99%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -115,8 +121,9 @@ ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <link rel="stylesheet" href="/creative.css">
 ${script ? '<script src="/site.js" defer></script>' : ''}
 ${scripts.map((src) => `<script src="${e(src)}" defer></script>`).join('')}
+<script src="/app.js" defer></script>
 </head>
-<body${wing ? ` data-wing="${e(wing)}"` : ''}${page ? ` data-page="${e(page)}"` : ''}>
+<body${wing ? ` data-wing="${e(wing)}"` : ''}${page ? ` data-page="${e(page)}"` : ''}${role !== 'public' ? ` data-who="${role === 'owner' ? 'owner' : 'member'}"` : ''}>
 <a class="sr-only" href="#main">לתוכן</a>
 <header class="bar">
   <div class="wrap">
@@ -125,6 +132,7 @@ ${scripts.map((src) => `<script src="${e(src)}" defer></script>`).join('')}
       ${wings.map((w) => `<a href="/${w.id}"${here(`/${w.id}`)}>${e(w.title)}</a>`).join('\n      ')}
     </nav>
     <div class="who">
+      ${role !== 'public' ? `<a class="bell" href="/notifications"${here('/notifications')} aria-label="התראות" title="התראות">${BELL}</a>` : ''}
       ${role === 'owner' ? `<a class="btn small to-studio" href="/studio${studio ? `#${e(studio)}` : ''}">סטודיו</a>` : ''}
       ${member ? `<a href="/community"${here('/community')}>${e(member.displayName)}</a><a href="/login?logout=1">יציאה</a>` : `<a href="/community"${here('/community')}>קהילות</a>`}
       ${role === 'public' ? `<a class="btn small" href="/login?next=${encodeURIComponent(path)}">כניסה</a>` : ''}

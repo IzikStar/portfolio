@@ -3,9 +3,10 @@
 // request re-reads the user so a suspension or removal takes effect at once.
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
-import { safeEqual } from './auth.js';
+import { safeEqual, RENEW_AFTER_MS } from './auth.js';
 import { access, knownCommunities } from './spaces.js';
 import { addRequests, addActive, cleanCommunityIds, ownerMemberId, syncOwnerMember } from './communities.js';
+import { onJoinRequest, onNewMember } from './push.js';
 
 export const MEMBER_COOKIE = 'member_session';
 const SESSION_DAYS = 30;
@@ -63,18 +64,36 @@ const clearCookie = () => `${MEMBER_COOKIE}=; Path=/; HttpOnly; Secure; SameSite
 
 // The signed-in, active member for this request, or null.
 export async function currentMember(request, env) {
+  return (await session(request, env))?.member ?? null;
+}
+
+// A fresh 30-day cookie when an active member's session is a day old or more,
+// so a member who keeps coming back stays signed in.
+export async function renewMember(request, env) {
+  const [, expires] = cookieParts(request);
+  // Fresh enough: no need to read anything.
+  if (!expires || Number(expires) - Date.now() > SESSION_DAYS * 86400 * 1000 - RENEW_AFTER_MS) return null;
+  const s = await session(request, env);
+  return s ? sessionCookie(s.member.id, env) : null;
+}
+
+const cookieParts = (request) =>
+  (
+    (request.headers.get('Cookie') ?? '')
+      .split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${MEMBER_COOKIE}=`))
+      ?.slice(MEMBER_COOKIE.length + 1) ?? ''
+  ).split('.');
+
+async function session(request, env) {
   if (!env.ADMIN_PASSWORD || !env.DB) return null;
-  const raw = (request.headers.get('Cookie') ?? '')
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${MEMBER_COOKIE}=`))
-    ?.slice(MEMBER_COOKIE.length + 1);
-  const [userId, expires, sig] = (raw ?? '').split('.');
+  const [userId, expires, sig] = cookieParts(request);
   if (!userId || !expires || !sig || Number(expires) < Date.now()) return null;
   if (!(await safeEqual(sig, await sign(`${userId}.${expires}`, env)))) return null;
   const d = await db(env);
   const user = await d.prepare(`SELECT id, username, display_name FROM users WHERE id = ? AND status = 'active'`).bind(userId).first();
-  return user ? { id: user.id, username: user.username, displayName: user.display_name } : null;
+  return user ? { member: { id: user.id, username: user.username, displayName: user.display_name }, expires: Number(expires) } : null;
 }
 
 // ---------- public routes ----------
@@ -149,8 +168,12 @@ export async function join(request, env) {
     if (/UNIQUE/i.test(String(err?.message))) throw new HttpError(409, 'That username is taken.');
     throw err;
   }
-  if (wanted.length) await addRequests(env, await publicAcc(), user.id, wanted, body.note);
-  if (!invite) return json({ status: 'pending' }, 201);
+  const asked = wanted.length ? await addRequests(env, await publicAcc(), user.id, wanted, body.note) : [];
+  if (!invite) {
+    // Each community asked for already told the owner; a bare sign-up tells him here.
+    if (!asked.length) await onJoinRequest(env, displayName, null);
+    return json({ status: 'pending' }, 201);
+  }
 
   // Count the use only if the invite still has room (two people racing for the last use).
   const { meta } = await d.prepare('UPDATE invites SET uses = uses + 1 WHERE code = ? AND uses < max_uses').bind(invite.code).run();
@@ -160,6 +183,7 @@ export async function join(request, env) {
   }
   // An invite to communities puts the new member straight in them.
   await addActive(env, user.id, JSON.parse(invite.communities || '[]'));
+  await onNewMember(env, displayName);
   return json({ status: 'active' }, 201, { 'Set-Cookie': await sessionCookie(user.id, env) });
 }
 

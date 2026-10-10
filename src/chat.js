@@ -28,6 +28,7 @@ import { communityBox } from './wings.js';
 import { OWNER_NAME } from './comments.js';
 import { cleanMentions } from './mentions.js';
 import { addPost } from './blog.js';
+import { onChat } from './push.js';
 
 export const CHAT = 'chat'; // the chat's address under a community; no post takes it
 const MAX_BODY = 4000;
@@ -244,7 +245,9 @@ async function send(request, env, v, c) {
     )
     .bind(id, c.id, v.acc.owner ? null : v.member.id, v.acc.owner ? OWNER_NAME : v.member.displayName, text, replyTo, JSON.stringify(audience), now, now)
     .run();
-  return json(await changed(env, c, id), 201);
+  const message = await changed(env, c, id);
+  await onChat(env, c, message, chatPath(c));
+  return json(message, 201);
 }
 
 // The message, if this viewer is in its chat.

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#13110e">
+<title>אין חיבור · יצחק שטרן</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #13110e; color: #efe7da; font-family: Heebo, system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+  img { width: 72px; height: 72px; border-radius: 16px; }
+  h1 { font-size: 1.4rem; margin: 18px 0 6px; }
+  p { color: #b3a894; margin: 0 0 22px; }
+  button { font: inherit; background: #e9a23b; color: #13110e; border: 0; border-radius: 999px; padding: 10px 22px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/img/app-192.png" alt="">
+  <h1>אין חיבור לאינטרנט</h1>
+  <p>כשהחיבור יחזור, הדף ייטען מחדש.</p>
+  <button type="button" onclick="location.reload()">לנסות שוב</button>
+</main>
+<script>addEventListener('online', () => location.reload());</script>
+</body>
+</html>

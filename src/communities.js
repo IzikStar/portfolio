@@ -11,6 +11,7 @@
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { slugify } from './entries.js';
+import { onJoinRequest, onApproved } from './push.js';
 
 export const JOIN_MODES = ['request', 'closed'];
 
@@ -86,12 +87,19 @@ export async function requestJoinMany(request, env, v) {
 }
 
 // Sign-up from a community's page asks for that community too.
+// A new request tells the owner.
 export async function addRequest(env, userId, communityId, note) {
   const d = await db(env);
-  await d
+  const { meta } = await d
     .prepare(`INSERT OR IGNORE INTO community_members (community_id, user_id, status, note, created_at) VALUES (?, ?, 'pending', ?, ?)`)
     .bind(communityId, userId, cleanText(note, 600), new Date().toISOString())
     .run();
+  if (!meta?.changes) return;
+  const [user, c] = await Promise.all([
+    d.prepare('SELECT display_name FROM users WHERE id = ?').bind(userId).first(),
+    d.prepare('SELECT id, title FROM communities WHERE id = ?').bind(communityId).first(),
+  ]);
+  if (user && c) await onJoinRequest(env, user.display_name, c);
 }
 
 // An invite that names communities puts the new member straight in.
@@ -323,6 +331,7 @@ export async function decideMember(request, env, id) {
     return json({ ok: true });
   }
   if (!['active', 'refused'].includes(status)) throw new HttpError(400, 'Unknown status.');
+  const before = await d.prepare('SELECT status FROM community_members WHERE community_id = ? AND user_id = ?').bind(id, user.id).first();
   const now = new Date().toISOString();
   await d
     .prepare(
@@ -332,6 +341,7 @@ export async function decideMember(request, env, id) {
     .bind(id, user.id, status, now, now)
     .run();
   if (status === 'active' && user.status === 'pending') await d.prepare(`UPDATE users SET status = 'active' WHERE id = ?`).bind(user.id).run();
+  if (status === 'active' && before?.status !== 'active') await onApproved(env, user.id, [await getCommunity(env, id)], pathOf);
   return json({ ok: true });
 }
 
@@ -368,5 +378,8 @@ export async function setMemberships(request, env, userId) {
   }
   if (want.size && user.status === 'pending') out.push(d.prepare(`UPDATE users SET status = 'active' WHERE id = ?`).bind(userId));
   if (out.length) await d.batch(out);
+  const all = await loadCommunities(env);
+  const added = all.filter((c) => want.has(c.id) && had.get(c.id) !== 'active');
+  await onApproved(env, userId, added, pathOf);
   return json({ ok: true, communities: [...want] });
 }

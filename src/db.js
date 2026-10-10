@@ -28,6 +28,8 @@
 //   api_tokens  keys for the future Claude connector (hashed)
 //   settings    small key/value settings
 //   revisions   earlier versions of an entry's text, put aside as it is saved (src/safety.js)
+//   push_subs   devices that said yes to notifications (src/push.js); who: a member's id or "owner"
+//   push_prefs  which kinds of notification each person turned off
 //   trash       deleted entries, with their comments and files, kept 30 days (src/safety.js)
 
 export const KINDS = ['idea', 'article', 'project', 'work', 'song', 'chapter', 'torah', 'sketch', 'dub', 'humor', 'video'];
@@ -227,6 +229,20 @@ const SCHEMA = [
     reason TEXT NOT NULL DEFAULT 'edit'
   )`,
   `CREATE INDEX IF NOT EXISTS revisions_entry ON revisions(entry_id, kept_at)`,
+  `CREATE TABLE IF NOT EXISTS push_subs (
+    endpoint TEXT PRIMARY KEY,
+    who TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    agent TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    fails INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS push_subs_who ON push_subs(who)`,
+  `CREATE TABLE IF NOT EXISTS push_prefs (
+    who TEXT PRIMARY KEY,
+    prefs TEXT NOT NULL DEFAULT '{}'
+  )`,
   `CREATE TABLE IF NOT EXISTS trash (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,

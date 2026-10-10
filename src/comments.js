@@ -7,7 +7,8 @@
 // Blog posts use the same comments: entry_id then holds the post's id.
 import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
-import { canSee, inAny } from './spaces.js';
+import { canSee, inAny, access } from './spaces.js';
+import { onComment } from './push.js';
 import { outsideOf } from './communities.js';
 import { getEntry } from './entries.js';
 import { getPost, canReadPost, canCommentPost, postPath } from './posts.js';
@@ -117,27 +118,31 @@ export async function postComment(request, env, v) {
   // (null: an item open to no community, where any member may be tagged).
   let targetId;
   let community;
+  let target; // for the notifications: what it is, where, whose, who may read it
   if (body.postId) {
     const post = await getPost(env, String(body.postId));
     if (!post || !canReadPost(v, post)) throw new HttpError(404, 'That post no longer exists.');
     if (!canCommentPost(v, post)) throw new HttpError(403, 'Comments here are open to this community only.');
     targetId = post.id;
     community = [post.spaceId];
+    target = { title: post.title, path: postPath(v.acc, post), ownerOfTarget: post.userId ?? 'owner', allows: (mv) => canReadPost(mv, post) };
   } else {
     const entry = await getEntry(env, String(body.entryId ?? ''));
     if (!entry || !canSee(v.acc, entry)) throw new HttpError(404, 'That item no longer exists.');
     if (!canComment(v, entry)) throw new HttpError(403, 'Comments here are open to this community only.');
     targetId = entry.id;
     community = entry.communities.length ? entry.communities : null;
+    target = { title: entry.title, path: entryPath(v.acc, entry) ?? '/', ownerOfTarget: 'owner', allows: (mv) => canComment(mv, entry) };
   }
   const { text, ids: tagged } = await cleanMentions(env, community, cleanText(body.body, MAX_BODY));
   if (!text.trim()) throw new HttpError(400, 'Write something first.');
   const d = await db(env);
   let replyTo = null;
   if (body.replyTo) {
-    const parent = await d.prepare('SELECT id, reply_to FROM comments WHERE id = ? AND entry_id = ?').bind(String(body.replyTo), targetId).first();
+    const parent = await d.prepare('SELECT id, reply_to, user_id FROM comments WHERE id = ? AND entry_id = ?').bind(String(body.replyTo), targetId).first();
     if (!parent) throw new HttpError(400, 'The comment you replied to is gone.');
     replyTo = parent.reply_to ?? parent.id;
+    target.parentWriter = parent.user_id ?? 'owner';
   }
   const anchor = Number.isInteger(body.anchor) && body.anchor >= 0 && body.anchor < 10_000 && !replyTo ? body.anchor : null;
   const now = new Date();
@@ -166,6 +171,16 @@ export async function postComment(request, env, v) {
     .bind(c.id, c.entryId, c.userId, c.author, c.anchor, c.quote, c.body, c.replyTo, c.status, c.createdAt)
     .run();
   await recordMentions(env, 'comment', c.id, tagged, c.userId);
+  await onComment(env, c, {
+    ...target,
+    tagged,
+    // A member hears about it only if they may read what was commented on.
+    canSee: async (id) => {
+      const mv = { role: 'member', member: { id } };
+      mv.acc = await access(env, mv);
+      return target.allows(mv);
+    },
+  });
   return json(c, 201);
 }
 
