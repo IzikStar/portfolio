@@ -48,7 +48,7 @@ export function renderChords(source) {
         if (inChorus) html += '</div>';
         inChorus = false;
       } else if (['c', 'comment', 'ci', 'comment_italic'].includes(n) && value) {
-        html += `<div class="comment">${e(value)}</div>`;
+        html += `<div class="part">${e(value)}</div>`;
       }
       continue;
     }
