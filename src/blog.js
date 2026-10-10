@@ -13,7 +13,7 @@ import { communityBox } from './wings.js';
 import { knows, pathOf } from './communities.js';
 import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comments.js';
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip, personHref } from './mentions.js';
-import { chatPage, CHAT, chatLink } from './chat.js';
+import { chatPage, CHAT, HALL, chatLink, chatSide, hallPage } from './chat.js';
 import { POST_SELECT, postFromRow, getPost, postPath, canPost, canReadPost, canCommentPost, isWriter } from './posts.js';
 import { onPost } from './push.js';
 
@@ -28,6 +28,7 @@ export async function communityRoute(env, v, slug, postSlug) {
   const c = v.acc.comms.find((x) => x.slug === slug);
   if (!knows(v.acc, c)) return null;
   if (postSlug === CHAT) return chatPage(env, v, c);
+  if (postSlug === HALL) return hallPage(env, v, c);
   return postSlug === undefined ? blogPage(env, v, c) : postPage(env, v, c, postSlug);
 }
 
@@ -124,7 +125,7 @@ async function blogPage(env, v, c) {
 </div></section>
 <div class="wrap block comm">
   <aside class="comm-side">
-    ${inside ? await chatLink(env, c) : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
+    ${inside ? `${await chatLink(env, c)}${await chatSide(env, c)}` : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
     ${shelf}
   </aside>
   <section class="comm-blog">
@@ -191,8 +192,8 @@ async function readPost(request) {
 }
 
 // A new post in a community's blog, by the viewer (also used by the chat,
-// when a message becomes a post). "chat" is never a post's slug: that
-// address is the community's chat (src/chat.js).
+// when a message becomes a post). "chat" and "hall" are never a post's slug:
+// those addresses are the community's chat and halls of fame (src/chat.js).
 // `by` credits someone else ({ userId, author }): the writer of a chat message.
 export async function addPost(env, v, space, title, text, { open = false, by = null } = {}) {
   const { acc } = v;
@@ -209,7 +210,7 @@ export async function addPost(env, v, space, title, text, { open = false, by = n
   };
   const base = slugify(title) || post.id.slice(0, 8);
   const d = await db(env);
-  for (let n = base === CHAT ? 2 : 1; ; n++) {
+  for (let n = base === CHAT || base === HALL ? 2 : 1; ; n++) {
     post.slug = n === 1 ? base : `${base}-${n}`;
     try {
       await d

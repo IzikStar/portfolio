@@ -20,7 +20,12 @@
 //               community's id (the column predates communities)
 //   chat_messages  each community's group chat (src/chat.js); changed_at moves
 //               on every edit, pin or delete, so a poll "since" sees changes too.
-//               audience: user ids a message is for ([] = the whole chat)
+//               audience: user ids a message is for ([] = the whole chat);
+//               starred: marked with a star for everyone; share: a page of the
+//               site sent into the chat ({ path, title, where })
+//   community_characters  the characters of a community's world (its running
+//               jokes' people), each with a hall of fame
+//   hall_of_fame  chat messages put in a character's hall of fame
 //   mentions    who was tagged where (@ in a comment or a post), for the member's page
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
@@ -146,6 +151,25 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS chat_room ON chat_messages(community_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS chat_changes ON chat_messages(community_id, changed_at)`,
   `CREATE INDEX IF NOT EXISTS chat_user ON chat_messages(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS community_characters (
+    id TEXT PRIMARY KEY,
+    community_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    about TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS characters_community ON community_characters(community_id, sort)`,
+  `CREATE TABLE IF NOT EXISTS hall_of_fame (
+    character_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    community_id TEXT NOT NULL,
+    added_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (character_id, message_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS hall_message ON hall_of_fame(message_id)`,
+  `CREATE INDEX IF NOT EXISTS hall_community ON hall_of_fame(community_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS mentions (
     source TEXT NOT NULL,
     source_id TEXT NOT NULL,
@@ -270,6 +294,9 @@ const COLUMNS = [
   { table: 'entries', column: 'communities', sql: `ALTER TABLE entries ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [], then: fromSpaceCommunities },
   // Who may write in a community's chat: 'write' or 'read' (read only).
   { table: 'community_members', column: 'chat_role', sql: `ALTER TABLE community_members ADD COLUMN chat_role TEXT NOT NULL DEFAULT 'write'`, backfill: [] },
+  // A chat message marked with a star for everyone, and a page shared into the chat.
+  { table: 'chat_messages', column: 'starred', sql: `ALTER TABLE chat_messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0`, backfill: [] },
+  { table: 'chat_messages', column: 'share', sql: `ALTER TABLE chat_messages ADD COLUMN share TEXT`, backfill: [] },
 ];
 
 // Before communities stood on their own, every wing had a community and a

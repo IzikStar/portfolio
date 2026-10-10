@@ -25,6 +25,7 @@ const VIS_LABEL = { private: 'רק אני', community: 'לקהילות', members
 
 export const icon = (paths, size = 34) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const SHARE = icon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>', 18);
 const BELL = icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 18);
 export const LOCK = icon('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 16);
 
@@ -93,6 +94,9 @@ export function layout({ title, description = '', path, v, body, wing = null, no
   const here = (p) => (path === p || path.startsWith(`${p}/`) ? ' aria-current="page"' : '');
   const full = title ? `${title} · יצחק שטרן` : 'יצחק שטרן';
   const wings = WINGS.filter((w) => acc.visible.has(w.id));
+  // "שיתוף לקהילה": send this page into a community's chat (public/app.js).
+  // For whoever is in at least one chat, everywhere but the chat itself.
+  const share = role !== 'public' && page !== 'chat' && (acc.owner ? acc.comms.length > 0 : (acc.communities?.size ?? 0) > 0);
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -132,6 +136,7 @@ ${scripts.map((src) => `<script src="${e(src)}" defer></script>`).join('')}
       ${wings.map((w) => `<a href="/${w.id}"${here(`/${w.id}`)}>${e(w.title)}</a>`).join('\n      ')}
     </nav>
     <div class="who">
+      ${share ? `<button class="share-btn" type="button" data-share aria-label="שיתוף לצ׳אט של קהילה" title="שיתוף לצ׳אט של קהילה">${SHARE}<span>שיתוף</span></button>` : ''}
       ${role !== 'public' ? `<a class="bell" href="/notifications"${here('/notifications')} aria-label="התראות" title="התראות">${BELL}</a>` : ''}
       ${role === 'owner' ? `<a class="btn small to-studio" href="/studio${studio ? `#${e(studio)}` : ''}">סטודיו</a>` : ''}
       ${member ? `<a href="/community"${here('/community')}>${e(member.displayName)}</a><a href="/login?logout=1">יציאה</a>` : `<a href="/community"${here('/community')}>קהילות</a>`}

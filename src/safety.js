@@ -242,6 +242,8 @@ export async function exportAll(env) {
     users: await all('SELECT id, username, display_name, status, created_at, last_login_at FROM users'),
     comments: await all('SELECT * FROM comments ORDER BY created_at'),
     posts: await all('SELECT * FROM posts ORDER BY created_at'),
+    characters: await all('SELECT * FROM community_characters ORDER BY community_id, sort'),
+    hallOfFame: await all('SELECT * FROM hall_of_fame ORDER BY created_at'),
     files,
     settings: await all('SELECT * FROM settings'),
     trash: (await all('SELECT * FROM trash')).map((t) => ({ ...t, data: JSON.parse(t.data) })),

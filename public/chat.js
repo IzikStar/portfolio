@@ -1,7 +1,10 @@
 // The community chat page (src/chat.js): messages arrive live over a
 // WebSocket; when that is not possible the page asks for changes every few
-// seconds instead. Each message has a small menu: reply, pin, edit, delete,
-// and "make it a post" (on the blog it can be read alone and commented on).
+// seconds instead. Each message has a small menu: reply, pin, a star for
+// everyone, edit, delete, "make it a post" (on the blog it can be read alone
+// and commented on) and "into the hall of fame" of one of the community's
+// characters. Pages shared from the site (the "שיתוף לקהילה" button, app.js)
+// arrive as cards.
 // A message can be for some members only ("למי?" next to the box), and the
 // owner decides who writes and who only reads (the participants list).
 (() => {
@@ -12,6 +15,7 @@
   const { room, me, owner } = start;
   let canWrite = start.canWrite;
   let roster = start.members ?? []; // [{ id, name, role }], the owner first
+  let cast = start.characters ?? []; // [{ id, name, about, count }]
   const $ = (sel) => root.querySelector(sel);
   const log = $('[data-log]');
   const scroller = $('[data-scroll]');
@@ -26,6 +30,7 @@
 
   const messages = new Map(); // id -> message
   let pinned = [];
+  let starred = [];
   let since = start.now;
   let replyTo = null;
   let oldest = null;
@@ -37,6 +42,8 @@
     return data;
   };
 
+  // What a message says in one line: its text, or the page it carries.
+  const textOf = (m) => m.body || (m.share ? `🔗 ${m.share.title}` : '');
   const isMine = (m) => (me === 'owner' ? m.userId === null : m.userId === me);
   const timeFmt = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
   const dayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' });
@@ -91,7 +98,7 @@
   // ---------- drawing ----------
 
   function bubble(m) {
-    const li = el('li', `chat-msg${isMine(m) ? ' mine' : ''}${m.deleted ? ' deleted' : ''}${m.pinned ? ' is-pinned' : ''}`);
+    const li = el('li', `chat-msg${isMine(m) ? ' mine' : ''}${m.deleted ? ' deleted' : ''}${m.pinned ? ' is-pinned' : ''}${m.starred ? ' has-star' : ''}`);
     li.id = `m-${m.id}`;
     li.dataset.id = m.id;
     li.style.setProperty('--who', hue(m.userId ?? 'owner'));
@@ -110,7 +117,23 @@
     text.dir = dirOf(m.body);
     if (m.deleted) text.textContent = 'ההודעה נמחקה';
     else fill(text, m.body);
-    b.append(text);
+    if (m.body || m.deleted) b.append(text);
+    if (m.share && !m.deleted) {
+      const card = el('a', 'chat-share');
+      card.href = m.share.path;
+      card.append(el('span', 'w', m.share.where), el('span', 't', m.share.title));
+      card.lastChild.dir = 'auto';
+      b.append(card);
+    }
+    if (m.hall?.length && !m.deleted) {
+      const row = el('span', 'hall-marks');
+      for (const x of m.hall) {
+        const a = el('a', 'hall-mark', `🏆 ${x.name}`);
+        a.href = `${start.hall}#ch-${x.id}`;
+        row.append(a);
+      }
+      b.append(row);
+    }
     if (m.post && !m.deleted) {
       const p = el('a', 'chat-post');
       p.href = m.post.path;
@@ -119,6 +142,7 @@
       b.append(p);
     }
     const meta = el('span', 'meta');
+    if (m.starred) meta.append(el('span', 'star-mark', '★'));
     if (m.pinned) meta.append(el('span', 'pin-mark', 'נעוץ'));
     if (m.editedAt && !m.deleted) meta.append(el('span', '', 'נערך'));
     const t = el('time', '', timeFmt.format(new Date(m.createdAt)));
@@ -171,6 +195,7 @@
       if (again) scroller.scrollTop += again.getBoundingClientRect().top - before;
     } else if (keepBottom) toBottom();
     drawPins();
+    drawStars();
   }
 
   function drawPins() {
@@ -182,7 +207,7 @@
     const details = el('details', 'wrap');
     const summary = el('summary', '', pinned.length === 1 ? 'הודעה נעוצה' : `${pinned.length} הודעות נעוצות`);
     const last = pinned[pinned.length - 1];
-    const peek = el('span', 'peek', last.body.split('\n')[0]);
+    const peek = el('span', 'peek', textOf(last).split('\n')[0]);
     peek.dir = 'auto';
     summary.append(peek);
     details.append(summary);
@@ -193,7 +218,7 @@
       a.href = `#m-${p.id}`;
       a.dataset.jump = p.id;
       a.append(el('b', '', p.author));
-      const s = el('span', '', p.body);
+      const s = el('span', '', textOf(p));
       s.dir = 'auto';
       a.append(s);
       li.append(a);
@@ -202,6 +227,55 @@
     details.append(ol);
     pinsEl.append(details);
   }
+
+  // ---------- starred for everyone, and the halls of fame ----------
+
+  const starsBtn = $('[data-stars-btn]');
+  const starsEl = $('[data-stars]');
+  function drawStars() {
+    starred = [...messages.values()].filter((m) => m.starred).concat(starred.filter((p) => !messages.has(p.id) && p.starred));
+    starred.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    starsBtn.classList.toggle('on', starred.length > 0);
+    if (starsEl.hidden) return;
+    const box = el('div', 'wrap');
+    box.append(el('h2', '', starred.length ? `★ מסומנות בכוכב (${starred.length})` : '★ מסומנות בכוכב'));
+    if (!starred.length) box.append(el('p', 'hint', 'עוד אין. בתפריט ⋯ של הודעה: ״כוכב לכולם״, וכולם יראו אותה כאן.'));
+    const ol = el('ol');
+    for (const p of starred) {
+      const li = el('li');
+      const a = el('a');
+      a.href = `#m-${p.id}`;
+      a.append(el('b', '', p.author));
+      const t = el('span', '', textOf(p));
+      t.dir = 'auto';
+      a.append(t);
+      li.append(a);
+      ol.append(li);
+    }
+    if (starred.length) box.append(ol);
+    const hall = el('div', 'stars-hall');
+    const link = el('a', 'btn small', '🏆 היכל התהילה');
+    link.href = start.hall;
+    hall.append(link);
+    for (const ch of cast) {
+      const a = el('a', 'chip', ch.count ? `${ch.name} · ${ch.count}` : ch.name);
+      a.href = `${start.hall}#ch-${ch.id}`;
+      a.dir = 'auto';
+      hall.append(a);
+    }
+    box.append(hall);
+    starsEl.replaceChildren(box);
+  }
+  starsBtn.addEventListener('click', () => {
+    const open = starsEl.hidden;
+    starsEl.hidden = !open;
+    starsBtn.setAttribute('aria-expanded', String(open));
+    if (open) {
+      peopleEl.hidden = true;
+      peopleBtn.setAttribute('aria-expanded', 'false');
+    }
+    drawStars();
+  });
 
   function take(list, opts) {
     for (const m of list) {
@@ -212,6 +286,7 @@
   }
 
   pinned = start.pinned ?? [];
+  starred = start.starred ?? [];
   moreWrap.hidden = !start.more;
   take(start.messages, { keepBottom: true });
   requestAnimationFrame(toBottom);
@@ -241,6 +316,8 @@
     if (!a) return;
     ev.preventDefault();
     pinsEl.querySelector('details')?.removeAttribute('open');
+    starsEl.hidden = true;
+    starsBtn.setAttribute('aria-expanded', 'false');
     jump(a.getAttribute('href').slice(3));
   });
 
@@ -265,7 +342,7 @@
     replyingEl.hidden = !m;
     if (m) {
       const only = m.audience?.length ? ` (רק ל${forWhom([...m.audience, m.userId ?? 'owner'].filter((id) => id !== me))})` : '';
-      replyingEl.querySelector('span').textContent = `תגובה ל${m.author}${only}: ${m.body.slice(0, 80)}`;
+      replyingEl.querySelector('span').textContent = `תגובה ל${m.author}${only}: ${textOf(m).slice(0, 80)}`;
       ta.focus();
     }
     toBtn.hidden = Boolean(m?.audience?.length); // a reply goes to the same people
@@ -445,6 +522,8 @@
     peopleEl.hidden = !open;
     peopleBtn.setAttribute('aria-expanded', String(open));
     if (open) {
+      starsEl.hidden = true;
+      starsBtn.setAttribute('aria-expanded', 'false');
       drawPeople();
       try {
         takeRoster((await send(`/api/chat/${room}/members`, 'GET')).members);
@@ -462,20 +541,22 @@
     menu = null;
   };
   document.addEventListener('click', (ev) => {
-    if (menu && !menu.contains(ev.target) && !ev.target.closest('[data-menu]')) closeMenu();
+    // (A button the menu just swapped out is no longer in the page: not a click outside.)
+    if (menu && ev.target.isConnected && !menu.contains(ev.target) && !ev.target.closest('[data-menu]')) closeMenu();
   });
   document.addEventListener('keydown', (ev) => ev.key === 'Escape' && closeMenu());
 
   function openMenu(btn, m) {
     closeMenu();
+    const row = btn.closest('.chat-msg');
     menu = el('div', 'chat-menu');
     menu.setAttribute('role', 'menu');
-    const item = (label, fn, danger = false) => {
+    const item = (label, fn, danger = false, keep = false) => {
       const b = el('button', danger ? 'danger' : '', label);
       b.type = 'button';
       b.setAttribute('role', 'menuitem');
       b.addEventListener('click', async () => {
-        closeMenu();
+        if (!keep) closeMenu();
         try {
           await fn();
         } catch (err) {
@@ -483,13 +564,21 @@
         }
       });
       menu.append(b);
+      return b;
     };
     const update = (m2) => take([m2]);
-    if (canWrite) item('תגובה', () => setReply(m));
-    item('העתקה', () => navigator.clipboard?.writeText(m.body).then(() => say('הועתק')));
-    if (canWrite) item(m.pinned ? 'ביטול נעיצה' : 'נעיצה למעלה', async () => update(await send(`/api/chat/messages/${m.id}`, 'PATCH', { pinned: !m.pinned })));
-    if (isMine(m) && canWrite) item('עריכה', () => setEdit(m));
     const shared = !m.audience?.length;
+    if (canWrite) item('תגובה', () => setReply(m));
+    item('העתקה', () => navigator.clipboard?.writeText(m.body || (m.share ? new URL(m.share.path, location.href).href : '')).then(() => say('הועתק')));
+    if (canWrite) item(m.pinned ? 'ביטול נעיצה' : 'נעיצה למעלה', async () => update(await send(`/api/chat/messages/${m.id}`, 'PATCH', { pinned: !m.pinned })));
+    if (canWrite) {
+      item(m.starred ? 'הסרת הכוכב' : '★ כוכב לכולם', async () => {
+        update(await send(`/api/chat/messages/${m.id}`, 'PATCH', { starred: !m.starred }));
+        say(m.starred ? 'הכוכב הוסר.' : 'סומנה בכוכב. כולם רואים אותה ב־★ למעלה.');
+      });
+    }
+    if (canWrite && shared && (cast.length || owner)) item('🏆 להיכל התהילה…', () => hallMenu(row, m), false, true);
+    if (isMine(m) && canWrite) item('עריכה', () => setEdit(m));
     if (isMine(m) || owner) {
       if (!m.post && shared && canWrite) {
         item('לבלוג הקהילה, עם תגובות', async () => {
@@ -509,11 +598,54 @@
         update(await send(`/api/chat/messages/${m.id}`, 'DELETE'));
       }, true);
     }
-    const row = btn.closest('.chat-msg');
     // Near the bottom of the chat the menu opens upward, so it is not cut off.
     const box = scroller.getBoundingClientRect();
     if (row.getBoundingClientRect().bottom > box.top + box.height * 0.55) menu.classList.add('up');
     row.append(menu);
+    menu.querySelector('button')?.focus({ preventScroll: true });
+  }
+
+  // The same menu, now listing the characters: the message goes into that
+  // character's hall of fame (or, if it is there already, comes out again).
+  function hallMenu(row, m) {
+    menu.replaceChildren(el('p', 'menu-head', 'להיכל התהילה של…'));
+    const pick = (label, fn, on = false) => {
+      const b = el('button', on ? 'on' : '', label);
+      b.type = 'button';
+      b.setAttribute('role', 'menuitemcheckbox');
+      b.setAttribute('aria-checked', String(on));
+      b.addEventListener('click', async () => {
+        closeMenu();
+        try {
+          await fn();
+        } catch (err) {
+          say(err.message);
+        }
+      });
+      menu.append(b);
+    };
+    const inHall = new Set((m.hall ?? []).map((x) => x.id));
+    for (const ch of cast) {
+      const on = inHall.has(ch.id);
+      pick(on ? `✓ ${ch.name}` : ch.name, async () => {
+        const m2 = on
+          ? await send(`/api/chat/messages/${m.id}/hall/${ch.id}`, 'DELETE')
+          : await send(`/api/chat/messages/${m.id}/hall`, 'POST', { character: ch.id });
+        take([m2]);
+        say(on ? `הוצאה מההיכל של ${ch.name}.` : `נכנסה להיכל התהילה של ${ch.name}.`);
+      }, on);
+    }
+    if (owner) {
+      pick('+ דמות חדשה', async () => {
+        const name = prompt('שם הדמות')?.trim();
+        if (!name) return;
+        const { character, characters } = await send(`/api/chat/${room}/characters`, 'POST', { name });
+        cast = characters;
+        take([await send(`/api/chat/messages/${m.id}/hall`, 'POST', { character: character.id })]);
+        say(`${name} נוספה לדמויות, וההודעה נכנסה להיכל שלה.`);
+      });
+    }
+    if (!cast.length && !owner) menu.append(el('p', 'menu-head', 'עוד אין דמויות.'));
     menu.querySelector('button')?.focus({ preventScroll: true });
   }
   log.addEventListener('click', (ev) => {
@@ -628,6 +760,9 @@
         drawPeople();
       } else if (data.type === 'members') {
         takeRoster(data.members ?? []);
+      } else if (data.type === 'characters') {
+        cast = data.characters ?? [];
+        drawStars();
       } else if (data.type === 'typing' && data.id !== me) {
         typingNow.set(data.id, { name: data.name, until: Date.now() + 4000 });
       }
