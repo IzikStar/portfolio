@@ -13,7 +13,7 @@
 // in); the owner hears about everything (requests, new members, posts, the
 // chat, comments). The owner's own member account counts as the owner, so he
 // never gets the same thing twice. A message for some members only reaches
-// them alone, and nobody gets a push for a chat they have open right now.
+// them alone, and a device showing that chat right now does not pop it up.
 //
 // The keys (VAPID, RFC 8292) are made on first use and kept in D1 settings, so
 // there is nothing to set up. Each message is encrypted for the one device it
@@ -327,18 +327,6 @@ async function plain(env, text, max = 160) {
   return excerpt(String(text).replace(/@\{([0-9a-f-]{36})\}/g, (m, id) => (names.get(id) ? `@${names.get(id)}` : '')), max);
 }
 
-// Who has this community's chat open right now (they see the message anyway).
-async function inRoom(env, communityId) {
-  if (!env.CHAT) return [];
-  try {
-    const stub = env.CHAT.get(env.CHAT.idFromName(communityId));
-    const res = await stub.fetch('https://chat.internal/present');
-    return res.ok ? (await res.json()).ids ?? [] : [];
-  } catch {
-    return [];
-  }
-}
-
 // ---------- the events ----------
 
 // A new post on a community's blog: its members and the owner, not the
@@ -355,15 +343,14 @@ export function onPost(env, c, post, path, tagged = []) {
 
 // A chat message. One for some members only goes to them (and to the owner
 // only when it is for him); a message to everyone goes to the whole community.
-// People with the chat open see it there, so they get no notification.
+// A device that has the chat in front of it right now skips showing it
+// (public/sw.js); the person's other devices still get it.
 export function onChat(env, c, m, path) {
   return later(env, async () => {
     const writer = m.userId ?? 'owner';
     const priv = m.audience.length > 0;
-    let whos = await asWho(env, priv ? m.audience : [...(await activeMembers(env, c.id)), 'owner'], [writer]);
+    const whos = await asWho(env, priv ? m.audience : [...(await activeMembers(env, c.id)), 'owner'], [writer]);
     if (!(await anyDevices(env, whos))) return;
-    const present = new Set(await asWho(env, await inRoom(env, c.id)));
-    whos = whos.filter((w) => !present.has(w));
     const body = await plain(env, m.body, 180);
     if (priv) await deliver(env, whos, 'private', { title: `הודעה פרטית מ${m.author}`, body, url: path, tag: `dm-${c.id}`, urgent: true });
     else await deliver(env, whos, 'chat', { title: c.title, body: `${m.author}: ${body}`, url: path, tag: `chat-${c.id}` });

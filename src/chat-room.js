@@ -32,11 +32,6 @@ export class ChatRoom {
       await this.send(JSON.stringify(payload), null, Array.isArray(to) ? new Set(to) : null);
       return new Response('ok');
     }
-    // Who has the chat open (the worker skips their notifications).
-    if (url.pathname === '/present') {
-      const ids = new Set(this.open().map((ws) => ws.deserializeAttachment()?.id).filter(Boolean));
-      return Response.json({ ids: [...ids] });
-    }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
     const who = {
       id: request.headers.get('X-Chat-User'),
