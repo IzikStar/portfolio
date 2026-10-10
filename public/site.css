@@ -226,9 +226,10 @@ a { color: inherit; }
 .chords { font-size: 19px; line-height: 1.35; }
 .chords .line { white-space: pre-wrap; min-height: 1.35em; }
 .chords .line.chordline { font-family: var(--mono); font-size: 15px; color: #a85a06; white-space: pre; overflow-x: auto; }
-.chords .ch { unicode-bidi: isolate; }
+.chords .ch { unicode-bidi: isolate; direction: ltr; }
 .chords .seg { display: inline-flex; flex-direction: column; vertical-align: bottom; }
 .chords .seg .ch { font-family: var(--mono); font-size: 15px; color: #a85a06; min-height: 1.3em; padding-inline-end: 6px; }
+.chords[dir="rtl"] .seg .ch { text-align: right; padding-inline: 6px 0; }
 .chords .gap { height: 0.9em; }
 .chords .comment { font-weight: 700; font-size: 15px; color: #6b5a3a; margin-top: 10px; }
 .chords .chorus { border-inline-start: 3px solid var(--accent); padding-inline-start: 14px; margin-block: 8px; }
