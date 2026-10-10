@@ -30,15 +30,6 @@ export async function communityRoute(env, v, slug, postSlug) {
   return postSlug === undefined ? blogPage(env, v, c) : postPage(env, v, c, postSlug);
 }
 
-function head(c, lede) {
-  return `<section class="band"><div class="wrap">
-  <div class="crumbs"><a href="/community">הקהילות</a></div>
-  <h1 dir="auto">${e(c.title)}</h1>
-  ${lede ? `<p class="lede" dir="auto">${lede}</p>` : ''}
-  <div class="spacer"></div>
-</div></section>`;
-}
-
 function badges(v, post) {
   return [
     post.pinned ? '<span class="badge">נעוץ</span>' : '',
@@ -60,48 +51,84 @@ function postForm(c, post = null, names = new Map()) {
 </form>`;
 }
 
+// A post's state on its card: pinned, open to everyone, hidden.
+function flags(v, post) {
+  const out = [
+    post.pinned ? `<span class="flag pin">${PIN}נעוץ</span>` : '',
+    post.public && (v.acc.owner || v.member) ? '<span class="flag open">פתוח לכולם</span>' : '',
+    post.status === 'hidden' ? '<span class="flag hid">מוסתר מהקהילה</span>' : '',
+  ].join('');
+  return out ? `<div class="flags">${out}</div>` : '';
+}
+
+const PIN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4v2H6v-2l4-4z"/></svg>';
+const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
+
+function postCard(v, p, names) {
+  const cls = ['post-card', p.pinned ? 'pinned' : '', p.status === 'hidden' ? 'is-hidden' : ''].filter(Boolean).join(' ');
+  return `<li class="${cls}">
+  ${flags(v, p)}
+  <a class="title" href="${postPath(v.acc, p)}" dir="auto">${e(p.title)}</a>
+  <p dir="auto">${e(excerpt(forEditing(p.body, names).text, 220))}</p>
+  <div class="meta">${byline(v, p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span class="talk">${plural(p.comments, 'תגובה אחת', 'תגובות')}</span>` : ''}</div>
+</li>`;
+}
+
 async function blogPage(env, v, c) {
   const { acc } = v;
   const path = pathOf(c);
   const d = await db(env);
-  const [{ results }, feed] = await Promise.all([
+  const [{ results }, feed, { results: counts }] = await Promise.all([
     d.prepare(`${POST_SELECT} WHERE p.space_id = ? ORDER BY p.pinned DESC, p.created_at DESC LIMIT 200`).bind(c.id).all(),
     listFeed(env, acc, 300),
+    d.prepare('SELECT status, COUNT(*) AS n FROM community_members WHERE community_id = ? GROUP BY status').bind(c.id).all(),
   ]);
+  const count = (status) => counts.find((r) => r.status === status)?.n ?? 0;
   const posts = results.map(postFromRow).filter((p) => canReadPost(v, p));
   const names = await mentionNames(env, posts.map((p) => p.body));
   const inside = acc.owner || (v.member && acc.communities.has(c.id));
   // What is opened to this community (and that this viewer may open).
-  const items = feed.filter((x) => x.communities.includes(c.id) && entryPath(acc, x)).slice(0, 60);
+  const items = feed.filter((x) => x.communities.includes(c.id) && entryPath(acc, x)).slice(0, 12);
   const shelf = items.length
-    ? `<section class="block"><div class="section-head"><h2>פתוח לקהילה</h2></div><div class="feed">${items
+    ? `<section class="side-box"><h2>פתוח לקהילה</h2><div class="feed">${items
         .map((x) => {
           const w = wingOf(acc, x.spaceId);
-          return `<a href="${entryPath(acc, x)}" data-wing="${e(w?.id ?? '')}"><span class="w">${e(w?.title ?? '')}</span><span class="t" dir="auto">${e(x.title)}</span><span class="d">${e(fmtDate(x.publishedAt))}</span></a>`;
+          return `<a href="${entryPath(acc, x)}" data-wing="${e(w?.id ?? '')}"><span class="w">${e(w?.title ?? '')}</span><span class="t" dir="auto">${e(x.title)}</span></a>`;
         })
         .join('')}</div></section>`
     : '';
   const list = posts.length
-    ? `<ol class="posts">${posts
-        .map(
-          (p) => `<li class="post-card${p.pinned ? ' pinned' : ''}">
-  <a class="title" href="${postPath(acc, p)}" dir="auto">${e(p.title)}</a>
-  <p dir="auto">${e(excerpt(forEditing(p.body, names).text, 220))}</p>
-  <div class="meta">${byline(v, p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span>${p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות`}</span>` : ''}${badges(v, p)}</div>
-</li>`,
-        )
-        .join('')}</ol>`
+    ? `<ol class="posts">${posts.map((p) => postCard(v, p, names)).join('')}</ol>`
     : `<p class="empty">${inside ? 'עוד אין כאן פוסטים. מי שכותב ראשון קובע את הטון.' : 'מה שנכתב כאן פתוח רק לקהילה.'}</p>`;
-  const write = canPost(v, c) ? `<details class="panel post-new"><summary>פוסט חדש</summary>${postForm(c)}</details>` : '';
-  const manage = acc.owner ? `<p class="actions"><a class="btn small" href="/studio#group/${e(c.id)}">ניהול הקהילה</a>${c.hidden ? '<span class="badge">נסתרת</span>' : ''}</p>` : '';
-  const body = `${head(c, c.summary ? e(c.summary) : '')}
-<div class="wrap narrow block blog">
-  ${manage}
-  ${inside ? await chatLink(env, c) : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
-  ${shelf}
-  <section class="block"><div class="section-head"><h2>הבלוג</h2></div>
-  ${write}
-  ${list}
+  const write = canPost(v, c)
+    ? `<details class="post-new"><summary><span class="open-it">פוסט חדש</span><span class="close-it">סגירה</span></summary>${postForm(c)}</details>`
+    : '';
+  // Who is in and what is here, and the owner's tools, all in the header.
+  const members = count('active');
+  const pending = count('pending');
+  const facts = [
+    inside ? `<span>${plural(members, 'חבר אחד', 'חברים')}</span>` : '',
+    posts.length ? `<span>${plural(posts.length, 'פוסט אחד', 'פוסטים')}</span>` : inside ? '<span>עוד אין פוסטים</span>' : '',
+    acc.owner && c.hidden ? '<span class="tag">קהילה נסתרת</span>' : '',
+    acc.owner && c.joinMode === 'closed' ? '<span class="tag">רק בהזמנה</span>' : '',
+  ].join('');
+  const tools = acc.owner
+    ? `<div class="comm-tools">${pending ? `<a class="btn small ask" href="/studio#group/${e(c.id)}">${plural(pending, 'בקשה אחת מחכה', 'בקשות מחכות')}</a>` : ''}<a class="btn small" href="/studio#group/${e(c.id)}">ניהול הקהילה</a></div>`
+    : '';
+  const body = `<section class="band comm-band"><div class="wrap">
+  <div class="crumbs"><a href="/community">הקהילות</a></div>
+  <h1 dir="auto">${e(c.title)}</h1>
+  ${c.summary ? `<p class="lede" dir="auto">${e(c.summary)}</p>` : ''}
+  ${facts || tools ? `<div class="comm-bar"><div class="comm-facts">${facts}</div>${tools}</div>` : '<div class="spacer"></div>'}
+</div></section>
+<div class="wrap block comm">
+  <aside class="comm-side">
+    ${inside ? await chatLink(env, c) : communityBox(v, [c.id], path, { intro: 'הדברים כאן פתוחים ל' })}
+    ${shelf}
+  </aside>
+  <section class="comm-blog">
+    <div class="blog-head"><h2>הבלוג</h2>${write}</div>
+    ${list}
   </section>
 </div>`;
   const open = !c.hidden;

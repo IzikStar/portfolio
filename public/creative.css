@@ -105,8 +105,8 @@ body::after {
 .hero aside a { transition: color 0.2s, transform 0.2s var(--ease-out); }
 .hero aside a:hover { color: var(--accent); transform: translateX(-4px); }
 
-.section-head h2 { position: relative; }
-.section-head h2::after {
+.section-head h2, .blog-head h2 { position: relative; }
+.section-head h2::after, .blog-head h2::after {
   content: ''; display: block; height: 4px; width: 48px; margin-top: 6px; border-radius: 4px;
   background: linear-gradient(90deg, #e9a23b, #e584b4, #79bfe6, #5db7a4);
 }
