@@ -235,10 +235,10 @@ describe('chord sheets', () => {
     expect(html).toContain('מילים &lt;b&gt;');
   });
 
-  it('handles choruses and comments, and knows plain lyrics', () => {
+  it('handles choruses and section names, and knows plain lyrics', () => {
     const html = renderChords('{soc}\nla\n{eoc}\n{c: Bridge}');
     expect(html).toContain('<div class="chorus"><div class="line">la</div></div>');
-    expect(html).toContain('<div class="comment">Bridge</div>');
+    expect(html).toContain('<div class="part">Bridge</div>');
     expect(html).toContain('dir="ltr"');
     expect(hasChords('just words\nAnd More')).toBe(false);
     expect(hasChords('Am F\nwords')).toBe(true);
