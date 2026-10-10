@@ -237,6 +237,82 @@ describe('community chat', () => {
     expect((await res.json()).path).toBe('/community/jokes/chat-2');
   });
 
+  it('lets the owner make someone read only', async () => {
+    const o = await owner();
+    const jokes = await club(o, 'Jokes');
+    const dana = await joinTo(o, 'Jokes', 'dana', 'Dana');
+    const eli = await joinTo(o, 'Jokes', 'eli', 'Eli');
+    const m = await (await say(o, jokes.id, 'Rules: be funny')).json();
+
+    // Only the owner sets roles, and only for members of this community.
+    expect((await call(dana.cookie, `/api/chat/${jokes.id}/members/${eli.id}`, 'PUT', { role: 'read' })).status).toBe(403);
+    expect((await call(o, `/api/chat/${jokes.id}/members/${eli.id}`, 'PUT', { role: 'admin' })).status).toBe(400);
+    const outsider = await member(o, 'outsider');
+    expect((await call(o, `/api/chat/${jokes.id}/members/${outsider.id}`, 'PUT', { role: 'read' })).status).toBe(404);
+    expect((await call(o, `/api/chat/${jokes.id}/members/${eli.id}`, 'PUT', { role: 'read' })).status).toBe(200);
+
+    const { members } = await (await call(dana.cookie, `/api/chat/${jokes.id}/members`)).json();
+    expect(members.map((x) => [x.name, x.role])).toEqual([['יצחק', 'write'], ['Dana', 'write'], ['Eli', 'read']]);
+
+    // Eli reads but does not write, pin or reply.
+    expect((await say(eli.cookie, jokes.id, 'can I?')).status).toBe(403);
+    expect((await call(eli.cookie, `/api/chat/messages/${m.id}`, 'PATCH', { pinned: true })).status).toBe(403);
+    expect((await history(eli.cookie, jokes.id)).messages.map((x) => x.body)).toEqual(['Rules: be funny']);
+    const pageText = (await page('/community/jokes/chat', eli.cookie)).text;
+    expect(pageText).toContain('"canWrite":false');
+    expect(pageText).toContain('קריאה בלבד');
+    expect((await say(dana.cookie, jokes.id, 'I still can')).status).toBe(201);
+
+    await call(o, `/api/chat/${jokes.id}/members/${eli.id}`, 'PUT', { role: 'write' });
+    expect((await say(eli.cookie, jokes.id, 'now I can')).status).toBe(201);
+  });
+
+  it('keeps a message for some members away from everyone else', async () => {
+    env.CHAT = fakeRooms();
+    const o = await owner();
+    const jokes = await club(o, 'Jokes');
+    const dana = await joinTo(o, 'Jokes', 'dana', 'Dana');
+    const eli = await joinTo(o, 'Jokes', 'eli', 'Eli');
+    const gil = await joinTo(o, 'Jokes', 'gil', 'Gil');
+    const outsider = await member(o, 'outsider');
+
+    // Unknown or outside ids are dropped; nobody left is an error.
+    expect((await say(dana.cookie, jokes.id, 'x', { audience: [outsider.id] })).status).toBe(400);
+    const secret = await (await say(dana.cookie, jokes.id, 'Surprise party for Gil!', { audience: [eli.id, outsider.id, 'owner'] })).json();
+    expect(secret.audience).toEqual([eli.id, 'owner']);
+    expect(JSON.parse(sent.at(-1).body)).toMatchObject({ to: [eli.id, 'owner', dana.id] });
+
+    const sees = async (who) => (await history(who, jokes.id)).messages.map((x) => x.body);
+    expect(await sees(dana.cookie)).toEqual(['Surprise party for Gil!']);
+    expect(await sees(eli.cookie)).toEqual(['Surprise party for Gil!']);
+    expect(await sees(o)).toEqual(['Surprise party for Gil!']);
+    expect(await sees(gil.cookie)).toEqual([]);
+    expect((await call(gil.cookie, `/api/chat/messages/${secret.id}`, 'PATCH', { pinned: true })).status).toBe(404);
+    expect((await page('/community/jokes/chat', gil.cookie)).text).not.toContain('Surprise');
+    expect((await page('/community/jokes', gil.cookie)).text).not.toContain('Surprise');
+
+    // A reply goes to the same people, even when the replier picks no one.
+    const reply = await (await say(eli.cookie, jokes.id, "I'll bring cake", { replyTo: secret.id })).json();
+    expect(reply.audience).toEqual(['owner', dana.id]);
+    expect(await sees(gil.cookie)).toEqual([]);
+    expect(await sees(dana.cookie)).toEqual(['Surprise party for Gil!', "I'll bring cake"]);
+    // Gil cannot reply to it (or learn its text through a quote).
+    const gilReply = await (await say(gil.cookie, jokes.id, 'what?', { replyTo: secret.id })).json();
+    expect(gilReply).toMatchObject({ replyTo: null, reply: null, audience: [] });
+
+    // The owner writes to one member: a reply from that member stays between them.
+    const toDana = await (await say(o, jokes.id, 'Just between us', { audience: [dana.id, 'owner'] })).json();
+    expect(toDana.audience).toEqual([dana.id]);
+    const back = await (await say(dana.cookie, jokes.id, 'Sure', { replyTo: toDana.id })).json();
+    expect(back.audience).toEqual(['owner']);
+    expect(await sees(eli.cookie)).toEqual(['Surprise party for Gil!', "I'll bring cake", 'what?']);
+    expect(await sees(o)).toContain('Sure');
+
+    // It stays in the chat: no blog post from it.
+    expect((await call(dana.cookie, `/api/chat/messages/${secret.id}/post`, 'POST', {})).status).toBe(400);
+    expect((await call(o, `/api/chat/messages/${secret.id}/post`, 'POST', { public: true })).status).toBe(400);
+  });
+
   it('hands every change to the live room', async () => {
     env.CHAT = fakeRooms();
     const o = await owner();
@@ -337,6 +413,14 @@ describe('the live room', () => {
     expect(res.status).toBe(200);
     expect(a.got.at(-1)).toEqual({ type: 'message', message: { id: 'm1' } });
     expect(b.got.at(-1)).toEqual({ type: 'message', message: { id: 'm1' } });
+
+    // A message for some members only reaches them and the owner.
+    const c = join(room, state, { id: 'u2', name: 'Eli' });
+    await room.fetch(new Request('https://chat.internal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'message', message: { id: 'm9' }, to: ['u2'] }) }));
+    expect(a.got.at(-1)).toEqual({ type: 'message', message: { id: 'm9' } });
+    expect(c.got.at(-1)).toEqual({ type: 'message', message: { id: 'm9' } });
+    expect(b.got.at(-1)).toEqual({ type: 'message', message: { id: 'm1' } });
+    c.readyState = 3;
 
     const before = b.got.length;
     await room.webSocketMessage(b, JSON.stringify({ type: 'typing' }));

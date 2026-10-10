@@ -2,12 +2,16 @@
 // WebSocket; when that is not possible the page asks for changes every few
 // seconds instead. Each message has a small menu: reply, pin, edit, delete,
 // and "make it a post" (on the blog it can be read alone and commented on).
+// A message can be for some members only ("למי?" next to the box), and the
+// owner decides who writes and who only reads (the participants list).
 (() => {
   const root = document.querySelector('[data-chat]');
   const dataEl = document.getElementById('chat-data');
   if (!root || !dataEl) return;
   const start = JSON.parse(dataEl.textContent);
   const { room, me, owner } = start;
+  let canWrite = start.canWrite;
+  let roster = start.members ?? []; // [{ id, name, role }], the owner first
   const $ = (sel) => root.querySelector(sel);
   const log = $('[data-log]');
   const scroller = $('[data-scroll]');
@@ -73,6 +77,9 @@
     return x;
   };
 
+  const nameOf = (id) => roster.find((p) => p.id === id)?.name ?? 'מישהו';
+  const forWhom = (ids) => ids.map(nameOf).join(', ');
+
   // ---------- drawing ----------
 
   function bubble(m) {
@@ -82,6 +89,7 @@
     li.style.setProperty('--who', hue(m.userId ?? 'owner'));
     const b = el('div', 'bubble');
     if (!isMine(m)) b.append(el('span', 'who', m.author));
+    if (m.audience?.length && !m.deleted) b.append(el('span', 'for', `🔒 רק ל${forWhom(m.audience)}`));
     if (m.reply && !m.deleted) {
       const q = el('a', 'quote');
       q.href = `#m-${m.replyTo}`;
@@ -248,9 +256,11 @@
     replyTo = m?.id ?? null;
     replyingEl.hidden = !m;
     if (m) {
-      replyingEl.querySelector('span').textContent = `תגובה ל${m.author}: ${m.body.slice(0, 80)}`;
+      const only = m.audience?.length ? ` (רק ל${forWhom([...m.audience, m.userId ?? 'owner'].filter((id) => id !== me))})` : '';
+      replyingEl.querySelector('span').textContent = `תגובה ל${m.author}${only}: ${m.body.slice(0, 80)}`;
       ta.focus();
     }
+    toBtn.hidden = Boolean(m?.audience?.length); // a reply goes to the same people
   }
   $('[data-cancel-reply]').addEventListener('click', () => setReply(null));
 
@@ -294,20 +304,128 @@
     if (!body || sending) return;
     sending = true;
     try {
+      const audience = toBtn.hidden ? [] : [...toSet];
       const m = editing
         ? await send(`/api/chat/messages/${editing}`, 'PATCH', { body })
-        : await send(`/api/chat/${room}/messages`, 'POST', { body, replyTo });
+        : await send(`/api/chat/${room}/messages`, 'POST', { body, replyTo, audience });
       ta.value = '';
       grow();
       editing = null;
       setReply(null);
+      setTo(new Set());
       take([m], { keepBottom: true });
       say('');
     } catch (err) {
+      if (err.status === 403) setCanWrite(false);
       say(err.status === 429 ? 'רגע, הרבה הודעות בדקה אחת. עוד כמה שניות.' : `לא נשלח: ${err.message}`);
     } finally {
       sending = false;
       ta.focus();
+    }
+  });
+
+  // ---------- for whom: some members only ----------
+
+  const toBtn = $('[data-to-btn]');
+  const toPicker = $('[data-to-picker]');
+  const toList = $('[data-to-list]');
+  let toSet = new Set();
+  function setTo(set) {
+    toSet = set;
+    toBtn.textContent = toSet.size ? `🔒 ל${toSet.size === 1 ? forWhom([...toSet]) : `־${toSet.size}`}` : 'לכולם';
+    toBtn.classList.toggle('on', toSet.size > 0);
+    for (const box of toList.querySelectorAll('input')) box.checked = toSet.has(box.value);
+  }
+  function drawToList() {
+    toList.replaceChildren();
+    // The owner sees every message anyway; members may still write to him alone.
+    for (const p of roster.filter((x) => x.id !== me)) {
+      const label = el('label', 'chip-check');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.value = p.id;
+      box.checked = toSet.has(p.id);
+      box.addEventListener('change', () => {
+        const next = new Set(toSet);
+        if (box.checked) next.add(p.id);
+        else next.delete(p.id);
+        setTo(next);
+      });
+      label.append(box, el('span', '', p.name));
+      toList.append(label);
+    }
+    if (!toList.childElementCount) toList.append(el('span', 'hint', 'עוד אין בקהילה אחרים לבחור מהם.'));
+  }
+  toBtn.addEventListener('click', () => {
+    const open = toPicker.hidden;
+    toPicker.hidden = !open;
+    toBtn.setAttribute('aria-expanded', String(open));
+    if (open) drawToList();
+  });
+
+  // ---------- participants, and who may write (the owner decides) ----------
+
+  const peopleBtn = $('[data-people-btn]');
+  const peopleEl = $('[data-people]');
+  const readonlyEl = $('[data-readonly]');
+  function setCanWrite(yes) {
+    canWrite = yes;
+    form.hidden = !yes;
+    readonlyEl.hidden = yes;
+  }
+  function takeRoster(list) {
+    roster = list;
+    const mine = roster.find((p) => p.id === me);
+    if (mine && !owner) setCanWrite(mine.role !== 'read');
+    drawPeople();
+    if (!toPicker.hidden) drawToList();
+  }
+  function drawPeople() {
+    if (peopleEl.hidden) return;
+    const here = new Set(people.map((p) => p.id));
+    const ul = el('ul', 'wrap');
+    for (const p of roster) {
+      const li = el('li');
+      const name = el('span', 'name', p.name);
+      if (here.has(p.id)) name.classList.add('here');
+      li.append(name);
+      if (p.id === 'owner') li.append(el('span', 'role', 'מנהל'));
+      else if (owner) {
+        const sel = el('select');
+        sel.setAttribute('aria-label', `הרשאה של ${p.name}`);
+        for (const [v, t] of [['write', 'כותב/ת'], ['read', 'קריאה בלבד']]) {
+          const o = el('option', '', t);
+          o.value = v;
+          o.selected = p.role === v;
+          sel.append(o);
+        }
+        sel.addEventListener('change', async () => {
+          try {
+            await send(`/api/chat/${room}/members/${p.id}`, 'PUT', { role: sel.value });
+            p.role = sel.value;
+            say(`${p.name}: ${sel.value === 'read' ? 'קריאה בלבד' : 'כותב/ת'}`);
+          } catch (err) {
+            sel.value = p.role;
+            say(err.message);
+          }
+        });
+        li.append(sel);
+      } else if (p.role === 'read') li.append(el('span', 'role', 'קריאה בלבד'));
+      ul.append(li);
+    }
+    peopleEl.replaceChildren(ul);
+  }
+  peopleBtn.addEventListener('click', async () => {
+    const open = peopleEl.hidden;
+    peopleEl.hidden = !open;
+    peopleBtn.setAttribute('aria-expanded', String(open));
+    if (open) {
+      drawPeople();
+      try {
+        takeRoster((await send(`/api/chat/${room}/members`, 'GET')).members);
+      } catch {
+        // the list on the page will do
+      }
     }
   });
 
@@ -342,19 +460,20 @@
       menu.append(b);
     };
     const update = (m2) => take([m2]);
-    item('תגובה', () => setReply(m));
+    if (canWrite) item('תגובה', () => setReply(m));
     item('העתקה', () => navigator.clipboard?.writeText(m.body).then(() => say('הועתק')));
-    item(m.pinned ? 'ביטול נעיצה' : 'נעיצה למעלה', async () => update(await send(`/api/chat/messages/${m.id}`, 'PATCH', { pinned: !m.pinned })));
-    if (isMine(m)) item('עריכה', () => setEdit(m));
+    if (canWrite) item(m.pinned ? 'ביטול נעיצה' : 'נעיצה למעלה', async () => update(await send(`/api/chat/messages/${m.id}`, 'PATCH', { pinned: !m.pinned })));
+    if (isMine(m) && canWrite) item('עריכה', () => setEdit(m));
+    const shared = !m.audience?.length;
     if (isMine(m) || owner) {
-      if (!m.post) {
+      if (!m.post && shared && canWrite) {
         item('לבלוג הקהילה, עם תגובות', async () => {
           const m2 = await send(`/api/chat/messages/${m.id}/post`, 'POST', {});
           update(m2);
           say('עלה לבלוג. אפשר להגיב שם.');
         });
       }
-      if (owner && !m.post?.public) {
+      if (owner && shared && !m.post?.public) {
         item('פרסום לכולם, עם תגובות', async () => {
           update(await send(`/api/chat/messages/${m.id}/post`, 'POST', { public: true }));
           say('פורסם לכולם.');
@@ -481,6 +600,9 @@
         take([data.message]);
       } else if (data.type === 'presence') {
         people = data.people ?? [];
+        drawPeople();
+      } else if (data.type === 'members') {
+        takeRoster(data.members ?? []);
       } else if (data.type === 'typing' && data.id !== me) {
         typingNow.set(data.id, { name: data.name, until: Date.now() + 4000 });
       }

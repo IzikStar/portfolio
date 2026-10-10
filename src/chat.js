@@ -7,6 +7,13 @@
 //   /api/chat/messages/<id>        PATCH { body } (the writer) or { pinned } (anyone in it), DELETE
 //   /api/chat/messages/<id>/post   POST: the message becomes a post on the community's blog,
 //                                  where it gets comments; the owner may open it to everyone
+//   /api/chat/<id>/members         GET who is in the chat and who may write;
+//                                  PUT .../members/<userId> { role: 'write'|'read' } (the owner)
+//
+// Members either write or only read (community_members.chat_role). A message
+// can be for some of the members only (audience: their ids); the writer and
+// the owner see it too, nobody else learns it exists. A reply to such a
+// message is for the same people.
 //
 // Messages live in D1 (chat_messages), so history survives. The live part is a
 // Durable Object per community (src/chat-room.js) that holds the open sockets:
@@ -44,12 +51,49 @@ function room(v, id) {
 const meOf = (v) => (v.acc.owner ? 'owner' : v.member.id);
 const isMine = (v, m) => (v.acc.owner ? m.userId === null : m.userId === v.member?.id);
 
+// May this viewer see this message? (Messages for some members only.)
+const canSee = (v, m) => v.acc.owner || !m.audience.length || isMine(v, m) || m.audience.includes(v.member?.id);
+
+// Read-only members read; everyone else in the chat writes.
+async function canWrite(env, v, c) {
+  if (v.acc.owner) return true;
+  const d = await db(env);
+  const row = await d.prepare('SELECT chat_role FROM community_members WHERE community_id = ? AND user_id = ?').bind(c.id, v.member.id).first();
+  return row?.chat_role !== 'read';
+}
+
+async function mustWrite(env, v, c) {
+  if (!(await canWrite(env, v, c))) throw new HttpError(403, 'In this chat you can read but not write.');
+}
+
+// Who is in the chat (the owner first), with who may write.
+async function members(env, c) {
+  const d = await db(env);
+  const { results } = await d
+    .prepare(
+      `SELECT u.id, u.display_name, m.chat_role FROM community_members m JOIN users u ON u.id = m.user_id
+       WHERE m.community_id = ? AND m.status = 'active' AND u.status = 'active' ORDER BY u.display_name`,
+    )
+    .bind(c.id)
+    .all();
+  return [{ id: 'owner', name: OWNER_NAME, role: 'write' }, ...results.map((r) => ({ id: r.id, name: r.display_name, role: r.chat_role === 'read' ? 'read' : 'write' }))];
+}
+
+const audienceOf = (r) => {
+  try {
+    const list = JSON.parse(r.audience || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
+
 // ---------- messages ----------
 
 const SELECT = `SELECT m.*, u.display_name AS author_name,
   p.slug AS post_slug, p.public AS post_public, p.status AS post_status,
   (SELECT COUNT(*) FROM comments k WHERE k.entry_id = m.post_id) AS post_comments,
-  r.body AS reply_body, r.deleted AS reply_deleted, r.user_id AS reply_user, COALESCE(ru.display_name, r.author) AS reply_author
+  r.body AS reply_body, r.deleted AS reply_deleted, r.audience AS reply_audience, r.user_id AS reply_user, COALESCE(ru.display_name, r.author) AS reply_author
   FROM chat_messages m
   LEFT JOIN users u ON u.id = m.user_id
   LEFT JOIN posts p ON p.id = m.post_id
@@ -66,6 +110,7 @@ function fromRow(r, c) {
     body: deleted ? '' : r.body,
     deleted,
     pinned: Boolean(r.pinned) && !deleted,
+    audience: audienceOf(r),
     replyTo: r.reply_to,
     reply: r.reply_to
       ? { author: r.reply_user ? r.reply_author : OWNER_NAME, text: r.reply_deleted ? '' : excerpt(r.reply_body ?? '', 140), deleted: Boolean(r.reply_deleted) || r.reply_body == null }
@@ -84,26 +129,27 @@ async function oneMessage(env, c, id) {
   return fromRow(await d.prepare(`${SELECT} WHERE m.id = ?`).bind(id).first(), c);
 }
 
-async function history(env, c, { since, before } = {}) {
+async function history(env, v, c, { since, before } = {}) {
+  const seen = (list) => list.map((r) => fromRow(r, c)).filter((m) => canSee(v, m));
   const d = await db(env);
   if (since) {
     const { results } = await d
       .prepare(`${SELECT} WHERE m.community_id = ? AND m.changed_at >= ? ORDER BY m.changed_at, m.id LIMIT 300`)
       .bind(c.id, since)
       .all();
-    return { messages: results.map((r) => fromRow(r, c)) };
+    return { messages: seen(results) };
   }
   const { results } = before
     ? await d.prepare(`${SELECT} WHERE m.community_id = ? AND m.created_at < ? ORDER BY m.created_at DESC, m.id DESC LIMIT ?`).bind(c.id, before, PAGE + 1).all()
     : await d.prepare(`${SELECT} WHERE m.community_id = ? ORDER BY m.created_at DESC, m.id DESC LIMIT ?`).bind(c.id, PAGE + 1).all();
   const more = results.length > PAGE;
-  const messages = results.slice(0, PAGE).reverse().map((r) => fromRow(r, c));
+  const messages = seen(results.slice(0, PAGE).reverse());
   if (before) return { messages, more };
   const { results: pins } = await d
     .prepare(`${SELECT} WHERE m.community_id = ? AND m.pinned = 1 AND m.deleted = 0 ORDER BY m.created_at`)
     .bind(c.id)
     .all();
-  return { messages, more, pinned: pins.map((r) => fromRow(r, c)) };
+  return { messages, more, pinned: seen(pins) };
 }
 
 // Pass a new or changed message (or anything else) to everyone connected.
@@ -117,9 +163,11 @@ async function broadcast(env, c, payload) {
   }
 }
 
+// A message for some members only goes to them, its writer and the owner.
 async function changed(env, c, id) {
   const message = await oneMessage(env, c, id);
-  await broadcast(env, c, { type: 'message', message });
+  const to = message.audience.length ? [...new Set([...message.audience, message.userId ?? 'owner'])] : null;
+  await broadcast(env, c, { type: 'message', message, to });
   return message;
 }
 
@@ -131,17 +179,20 @@ export async function chatApi(request, env, url, v) {
   // The socket is a GET, but it is one a page on another site could open with our cookie.
   checkOrigin(request, url);
 
-  const r = path.match(/^\/api\/chat\/([a-z0-9-]+)\/(messages|socket)$/);
+  const r = path.match(/^\/api\/chat\/([a-z0-9-]+)\/(messages|socket|members)$/);
   if (r) {
     const c = room(v, r[1]);
     if (r[2] === 'socket' && method === 'GET') return socket(request, env, url, v, c);
     if (r[2] === 'messages' && method === 'GET') {
       const since = url.searchParams.get('since');
       const before = url.searchParams.get('before');
-      return json({ ...(await history(env, c, { since, before })), now: new Date().toISOString() });
+      return json({ ...(await history(env, v, c, { since, before })), now: new Date().toISOString() });
     }
     if (r[2] === 'messages' && method === 'POST') return send(request, env, v, c);
+    if (r[2] === 'members' && method === 'GET') return json({ members: await members(env, c) });
   }
+  const mr = path.match(/^\/api\/chat\/([a-z0-9-]+)\/members\/([a-z0-9-]+)$/);
+  if (mr && method === 'PUT') return setRole(request, env, v, room(v, mr[1]), mr[2]);
   const m = path.match(/^\/api\/chat\/messages\/([a-z0-9-]+)(\/post)?$/);
   if (m) {
     const msg = await own(env, v, m[1]);
@@ -156,25 +207,42 @@ async function send(request, env, v, c) {
   const body = await readJson(request);
   const text = cleanText(body.body, MAX_BODY);
   if (!text) throw new HttpError(400, 'Write something first.');
+  await mustWrite(env, v, c);
   const d = await db(env);
   if (!v.acc.owner) {
     const since = new Date(Date.now() - 60_000).toISOString();
     const { n } = await d.prepare('SELECT COUNT(*) AS n FROM chat_messages WHERE user_id = ? AND created_at > ?').bind(v.member.id, since).first();
     if (n >= PER_MINUTE) throw new HttpError(429, 'That is a lot of messages for one minute. Take a breath.');
   }
+  // For some members only: ids of people in the chat ("owner" too, so a member
+  // can write to the owner alone), never the writer.
+  const self = meOf(v);
+  const inside = new Set((await members(env, c)).map((m) => m.id));
+  let audience = Array.isArray(body.audience)
+    ? [...new Set(body.audience.map(String))].filter((id) => id !== self && inside.has(id)).slice(0, 100)
+    : [];
+  if (Array.isArray(body.audience) && body.audience.length && !audience.length) throw new HttpError(400, 'Pick who the message is for.');
   let replyTo = null;
   if (body.replyTo) {
-    const target = await d.prepare('SELECT id FROM chat_messages WHERE id = ? AND community_id = ?').bind(String(body.replyTo), c.id).first();
-    replyTo = target?.id ?? null;
+    const row = await d.prepare(`${SELECT} WHERE m.id = ? AND m.community_id = ?`).bind(String(body.replyTo), c.id).first();
+    const target = fromRow(row, c);
+    if (target && canSee(v, target)) {
+      replyTo = target.id;
+      // A reply to a message for some members is for those same people.
+      if (target.audience.length) {
+        audience = [...new Set([...target.audience, target.userId ?? 'owner'].filter((id) => id !== self))];
+        if (!audience.length) audience = [target.userId ?? 'owner'];
+      }
+    }
   }
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   await d
     .prepare(
-      `INSERT INTO chat_messages (id, community_id, user_id, author, body, reply_to, pinned, deleted, created_at, changed_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+      `INSERT INTO chat_messages (id, community_id, user_id, author, body, reply_to, audience, pinned, deleted, created_at, changed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
     )
-    .bind(id, c.id, v.acc.owner ? null : v.member.id, v.acc.owner ? OWNER_NAME : v.member.displayName, text, replyTo, now, now)
+    .bind(id, c.id, v.acc.owner ? null : v.member.id, v.acc.owner ? OWNER_NAME : v.member.displayName, text, replyTo, JSON.stringify(audience), now, now)
     .run();
   return json(await changed(env, c, id), 201);
 }
@@ -186,12 +254,15 @@ async function own(env, v, id) {
   const row = await d.prepare('SELECT id, community_id FROM chat_messages WHERE id = ?').bind(id).first();
   const c = row && v.acc.commById.get(row.community_id);
   if (!row || !inChat(v, c)) throw new HttpError(404, 'That message no longer exists.');
-  return { c, m: await oneMessage(env, c, id) };
+  const m = await oneMessage(env, c, id);
+  if (!canSee(v, m)) throw new HttpError(404, 'That message no longer exists.');
+  return { c, m };
 }
 
 async function change(request, env, v, { c, m }) {
   const body = await readJson(request);
   if (m.deleted) throw new HttpError(404, 'That message was deleted.');
+  await mustWrite(env, v, c);
   const d = await db(env);
   const now = new Date().toISOString();
   if ('body' in body) {
@@ -221,6 +292,8 @@ async function toPost(request, env, v, { c, m }) {
   const body = await readJson(request);
   if (m.deleted) throw new HttpError(404, 'That message was deleted.');
   if (!v.acc.owner && !isMine(v, m)) throw new HttpError(403, 'Only the writer can make this message a post.');
+  if (m.audience.length) throw new HttpError(400, 'This message is for some members only; it stays in the chat.');
+  await mustWrite(env, v, c);
   const d = await db(env);
   const open = v.acc.owner && Boolean(body.public);
   if (m.post) {
@@ -238,6 +311,18 @@ async function toPost(request, env, v, { c, m }) {
   const post = await addPost(env, v, c, title || 'מהצ׳אט', text, { open, by });
   await d.prepare('UPDATE chat_messages SET post_id = ?, changed_at = ? WHERE id = ?').bind(post.id, new Date().toISOString(), m.id).run();
   return json(await changed(env, c, m.id), 201);
+}
+
+// PUT /api/chat/<id>/members/<userId> { role }: the owner decides who writes.
+async function setRole(request, env, v, c, userId) {
+  if (!v.acc.owner) throw new HttpError(403, 'Only the owner decides who writes here.');
+  const { role } = await readJson(request);
+  if (role !== 'write' && role !== 'read') throw new HttpError(400, 'role is write or read.');
+  const d = await db(env);
+  const r = await d.prepare(`UPDATE community_members SET chat_role = ? WHERE community_id = ? AND user_id = ? AND status = 'active'`).bind(role, c.id, userId).run();
+  if (!r.meta.changes) throw new HttpError(404, 'Not a member of this community.');
+  await broadcast(env, c, { type: 'members', members: await members(env, c), to: null });
+  return json({ ok: true, role });
 }
 
 // GET /api/chat/<id>/socket: hand the connection to the community's room.
@@ -261,7 +346,7 @@ export async function chatLink(env, c) {
   const d = await db(env);
   const last = await d
     .prepare(`SELECT m.body, m.user_id, m.created_at, COALESCE(u.display_name, m.author) AS name FROM chat_messages m
-      LEFT JOIN users u ON u.id = m.user_id WHERE m.community_id = ? AND m.deleted = 0 ORDER BY m.created_at DESC LIMIT 1`)
+      LEFT JOIN users u ON u.id = m.user_id WHERE m.community_id = ? AND m.deleted = 0 AND m.audience = '[]' ORDER BY m.created_at DESC LIMIT 1`)
     .bind(c.id)
     .first();
   const line = last
@@ -288,8 +373,8 @@ export async function chatPage(env, v, c) {
 <div class="wrap narrow block">${communityBox(v, [c.id], path, { intro: 'הצ׳אט פתוח ל' }) || ''}${v.role === 'public' ? `<p class="actions"><a class="btn" href="/login?next=${encodeURIComponent(path)}">כניסה</a></p>` : ''}</div>`;
     return render(env, v, { title: `הצ׳אט של ${c.title}`, path, body, noindex: true, script: true });
   }
-  const start = await history(env, c);
-  const data = { room: c.id, me: meOf(v), owner: v.acc.owner, blog: pathOf(c), ...start, now: new Date().toISOString() };
+  const [start, people, writes] = await Promise.all([history(env, v, c), members(env, c), canWrite(env, v, c)]);
+  const data = { room: c.id, me: meOf(v), owner: v.acc.owner, canWrite: writes, members: people, blog: pathOf(c), ...start, now: new Date().toISOString() };
   const body = `<div class="chat" data-chat>
   <header class="chat-head">
     <div class="wrap">
@@ -298,8 +383,10 @@ export async function chatPage(env, v, c) {
         <h1 dir="auto">${e(c.title)}</h1>
         <p class="chat-status" data-status aria-live="polite">מתחבר…</p>
       </div>
+      <button class="chat-people-btn" type="button" data-people-btn aria-expanded="false" aria-controls="chat-people">משתתפים</button>
     </div>
   </header>
+  <section class="chat-people" id="chat-people" data-people hidden aria-label="משתתפים"></section>
   <section class="chat-pins" data-pins hidden aria-label="הודעות נעוצות"></section>
   <div class="chat-scroll" data-scroll>
     <div class="wrap">
@@ -308,10 +395,16 @@ export async function chatPage(env, v, c) {
       <p class="chat-empty" data-empty hidden>עוד אין כאן הודעות. בדיחה ראשונה?</p>
     </div>
   </div>
-  <form class="chat-compose" data-compose>
+  <p class="chat-readonly" data-readonly${writes ? ' hidden' : ''}><span class="wrap">בצ׳אט הזה יש לך קריאה בלבד.</span></p>
+  <form class="chat-compose" data-compose${writes ? '' : ' hidden'}>
     <div class="wrap">
+      <div class="chat-to" data-to-picker hidden>
+        <p>למי ההודעה? <small>מי שלא מסומן לא יראה אותה.</small></p>
+        <div class="chat-to-list" data-to-list></div>
+      </div>
       <div class="chat-replying" data-replying hidden><span dir="auto"></span><button type="button" class="link" data-cancel-reply aria-label="ביטול התגובה">✕</button></div>
       <div class="chat-row">
+        <button class="chat-to-btn" type="button" data-to-btn aria-expanded="false" title="למי ההודעה">לכולם</button>
         <label class="sr-only" for="chat-text">הודעה</label>
         <textarea id="chat-text" name="body" rows="1" maxlength="${MAX_BODY}" dir="auto" placeholder="הודעה" enterkeyhint="send" required></textarea>
         <button class="chat-send" type="submit" aria-label="שליחה"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20l18-8L3 4l3 8-3 8z"/><path d="M6 12h15"/></svg></button>

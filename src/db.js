@@ -19,7 +19,8 @@
 //   posts       community blog posts, one blog per community; space_id holds the
 //               community's id (the column predates communities)
 //   chat_messages  each community's group chat (src/chat.js); changed_at moves
-//               on every edit, pin or delete, so a poll "since" sees changes too
+//               on every edit, pin or delete, so a poll "since" sees changes too.
+//               audience: user ids a message is for ([] = the whole chat)
 //   mentions    who was tagged where (@ in a comment or a post), for the member's page
 //   files       files attached to an entry (the bytes live in KV as "blob:<id>")
 //   users       community members (the owner is not a row: ADMIN_PASSWORD)
@@ -134,6 +135,7 @@ const SCHEMA = [
     reply_to TEXT,
     pinned INTEGER NOT NULL DEFAULT 0,
     post_id TEXT,
+    audience TEXT NOT NULL DEFAULT '[]',
     deleted INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     edited_at TEXT,
@@ -248,8 +250,10 @@ const COLUMNS = [
   },
   { table: 'spaces', column: 'communities', sql: `ALTER TABLE spaces ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [] },
   { table: 'invites', column: 'communities', sql: `ALTER TABLE invites ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [] },
-  // Added last: its arrival is what moves the old per-space communities over.
+  // Its arrival is what moves the old per-space communities over.
   { table: 'entries', column: 'communities', sql: `ALTER TABLE entries ADD COLUMN communities TEXT NOT NULL DEFAULT '[]'`, backfill: [], then: fromSpaceCommunities },
+  // Who may write in a community's chat: 'write' or 'read' (read only).
+  { table: 'community_members', column: 'chat_role', sql: `ALTER TABLE community_members ADD COLUMN chat_role TEXT NOT NULL DEFAULT 'write'`, backfill: [] },
 ];
 
 // Before communities stood on their own, every wing had a community and a

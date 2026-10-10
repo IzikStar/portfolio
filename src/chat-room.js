@@ -5,6 +5,7 @@
 //
 // To a socket the room sends JSON:
 //   { type: 'message', message }        a new or changed message
+//   { type: 'members', members }        who is in the chat, who may write
 //   { type: 'presence', people }        who has the chat open [{ id, name }]
 //   { type: 'typing', id, name }        someone is typing
 // and it takes { type: 'typing' } from a socket. "ping" gets "pong".
@@ -26,7 +27,9 @@ export class ChatRoom {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/broadcast' && request.method === 'POST') {
-      await this.send(await request.text());
+      // `to`: a message for some members only goes to them (and the owner).
+      const { to, ...payload } = await request.json();
+      await this.send(JSON.stringify(payload), null, Array.isArray(to) ? new Set(to) : null);
       return new Response('ok');
     }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
@@ -75,8 +78,10 @@ export class ChatRoom {
     return this.state.getWebSockets().filter((ws) => ws !== except && ws.readyState !== 2 && ws.readyState !== 3);
   }
 
-  async send(text, except) {
+  async send(text, except, only = null) {
     for (const ws of this.open(except)) {
+      const who = ws.deserializeAttachment();
+      if (only && who?.id !== 'owner' && !only.has(who?.id)) continue;
       if (!(await this.allowed(ws))) continue;
       try {
         ws.send(text);
