@@ -341,16 +341,7 @@ mark.noted:hover { background: rgb(233 162 59 / 0.36); }
 .tagged time, .tagged .role { margin-inline-start: auto; font-size: 14px; color: var(--muted); }
 .blog-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; color: var(--muted); }
 .blog-links a { color: var(--ink); text-decoration-color: var(--accent); text-underline-offset: 3px; }
-.blog { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
-.posts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
-.post-card { display: grid; gap: 8px; padding: 22px; border-radius: 18px; background: var(--raised); }
-.post-card.pinned { box-shadow: inset 3px 0 var(--accent); }
-.post-card .title { font-family: var(--display); font-size: 26px; line-height: 1.15; text-decoration: none; overflow-wrap: anywhere; }
-.post-card .title:hover { color: var(--accent); }
-.post-card p { color: var(--soft); font-size: 15px; overflow-wrap: anywhere; }
-.post-new summary { cursor: pointer; font-family: var(--display); font-size: 24px; list-style: none; }
-.post-new summary::-webkit-details-marker { display: none; }
-.post-new summary::before { content: '+ '; color: var(--accent); }
+.posts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .post-form { display: grid; gap: 14px; }
 .post-form textarea { width: 100%; resize: vertical; line-height: 1.6; }
 .post-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -360,7 +351,7 @@ mark.noted:hover { background: rgb(233 162 59 / 0.36); }
 [dir='rtl'] :is(h1, h2, h3, h4, .title, .who)[dir='auto'] { text-align: right; }
 
 /* ---------- the community chat (src/chat.js, public/chat.js) ---------- */
-.chat-door { display: flex; align-items: center; gap: 16px; padding: 18px 22px; margin-bottom: 28px; border-radius: 18px; background: var(--raised); border: 1px solid var(--line); text-decoration: none; }
+.chat-door { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 18px; background: var(--raised); border: 1px solid var(--line); text-decoration: none; }
 .chat-door:hover { border-color: var(--accent); }
 .chat-door .chat-icon { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
 .chat-door .chat-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -502,3 +493,71 @@ button, .btn, summary, a, [role='tab'] { touch-action: manipulation; }
 input, textarea, [contenteditable]:not([contenteditable='false']) { -webkit-user-select: text; user-select: text; }
 .chat-msg a.who { display: block; text-decoration: none; }
 .chat-people a.name { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
+
+/* ---------- a community's page (src/blog.js) ----------
+   The band carries who is in, what is here and the owner's tools; below it
+   the blog, with the chat and what is opened to the community on the side
+   (on top, on a phone). */
+.band.comm-band .wrap { padding-bottom: 26px; }
+.comm-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-top: 28px; padding-top: 18px; border-top: 1px solid rgb(0 0 0 / 0.18); }
+.comm-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 15px; font-weight: 700; }
+.comm-facts .tag { font-size: 13px; padding: 2px 10px; border-radius: 999px; border: 1.5px dashed currentColor; }
+.comm-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.comm-band .btn { color: inherit; border-color: rgb(0 0 0 / 0.35); background: rgb(255 255 255 / 0.14); font-weight: 700; }
+.comm-band .btn:hover, .comm-band .btn.ask { background: var(--on-accent); color: var(--accent); border-color: var(--on-accent); }
+
+.comm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; padding-top: 32px; }
+.comm-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; }
+@media (min-width: 960px) {
+  .comm { grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: 'blog side'; gap: 48px; align-items: start; padding-top: 44px; }
+  .comm-blog { grid-area: blog; }
+  .comm-side { grid-area: side; position: sticky; top: 96px; }
+  .comm-side .chat-door { align-items: flex-start; }
+  .comm-side .chat-door .chat-title { font-size: 20px; }
+  .comm-side .chat-door time { display: none; }
+}
+.side-box { padding: 18px 22px 8px; border-radius: 18px; border: 1px solid var(--line); }
+.side-box h2 { font-family: var(--display); font-weight: 400; font-size: 20px; margin-bottom: 6px; }
+.side-box .feed a { padding: 12px 0; gap: 2px 12px; }
+.side-box .feed a:last-child { border-bottom: 0; }
+.side-box .feed .w { width: auto; font-size: 12px; }
+.side-box .feed .t { flex: 1 1 100%; font-size: 16px; }
+
+.blog-head { position: relative; min-height: 48px; margin-bottom: 22px; }
+.blog-head h2 { font-family: var(--display); font-weight: 400; font-size: 36px; line-height: 1.1; }
+.post-new summary { position: absolute; top: 2px; inset-inline-end: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 18px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 700; cursor: pointer; list-style: none; transition: transform 0.2s, background-color 0.2s; }
+.post-new summary::-webkit-details-marker { display: none; }
+.post-new summary::before { content: '+'; font-size: 20px; line-height: 1; }
+.post-new summary:hover { transform: translateY(-1px); }
+.post-new .close-it, .post-new[open] .open-it { display: none; }
+.post-new[open] .close-it { display: inline; }
+.post-new[open] summary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.post-new[open] summary::before { content: '×'; }
+.post-new[open] .post-form { margin-top: 22px; padding: 22px; border-radius: 18px; background: var(--raised); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); }
+
+.post-card { position: relative; display: grid; gap: 10px; padding: 22px 24px; border-radius: 18px; background: var(--raised); border: 1px solid var(--line); transition: border-color 0.2s, transform 0.25s; }
+.post-card:hover { border-color: var(--line-strong); }
+.post-card .title { font-family: var(--display); font-size: 24px; line-height: 1.2; text-decoration: none; overflow-wrap: anywhere; }
+/* The whole card opens the post; the writer's name stays its own link. */
+.post-card .title::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.post-card:hover .title { color: var(--accent); }
+.post-card p { color: var(--soft); font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.post-card .meta { position: relative; z-index: 1; width: fit-content; }
+.post-card .talk { color: var(--soft); }
+.post-card.pinned { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, var(--raised)), var(--raised) 55%); }
+.post-card.is-hidden { background: transparent; border-style: dashed; border-color: var(--line-strong); }
+.post-card.is-hidden :is(.title, p) { opacity: 0.7; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.flag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--raised-2); color: var(--soft); }
+.flag.pin { background: var(--accent); color: var(--on-accent); }
+.flag.open { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.flag.hid { background: transparent; border: 1px dashed var(--line-strong); }
+
+@media (max-width: 560px) {
+  .comm-bar { margin-top: 22px; }
+  .comm-tools { width: 100%; }
+  .comm-tools .btn { flex: 1; justify-content: center; }
+  .blog-head h2 { font-size: 30px; }
+  .post-card { padding: 18px; }
+  .post-card .title { font-size: 21px; }
+}

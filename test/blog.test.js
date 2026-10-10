@@ -89,6 +89,34 @@ describe('community blog', () => {
     expect(inbox.comments[0].entry).toMatchObject({ kind: 'post', title: 'First jam', path: '/community/musicians/first-jam' });
   });
 
+  it('heads the community page with who is in, what is here and the owner\'s tools', async () => {
+    const o = await owner();
+    const dana = await joinTo(o, 'Musicians', 'dana');
+    const eli = await joinTo(o, 'Musicians', 'eli');
+    await write(dana.cookie, 'Musicians', { title: 'Seen' });
+    const { post } = await write(dana.cookie, 'Musicians', { title: 'Tucked away' });
+    await call(o, `/api/studio/posts/${post.id}`, 'PATCH', { hidden: true, pinned: true });
+    const outsider = await member(o, 'outsider');
+
+    const owners = (await page('/community/musicians', o)).text;
+    expect(owners).toContain('2 חברים');
+    expect(owners).toContain('2 פוסטים');
+    expect(owners).toContain('ניהול הקהילה');
+    expect(owners).toContain('class="post-card pinned is-hidden"');
+    expect(owners).toContain('מוסתר מהקהילה');
+
+    // Another member: the hidden post is not counted or shown, and no owner tools.
+    const members = (await page('/community/musicians', eli.cookie)).text;
+    expect(members).toContain('פוסט אחד');
+    expect(members).not.toContain('Tucked away');
+    expect(members).not.toContain('ניהול הקהילה');
+
+    // Outsiders see neither the count of members nor of posts.
+    const outside = (await page('/community/musicians', outsider.cookie)).text;
+    expect(outside).not.toContain('חברים');
+    expect(outside).not.toContain('פוסט');
+  });
+
   it('lets the owner pin, hide, open to everyone and delete any post', async () => {
     const o = await owner();
     const dana = await joinTo(o, 'Musicians', 'dana');
