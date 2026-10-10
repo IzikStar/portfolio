@@ -288,6 +288,8 @@ export async function deleteCommunity(env, id) {
     drop('entries'),
     drop('spaces'),
     d.prepare('DELETE FROM community_members WHERE community_id = ?').bind(id),
+    d.prepare('DELETE FROM hall_of_fame WHERE community_id = ?').bind(id),
+    d.prepare('DELETE FROM community_characters WHERE community_id = ?').bind(id),
     d.prepare('DELETE FROM communities WHERE id = ?').bind(id),
   ]);
   return json({ ok: true });

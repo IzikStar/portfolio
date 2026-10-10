@@ -1361,6 +1361,7 @@
     const path = entry && published ? itemPath(entry) : null;
     $('view-link').hidden = !path;
     if (path) $('view-link').href = path;
+    $('ed-share').hidden = !path || !state.comms?.length;
     const where = entry && state.byId.get(entry.spaceId);
     siteHere(path ?? (where ? pathOf(where) : null));
     if (entry) status(`${published ? 'פורסם' : 'טיוטה'} · ${VIS[entry.visibility]} · נשמר ${fmt(entry.updatedAt)}`);
@@ -1698,6 +1699,11 @@
     } catch {
       // status line shows the error
     }
+  });
+
+  // Send the item's page into a community's chat (the dialog is in app.js).
+  $('ed-share').addEventListener('click', () => {
+    window.shareToCommunity?.({ path: $('view-link').getAttribute('href'), title: $('ed-title').value.trim() });
   });
 
   $('delete-article').addEventListener('click', async () => {

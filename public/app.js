@@ -67,6 +67,112 @@
     await sub.unsubscribe();
   }
 
+  // ---------- "שיתוף לקהילה": this page into a community's chat ----------
+  // The button in the header ([data-share]) and the studio's editor
+  // (window.shareToCommunity) open a small window: which community, a few
+  // words if you like, send. The message arrives in the chat as a card.
+
+  const LAST_ROOM = 'share-room';
+  const pageTitle = () => {
+    const h1 = document.querySelector('main h1, .chat-name h1');
+    return (h1?.textContent || document.title.replace(/ · יצחק שטרן$/, '')).replace(/\s+/g, ' ').trim();
+  };
+  const tag = (name, props = {}, ...kids) => {
+    const x = Object.assign(document.createElement(name), props);
+    x.append(...kids);
+    return x;
+  };
+
+  async function shareToCommunity(share = {}) {
+    const what = {
+      path: share.path || location.pathname + location.search,
+      title: (share.title || pageTitle() || 'עמוד באתר').slice(0, 160),
+    };
+    // Words selected on the page come along as the note.
+    const picked = String(window.getSelection?.() ?? '').trim().slice(0, 600);
+    document.querySelector('.share-dialog')?.remove();
+    const list = tag('div', { className: 'share-rooms' }, tag('p', { className: 'hint', textContent: 'טוען את הקהילות…' }));
+    const note = tag('textarea', { name: 'note', rows: 3, maxLength: 4000, dir: 'auto', placeholder: 'כמה מילים (לא חובה)', value: picked ? `״${picked}״` : '' });
+    const msg = tag('p', { className: 'msg', role: 'status' });
+    const sendBtn = tag('button', { className: 'btn accent', type: 'submit', textContent: 'שליחה', disabled: true });
+    const cancel = tag('button', { className: 'btn', type: 'button', textContent: 'ביטול' });
+    const form = tag(
+      'form',
+      { method: 'dialog' },
+      tag('h2', { textContent: 'שיתוף לצ׳אט של קהילה' }),
+      tag('div', { className: 'share-what' }, tag('b', { textContent: what.title, dir: 'auto' }), tag('span', { textContent: decodeURI(what.path), dir: 'ltr' })),
+      tag('fieldset', {}, tag('legend', { textContent: 'לאיזו קהילה?' }), list),
+      tag('label', { className: 'field' }, 'מה לכתוב איתו', note),
+      tag('div', { className: 'actions' }, sendBtn, cancel),
+      msg,
+    );
+    const dialog = tag('dialog', { className: 'share-dialog' }, form);
+    document.body.append(dialog);
+    dialog.addEventListener('close', () => dialog.remove());
+    cancel.addEventListener('click', () => dialog.close());
+    dialog.showModal();
+
+    let rooms = [];
+    try {
+      rooms = (await api('/api/chat/rooms')).rooms;
+    } catch (err) {
+      list.replaceChildren(tag('p', { className: 'hint', textContent: err.message }));
+      return;
+    }
+    let last = null;
+    try {
+      last = localStorage.getItem(LAST_ROOM);
+    } catch {
+      // no storage: no remembered choice
+    }
+    const open = rooms.filter((r) => r.canWrite);
+    if (!open.length) {
+      list.replaceChildren(tag('p', { className: 'hint', textContent: rooms.length ? 'בצ׳אטים שלך יש לך קריאה בלבד.' : 'עוד אין לך קהילה עם צ׳אט.' }));
+      return;
+    }
+    const chosen = open.find((r) => r.id === last) ?? open[0];
+    list.replaceChildren(
+      ...rooms.map((r) =>
+        tag(
+          'label',
+          { className: 'chip-check' },
+          tag('input', { type: 'radio', name: 'room', value: r.id, checked: r.id === chosen.id, disabled: !r.canWrite }),
+          tag('span', { textContent: r.canWrite ? r.title : `${r.title} (קריאה בלבד)`, dir: 'auto' }),
+        ),
+      ),
+    );
+    sendBtn.disabled = false;
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const id = form.elements.room.value;
+      const room = rooms.find((r) => r.id === id);
+      if (!room) return;
+      sendBtn.disabled = true;
+      msg.textContent = 'שולח…';
+      try {
+        await api(`/api/chat/${id}/messages`, 'POST', { body: note.value.trim(), share: what });
+        try {
+          localStorage.setItem(LAST_ROOM, id);
+        } catch {
+          // fine
+        }
+        msg.replaceChildren(`נשלח לצ׳אט של ${room.title}. `, tag('a', { href: room.path, textContent: 'לצ׳אט' }));
+        sendBtn.hidden = true;
+        cancel.textContent = 'סגירה';
+      } catch (err) {
+        msg.textContent = `לא נשלח: ${err.message}`;
+        sendBtn.disabled = false;
+      }
+    });
+  }
+  window.shareToCommunity = shareToCommunity;
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-share]');
+    if (!btn) return;
+    ev.preventDefault();
+    shareToCommunity({ path: btn.dataset.sharePath, title: btn.dataset.shareTitle });
+  });
+
   // ---------- the notifications page ----------
 
   const page = document.querySelector('[data-notify-page]');
