@@ -500,3 +500,8 @@ section.block + section.block { border-top: 1px solid var(--line); }
 :lang(he) :is(.kicker, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .head .num) { letter-spacing: 0; }
 /* A monospace space is too wide between Hebrew words, so Hebrew labels use the sans. */
 :lang(he) :is(.kicker, .avail, .reach .label, .stats span, .side-block h3, .bar nav a, .project .tag, .timeline .when, .tool, .head .count) { font-family: var(--body); }
+
+/* Taps: only what can be tapped reacts; headings and buttons never start a
+   text selection (the text itself stays selectable, to copy an address). */
+html { -webkit-tap-highlight-color: transparent; }
+button, a, nav, summary, h1, h2, h3, .chips, .tag { -webkit-user-select: none; user-select: none; }

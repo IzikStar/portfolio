@@ -533,3 +533,17 @@ details.box.batch > summary { font-family: var(--display); font-size: 20px; }
   .studio-side .foot { padding-top: 10px; flex-direction: row; flex-wrap: wrap; gap: 4px; }
   .studio-side .foot a { font-size: 14px; color: var(--muted); }
 }
+
+/* ---------- one person (#person/<id>) and the way back to the site ---------- */
+.people a.who { color: var(--ink); text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
+.people a.who:hover { border-bottom-color: currentColor; }
+.person-card { border-bottom: 0; }
+.person-card h1.who { font-size: 34px; margin: 0; flex-basis: 100%; }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 28px; align-items: start; }
+.pp-block h2 { margin: 0 0 8px; }
+.studio-side .to-site-top { display: none; }
+@media (max-width: 700px) {
+  .studio-side > a.to-site-top:not(.mark) { display: flex; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; }
+  .studio-side.open > a.to-site-top { display: none; }
+  .person-card h1.who { font-size: 28px; }
+}

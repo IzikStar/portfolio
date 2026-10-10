@@ -12,7 +12,7 @@ import { render, fmtDate, entryPath, wingOf } from './site.js';
 import { communityBox } from './wings.js';
 import { knows, pathOf } from './communities.js';
 import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comments.js';
-import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip } from './mentions.js';
+import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip, personHref } from './mentions.js';
 import { chatPage, CHAT, chatLink } from './chat.js';
 import { POST_SELECT, postFromRow, getPost, postPath, canPost, canReadPost, canCommentPost, isWriter } from './posts.js';
 
@@ -47,7 +47,7 @@ function badges(v, post) {
   ].join('');
 }
 
-const byline = (post) => chip(post.userId ? post.author : OWNER_NAME, '');
+const byline = (v, post) => chip(post.userId ? post.author : OWNER_NAME, '', personHref(v, post.userId));
 
 function postForm(c, post = null, names = new Map()) {
   const edit = post ? forEditing(post.body, names) : { text: '', names: {} };
@@ -87,7 +87,7 @@ async function blogPage(env, v, c) {
           (p) => `<li class="post-card${p.pinned ? ' pinned' : ''}">
   <a class="title" href="${postPath(acc, p)}" dir="auto">${e(p.title)}</a>
   <p dir="auto">${e(excerpt(forEditing(p.body, names).text, 220))}</p>
-  <div class="meta">${byline(p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span>${p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות`}</span>` : ''}${badges(v, p)}</div>
+  <div class="meta">${byline(v, p)}<time datetime="${e(p.createdAt)}">${e(fmtDate(p.createdAt))}</time>${p.comments ? `<span>${p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות`}</span>` : ''}${badges(v, p)}</div>
 </li>`,
         )
         .join('')}</ol>`
@@ -105,7 +105,7 @@ async function blogPage(env, v, c) {
   </section>
 </div>`;
   const open = !c.hidden;
-  return render(env, v, { title: c.title, description: c.summary || `הקהילה ${c.title}`, path, body, noindex: !open, script: true });
+  return render(env, v, { title: c.title, description: c.summary || `הקהילה ${c.title}`, path, body, noindex: !open, script: true, studio: `group/${c.id}` });
 }
 
 async function postPage(env, v, c, slug) {
@@ -133,16 +133,16 @@ async function postPage(env, v, c, slug) {
   <header>
     <div class="meta"><a href="${pathOf(c)}">הבלוג של ${e(c.title)}</a><time datetime="${e(post.createdAt)}">${e(fmtDate(post.createdAt))}</time>${badges(v, post)}</div>
     <h1 dir="auto">${e(post.title)}</h1>
-    <div class="meta">${byline(post)}</div>
+    <div class="meta">${byline(v, post)}</div>
     ${tools ? `<div class="post-tools">${tools}<p class="msg" role="status"></p></div>` : ''}
     ${mine ? `<div class="post-edit" hidden>${postForm(c, post, names)}</div>` : ''}
   </header>
-  <div class="prose" dir="auto"${can ? ' data-anchors' : ''}>${withMentions(renderMarkdown(post.body), names)}</div>
+  <div class="prose" dir="auto"${can ? ' data-anchors' : ''}>${withMentions(renderMarkdown(post.body), names, v)}</div>
   ${comments}
   <p class="back"><a href="${pathOf(c)}">לכל הפוסטים</a></p>
 </article>`;
   const open = post.public && post.status === 'visible' && !c.hidden;
-  return render(env, v, { title: post.title, description: excerpt(forEditing(post.body, names).text, 160), path, body, noindex: !open, script: true });
+  return render(env, v, { title: post.title, description: excerpt(forEditing(post.body, names).text, 160), path, body, noindex: !open, script: true, studio: `group/${c.id}` });
 }
 
 // ---------- API (members and the owner) ----------

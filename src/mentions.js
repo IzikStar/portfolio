@@ -74,15 +74,34 @@ export async function mentionNames(env, texts) {
   return new Map(results.map((r) => [r.id, r.display_name]));
 }
 
-// dir=auto keeps the @ in front of a Latin name inside Hebrew text.
-export const chip = (name, at = '@') => `<span class="mention" dir="auto">${at}${e(name)}</span>`;
+// Where a person's name leads this viewer: the owner to that member's page
+// in the studio, a member to their own page; anyone else gets a plain name.
+export function personHref(v, userId) {
+  if (!userId || !v) return null;
+  if (v.acc?.owner) return `/studio#person/${userId}`;
+  return v.member?.id === userId ? '/community' : null;
+}
 
-// Turn tokens in already-escaped HTML into chips. Only text between tags is
-// touched, so a token inside an attribute (an image's alt text) stays inert.
-export function withMentions(html, names) {
+// dir=auto keeps the @ in front of a Latin name inside Hebrew text.
+export const chip = (name, at = '@', href = null) =>
+  href ? `<a class="mention" dir="auto" href="${e(href)}">${at}${e(name)}</a>` : `<span class="mention" dir="auto">${at}${e(name)}</span>`;
+
+// Turn tokens in already-escaped HTML into chips (links for the viewer `v`,
+// see personHref). Only text between tags is touched, so a token inside an
+// attribute (an image's alt text) stays inert, and a token inside a link
+// stays a plain chip so links never nest.
+export function withMentions(html, names, v = null) {
+  let inLink = 0;
   return String(html)
     .split(/(<[^>]*>)/)
-    .map((part) => (part.startsWith('<') ? part : part.replace(TOKEN, (m, id) => (names.has(id) ? chip(names.get(id)) : ''))))
+    .map((part) => {
+      if (part.startsWith('<')) {
+        if (/^<a[\s>]/i.test(part)) inLink++;
+        else if (/^<\/a>/i.test(part)) inLink = Math.max(0, inLink - 1);
+        return part;
+      }
+      return part.replace(TOKEN, (m, id) => (names.has(id) ? chip(names.get(id), '@', inLink ? null : personHref(v, id)) : ''));
+    })
     .join('');
 }
 

@@ -11,7 +11,7 @@ import { canSee, inAny } from './spaces.js';
 import { outsideOf } from './communities.js';
 import { getEntry } from './entries.js';
 import { getPost, canReadPost, canCommentPost, postPath } from './posts.js';
-import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions } from './mentions.js';
+import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, personHref } from './mentions.js';
 import { escapeHtml as e } from './markdown.js';
 import { fmtDate, entryPath } from './site.js';
 
@@ -60,10 +60,12 @@ function one(c, v, replies = []) {
     v.acc.owner ? `<button type="button" class="link" data-resolve="${e(c.id)}" data-to="${c.status === 'open' ? 'resolved' : 'open'}">${c.status === 'open' ? 'טופל' : 'פתיחה מחדש'}</button>` : '',
     mine ? `<button type="button" class="link" data-delete-comment="${e(c.id)}">מחיקה</button>` : '',
   ].join('');
+  const href = personHref(v, c.userId);
+  const author = href ? `<a class="who" href="${e(href)}">${e(c.author)}</a>` : e(c.author);
   return `<li class="comment${c.userId ? '' : ' by-owner'}${c.status === 'resolved' ? ' resolved' : ''}" id="c-${e(c.id)}"${c.anchor != null ? ` data-anchor="${c.anchor}"` : ''}>
-  <div class="meta"><b>${e(c.author)}</b><time datetime="${e(c.createdAt)}">${e(fmtDate(c.createdAt))}</time>${c.status === 'resolved' ? '<span class="badge">טופל</span>' : ''}</div>
+  <div class="meta"><b>${author}</b><time datetime="${e(c.createdAt)}">${e(fmtDate(c.createdAt))}</time>${c.status === 'resolved' ? '<span class="badge">טופל</span>' : ''}</div>
   ${c.quote ? `<a class="quote" href="#p-${c.anchor}" dir="auto">${e(c.quote)}</a>` : ''}
-  <p dir="auto">${withMentions(e(c.body), c.names ?? new Map())}</p>
+  <p dir="auto">${withMentions(e(c.body), c.names ?? new Map(), v)}</p>
   <div class="actions">${actions}</div>
   ${replies.length ? `<ol class="replies">${replies.map((r) => one(r, v)).join('')}</ol>` : ''}
 </li>`;

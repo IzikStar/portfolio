@@ -415,5 +415,5 @@ export async function chatPage(env, v, c) {
   <noscript><p class="wrap">הצ׳אט צריך JavaScript.</p></noscript>
 </div>
 <script type="application/json" id="chat-data">${safeJson(data)}</script>`;
-  return render(env, v, { title: `הצ׳אט של ${c.title}`, path, body, noindex: true, script: true, scripts: ['/chat.js'], page: 'chat' });
+  return render(env, v, { title: `הצ׳אט של ${c.title}`, path, body, noindex: true, script: true, scripts: ['/chat.js'], page: 'chat', studio: `group/${c.id}` });
 }

@@ -193,6 +193,13 @@
   };
 
   // ---------- routing ----------
+  // "לאתר" (the sidebar's foot, and the bar on a phone) leads to the site page
+  // of whatever is open here; views that know their page set it when they load.
+  const SITE_FOR = { community: '/community', person: '/community', communities: '/community', group: '/community', blog: '/community', comments: '/community', cv: '/cv', projects: '/software', project: '/software' };
+  function siteHere(path) {
+    for (const a of document.querySelectorAll('.to-site')) a.href = path || '/';
+  }
+
   async function route() {
     const hash = location.hash.slice(1) || 'ideas';
     const [view, id, extra] = hash.split('/');
@@ -204,6 +211,7 @@
     else if (view === 'space' || view === 'new') tab = `wing/${wingOf(id)?.id}`;
     else if (view === 'project' || view === 'project-new') tab = 'projects';
     else if (view === 'group') tab = 'communities';
+    else if (view === 'person') tab = 'community';
     for (const a of document.querySelectorAll('.studio-side [data-tab]')) {
       if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
@@ -213,6 +221,7 @@
     $('view-wing').hidden = view !== 'wing';
     $('view-space').hidden = view !== 'space';
     $('view-community').hidden = view !== 'community';
+    $('view-person').hidden = view !== 'person';
     $('view-communities').hidden = view !== 'communities';
     $('view-group').hidden = view !== 'group';
     $('view-comments').hidden = view !== 'comments';
@@ -223,10 +232,13 @@
     $('view-projects').hidden = view !== 'projects';
     $('view-project').hidden = view !== 'project' && view !== 'project-new';
     $('view-edit').hidden = view !== 'item' && view !== 'new';
+    siteHere(SITE_FOR[view] ?? '/');
+    if (view !== 'person') personView.id = null;
     if (view === 'ideas') openNotebook(WING_KINDS[id] ? id : '');
     else if (view === 'wing' && WING_KINDS[id]) openWing(id);
     else if (view === 'space' && id) openSpace(id);
     else if (view === 'community') loadCommunity();
+    else if (view === 'person' && id) openPerson(id);
     else if (view === 'communities') loadGroups();
     else if (view === 'group' && id) openGroup(id);
     else if (view === 'comments') loadComments();
@@ -987,7 +999,7 @@
       {},
       h('input', { type: 'checkbox', className: 'pick', value: e.id, ariaLabel: `בחירת ${e.title || 'פריט'}` }),
       h('a', { className: 'title', href, dir: 'auto', textContent: e.title || e.meta?.synced?.name || 'בלי כותרת' }),
-      h('span', { className: 'row-actions' }, play, path ? h('a', { className: 'btn small ghost', href: path, target: '_blank', textContent: 'באתר ↗' }) : null),
+      h('span', { className: 'row-actions' }, play, path ? h('a', { className: 'btn small ghost', href: path, textContent: 'באתר' }) : null),
       h(
         'div',
         { className: 'meta' },
@@ -1034,7 +1046,7 @@
     return h(
       'li',
       {},
-      h('span', { className: 'who', dir: 'auto', textContent: m.displayName }),
+      personLink(m.userId, m.displayName),
       h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${m.username}` }), m.status === 'pending' ? h('span', { className: 'badge vis-community', textContent: 'מבקש להצטרף' }) : null, m.accountPending ? h('span', { className: 'badge', textContent: 'חשבון חדש' }) : null, h('time', { textContent: fmt(m.createdAt) })),
       h(
         'span',
@@ -1046,7 +1058,7 @@
             ]
           : [
               chat && m.status === 'active'
-                ? h('a', { className: 'btn small', href: `${chat}?to=${encodeURIComponent(m.userId)}`, target: '_blank', rel: 'noopener', textContent: 'הודעה פרטית' })
+                ? h('a', { className: 'btn small', href: `${chat}?to=${encodeURIComponent(m.userId)}`, textContent: 'הודעה פרטית' })
                 : null,
               h('button', { className: 'btn small danger', type: 'button', textContent: m.status === 'active' ? 'הסרה' : 'מחיקה', onclick: () => confirm(`להוציא את ${m.displayName}?`) && decide('removed') }),
             ]),
@@ -1072,6 +1084,7 @@
       })
       .catch(() => {});
     $('w-view').href = `/${id}`;
+    siteHere(`/${id}`);
     $('w-new-space').hidden = id === 'software' || id === 'articles' || id === 'torah';
     $('w-drop').hidden = id === 'software';
     $('w-drop').querySelector('.drop-list').replaceChildren();
@@ -1166,6 +1179,7 @@
     showDriveLink($('s-drive-open'), driveFolder(id));
     $('s-delete').hidden = isWing;
     $('s-view').href = pathOf(x);
+    siteHere(pathOf(x));
     $('s-status').textContent = isWing ? 'הגדרות האגף' : `${SPACE_KIND[x.kind] ?? ''} ב${wingOf(id)?.title ?? ''}`;
     const kinds = WING_KINDS[x.wing] ?? [];
     $('s-new-item').hidden = !kinds.length || kinds[0] === 'project';
@@ -1347,6 +1361,8 @@
     const path = entry && published ? itemPath(entry) : null;
     $('view-link').hidden = !path;
     if (path) $('view-link').href = path;
+    const where = entry && state.byId.get(entry.spaceId);
+    siteHere(path ?? (where ? pathOf(where) : null));
     if (entry) status(`${published ? 'פורסם' : 'טיוטה'} · ${VIS[entry.visibility]} · נשמר ${fmt(entry.updatedAt)}`);
     else status('טיוטה חדשה');
   }
@@ -1962,6 +1978,7 @@
     $('p-delete').hidden = !entry;
     $('p-view').hidden = !(entry?.status === 'published' && entry.slug);
     if (entry?.slug) $('p-view').href = `/work/${encodeURIComponent(entry.slug)}`;
+    siteHere(entry?.status === 'published' && entry.slug ? `/work/${encodeURIComponent(entry.slug)}` : '/software');
     showSynced(entry);
     $('p-status').textContent = entry ? `נשמר ${fmt(entry.updatedAt)}` : 'פרויקט חדש';
     project.dirty = false;
@@ -2097,7 +2114,7 @@
       $('members').replaceChildren(
         ...members.map((u) =>
           person(u, [
-            ...(u.isOwner ? [] : [['זה החשבון שלי', () => confirm(`${u.displayName} הוא החשבון שלך? הוא ייכנס לכל הקהילות, גם לחדשות.`) && send('/api/studio/settings/owner-member', 'PUT', { userId: u.id }).then(loadCommunity, report('invite-msg'))]]),
+            ...(u.isOwner ? [] : [['זה החשבון שלי', () => confirm(`${u.displayName} הוא החשבון שלך? הוא ייכנס לכל הקהילות, גם לחדשות.`) && send('/api/studio/settings/owner-member', 'PUT', { userId: u.id }).then(reloadPeople, report('invite-msg'))]]),
             u.status === 'active' ? ['השעיה', () => setStatus(u, 'suspended')] : ['החזרה', () => setStatus(u, 'active'), 'primary'],
             ['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger'],
           ]),
@@ -2118,7 +2135,7 @@
     return h(
       'li',
       {},
-      h('span', { className: 'who', dir: 'auto', textContent: u.displayName }),
+      personLink(u.id, u.displayName),
       h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${u.username}` }), u.isOwner ? h('span', { className: 'badge vis-community', textContent: 'זה אתה · בכל הקהילות' }) : null, h('span', { className: 'badge', textContent: STATUS[u.status] ?? u.status }), h('time', { textContent: fmt(u.createdAt) }), u.viaInvite ? h('span', { textContent: 'דרך הזמנה' }) : null),
       h('span', { className: 'actions' }, ...actions.map(([label, fn, cls = '']) => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn }))),
       u.note ? h('span', { className: 'note', dir: 'auto', textContent: u.note }) : null,
@@ -2152,7 +2169,7 @@
         msg.textContent = 'שומר...';
         try {
           await send(`/api/studio/members/${u.id}/communities`, 'PUT', { communities: boxes.map((b) => b.querySelector('input')).filter((i) => i.checked).map((i) => i.value) });
-          await loadCommunity();
+          await reloadPeople();
         } catch (err) {
           save.disabled = false;
           msg.textContent = err.message;
@@ -2170,8 +2187,120 @@
     );
   }
 
-  const setStatus = (u, status) => send(`/api/studio/members/${u.id}`, 'PATCH', { status }).then(loadCommunity, report('invite-msg'));
-  const remove = (u, question) => confirm(question) && call(`/api/studio/members/${u.id}`, { method: 'DELETE' }).then(loadCommunity, report('invite-msg'));
+  const setStatus = (u, status) => send(`/api/studio/members/${u.id}`, 'PATCH', { status }).then(reloadPeople, report(peopleMsg()));
+  const remove = (u, question) =>
+    confirm(question) &&
+    call(`/api/studio/members/${u.id}`, { method: 'DELETE' }).then(() => (personView.id ? (location.hash = '#community') : loadCommunity()), report(peopleMsg()));
+
+  // ---------- one person ----------
+  // Every name in the studio leads here (#person/<id>): the person, their
+  // communities, and what they wrote or were credited with, each a step from
+  // its place on the site and in the studio.
+  const personView = { id: null };
+  const peopleMsg = () => (personView.id ? 'pp-status' : 'invite-msg');
+  const reloadPeople = () => (personView.id ? openPerson(personView.id) : loadCommunity());
+
+  // A name that opens that person's page; the owner's own words (no id) stay plain.
+  function personLink(id, name, cls = 'who') {
+    return id ? h('a', { className: cls, href: `#person/${id}`, dir: 'auto', textContent: name }) : h('span', { className: cls, dir: 'auto', textContent: name });
+  }
+
+  const linkRow = (main, metaKids, actions = [], note = null) =>
+    h('li', {}, main, h('span', { className: 'meta', dir: 'auto' }, ...metaKids), actions.length ? h('span', { className: 'actions' }, ...actions) : null, note);
+  const btnLink = (href, text) => h('a', { className: 'btn small', href, textContent: text });
+
+  async function openPerson(id) {
+    personView.id = id;
+    say('pp-status', 'טוען...');
+    try {
+      const [data] = await Promise.all([call(`/api/studio/members/${id}`), loadComms()]);
+      if (personView.id !== id) return;
+      const u = data.person;
+      showNavCurrent();
+      const actions = u.status === 'pending'
+        ? [['אישור בלי קהילות', () => setStatus(u, 'active')], ['דחייה', () => remove(u, 'לדחות את הבקשה?'), 'danger']]
+        : [
+            ...(u.isOwner ? [] : [['זה החשבון שלי', () => confirm(`${u.displayName} הוא החשבון שלך? הוא ייכנס לכל הקהילות, גם לחדשות.`) && send('/api/studio/settings/owner-member', 'PUT', { userId: u.id }).then(reloadPeople, report('pp-status'))]]),
+            u.status === 'active' ? ['השעיה', () => setStatus(u, 'suspended')] : ['החזרה', () => setStatus(u, 'active'), 'primary'],
+            ['הסרה', () => remove(u, `להסיר את ${u.displayName} מהקהילה?`), 'danger'],
+          ];
+      const card = person(u, actions);
+      card.classList.add('person-card');
+      card.querySelector('.member-comms').open = true;
+      card.querySelector('.who').replaceWith(h('h1', { className: 'who', dir: 'auto', textContent: u.displayName }));
+      $('pp-card').replaceChildren(card);
+      document.title = `${u.displayName} · סטודיו`;
+
+      const comms = state.comms.filter((c) => u.communities[c.id]);
+      $('pp-comms').replaceChildren(
+        ...comms.map((c) =>
+          linkRow(
+            h('a', { className: 'who', href: `#group/${c.id}`, dir: 'auto', textContent: c.title }),
+            [h('span', { className: `badge${u.communities[c.id] === 'pending' ? ' vis-community' : ''}`, textContent: u.communities[c.id] === 'pending' ? 'ביקש/ה להצטרף' : 'חבר/ה' })],
+            [
+              btnLink(c.path, 'באתר'),
+              u.communities[c.id] === 'active' && u.status === 'active' ? btnLink(`${c.path}/chat?to=${encodeURIComponent(u.id)}`, 'הודעה פרטית') : null,
+            ].filter(Boolean),
+          ),
+        ),
+      );
+      $('pp-comms-empty').hidden = comms.length > 0;
+
+      $('pp-comments').replaceChildren(
+        ...data.comments.map((c) =>
+          linkRow(
+            c.on.path ? h('a', { className: 'who', href: c.on.path, dir: 'auto', textContent: c.on.title || 'בלי כותרת' }) : h('span', { className: 'who', dir: 'auto', textContent: c.on.title || 'פריט שנמחק' }),
+            [c.on.kind === 'post' ? h('span', { className: 'badge', textContent: 'פוסט' }) : null, c.status === 'resolved' ? h('span', { className: 'badge', textContent: 'טופל' }) : null, h('time', { textContent: fmt(c.createdAt) })].filter(Boolean),
+            [c.on.kind === 'post' ? btnLink('#blog', 'לבלוגים') : c.on.id ? btnLink(`#item/${c.on.id}`, 'לעריכה') : null].filter(Boolean),
+            h('span', { className: 'note', dir: 'auto', textContent: c.body }),
+          ),
+        ),
+      );
+      $('pp-comments-empty').hidden = data.comments.length > 0;
+
+      $('pp-posts').replaceChildren(
+        ...data.posts.map((p) =>
+          linkRow(
+            p.path ? h('a', { className: 'who', href: p.path, dir: 'auto', textContent: p.title }) : h('span', { className: 'who', dir: 'auto', textContent: p.title }),
+            [
+              state.commById.get(p.spaceId) ? h('a', { href: `#group/${p.spaceId}`, dir: 'auto', textContent: state.commById.get(p.spaceId).title }) : null,
+              p.status === 'hidden' ? h('span', { className: 'badge', textContent: 'מוסתר' }) : null,
+              p.public ? h('span', { className: 'badge', textContent: 'פתוח לכולם' }) : null,
+              h('time', { textContent: fmt(p.createdAt) }),
+            ].filter(Boolean),
+            [],
+            p.excerpt ? h('span', { className: 'note', dir: 'auto', textContent: p.excerpt }) : null,
+          ),
+        ),
+      );
+      $('pp-posts-empty').hidden = data.posts.length > 0;
+
+      $('pp-credits').replaceChildren(
+        ...data.credits.map((x) =>
+          linkRow(
+            h('a', { className: 'who', href: x.kind === 'project' || x.kind === 'work' ? `#project/${x.id}` : `#item/${x.id}`, dir: 'auto', textContent: x.title || 'בלי כותרת' }),
+            x.roles.length ? [h('span', { dir: 'auto', textContent: x.roles.join(', ') })] : [],
+            x.path ? [btnLink(x.path, 'באתר')] : [],
+          ),
+        ),
+      );
+      $('pp-credits-empty').hidden = data.credits.length > 0;
+
+      $('pp-tagged').replaceChildren(
+        ...data.tagged.map((t) =>
+          linkRow(
+            t.path ? h('a', { className: 'who', href: t.path, dir: 'auto', textContent: t.title || 'בלי כותרת' }) : h('span', { className: 'who', dir: 'auto', textContent: t.title || 'בלי כותרת' }),
+            [h('span', { textContent: t.what === 'post' ? 'בפוסט' : 'בתגובה' }), h('time', { textContent: fmt(t.at) })],
+            t.entryId ? [btnLink(`#item/${t.entryId}`, 'לעריכה')] : [],
+          ),
+        ),
+      );
+      $('pp-tagged-empty').hidden = data.tagged.length > 0;
+      say('pp-status', '');
+    } catch (err) {
+      report('pp-status')(err);
+    }
+  }
 
   function inviteRow(inv) {
     const link = `${location.origin}/join?code=${inv.code}`;
@@ -2277,6 +2406,7 @@
       $('g-hidden').checked = c.hidden;
       $('g-view').href = c.path;
       $('g-chat').href = `${c.path}/chat`;
+      siteHere(c.path);
       say('g-status', `${c.members} חברים${c.requests ? ` · ${c.requests} בקשות` : ''}`);
       const [{ members }, { users }, { entries }] = await Promise.all([
         call(`/api/studio/communities/${id}/members`),
@@ -2362,11 +2492,11 @@
     return h(
       'li',
       {},
-      h('span', { className: 'who', dir: 'auto', textContent: c.author }),
+      personLink(c.userId, c.author),
       h(
         'span',
         { className: 'meta', dir: 'auto' },
-        c.entry.path ? h('a', { href: `${c.entry.path}#c-${c.id}`, target: '_blank', rel: 'noopener', textContent: c.entry.title || 'בלי כותרת' }) : h('span', { textContent: c.entry.title || 'פריט שנמחק' }),
+        c.entry.path ? h('a', { href: `${c.entry.path}#c-${c.id}`, textContent: c.entry.title || 'בלי כותרת' }) : h('span', { textContent: c.entry.title || 'פריט שנמחק' }),
         where ? h('span', { textContent: where.parentId ? where.title : wingOf(where.id)?.title }) : null,
         c.replyTo ? h('span', { className: 'badge', textContent: 'תשובה' }) : null,
         open ? null : h('span', { className: 'badge', textContent: 'טופל' }),
@@ -2404,6 +2534,7 @@
     const where = state.commById.get(blog.space);
     $('b-open').hidden = !where;
     if (where) $('b-open').href = where.path;
+    siteHere(where?.path ?? '/community');
     for (const b of $('b-filters').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.status === blog.status));
     try {
       const data = await call(`/api/studio/posts?${new URLSearchParams({ space: blog.space, status: blog.status })}`);
@@ -2427,12 +2558,12 @@
     return h(
       'li',
       {},
-      p.path ? h('a', { className: 'who', href: p.path, target: '_blank', rel: 'noopener', dir: 'auto', textContent: p.title }) : h('span', { className: 'who', dir: 'auto', textContent: p.title }),
+      p.path ? h('a', { className: 'who', href: p.path, dir: 'auto', textContent: p.title }) : h('span', { className: 'who', dir: 'auto', textContent: p.title }),
       h(
         'span',
         { className: 'meta', dir: 'auto' },
         where ? h('span', { dir: 'auto', textContent: where.title }) : null,
-        h('span', { textContent: p.author }),
+        p.userId ? h('a', { href: `#person/${p.userId}`, dir: 'auto', textContent: p.author }) : h('span', { textContent: p.author }),
         p.comments ? h('span', { textContent: p.comments === 1 ? 'תגובה אחת' : `${p.comments} תגובות` }) : null,
         p.pinned ? h('span', { className: 'badge', textContent: 'נעוץ' }) : null,
         p.public ? h('span', { className: 'badge', textContent: 'פתוח לכולם' }) : null,

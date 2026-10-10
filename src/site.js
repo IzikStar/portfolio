@@ -87,7 +87,7 @@ export function html(markup, v, status = 200) {
   });
 }
 
-export function layout({ title, description = '', path, v, body, wing = null, noindex = false, links = [], script = false, scripts = [], page = null }) {
+export function layout({ title, description = '', path, v, body, wing = null, noindex = false, links = [], script = false, scripts = [], page = null, studio = '' }) {
   const { role, member, acc } = v;
   const here = (p) => (path === p || path.startsWith(`${p}/`) ? ' aria-current="page"' : '');
   const full = title ? `${title} · יצחק שטרן` : 'יצחק שטרן';
@@ -125,7 +125,7 @@ ${scripts.map((src) => `<script src="${e(src)}" defer></script>`).join('')}
       ${wings.map((w) => `<a href="/${w.id}"${here(`/${w.id}`)}>${e(w.title)}</a>`).join('\n      ')}
     </nav>
     <div class="who">
-      ${role === 'owner' ? '<a class="btn small" href="/studio">סטודיו</a>' : ''}
+      ${role === 'owner' ? `<a class="btn small to-studio" href="/studio${studio ? `#${e(studio)}` : ''}">סטודיו</a>` : ''}
       ${member ? `<a href="/community"${here('/community')}>${e(member.displayName)}</a><a href="/login?logout=1">יציאה</a>` : `<a href="/community"${here('/community')}>קהילות</a>`}
       ${role === 'public' ? `<a class="btn small" href="/login?next=${encodeURIComponent(path)}">כניסה</a>` : ''}
     </div>

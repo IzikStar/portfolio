@@ -63,7 +63,8 @@
         a.href = part;
         a.textContent = part;
         a.rel = 'noopener nofollow';
-        a.target = '_blank';
+        // Only other sites open in a new tab; the site's own pages open here.
+        if (a.origin !== location.origin) a.target = '_blank';
         el.append(a);
       } else if (part) el.append(part);
     }
@@ -78,6 +79,13 @@
   };
 
   const nameOf = (id) => roster.find((p) => p.id === id)?.name ?? 'מישהו';
+  // For the owner, a member's name opens their page in the studio.
+  const nameEl = (cls, id, name) => {
+    if (!owner || !id || id === 'owner') return el('span', cls, name);
+    const a = el('a', cls, name);
+    a.href = `/studio#person/${encodeURIComponent(id)}`;
+    return a;
+  };
   const forWhom = (ids) => ids.map(nameOf).join(', ');
 
   // ---------- drawing ----------
@@ -88,7 +96,7 @@
     li.dataset.id = m.id;
     li.style.setProperty('--who', hue(m.userId ?? 'owner'));
     const b = el('div', 'bubble');
-    if (!isMine(m)) b.append(el('span', 'who', m.author));
+    if (!isMine(m)) b.append(nameEl('who', m.userId, m.author));
     if (m.audience?.length && !m.deleted) b.append(el('span', 'for', `🔒 רק ל${forWhom(m.audience)}`));
     if (m.reply && !m.deleted) {
       const q = el('a', 'quote');
@@ -386,7 +394,7 @@
     const ul = el('ul', 'wrap');
     for (const p of roster) {
       const li = el('li');
-      const name = el('span', 'name', p.name);
+      const name = nameEl('name', p.id, p.name);
       if (here.has(p.id)) name.classList.add('here');
       li.append(name);
       if (p.id !== me && canWrite) {

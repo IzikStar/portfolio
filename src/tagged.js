@@ -8,6 +8,7 @@ import { getEntry, listCredited } from './entries.js';
 import { canComment, OWNER_NAME } from './comments.js';
 import { getPost, canReadPost, canCommentPost, postPath } from './posts.js';
 import { entryPath, fmtDate } from './site.js';
+import { chip, personHref } from './mentions.js';
 
 const LIMIT = 40;
 
@@ -25,13 +26,13 @@ const creditsOf = (entry) => (Array.isArray(entry.meta?.credits) ? entry.meta.cr
 
 // "שירה: דנה · עריכה: יוסי" under an item's title. Credits to people who are
 // gone or suspended are left out.
-export async function creditsLine(env, entry) {
+export async function creditsLine(env, entry, v = null) {
   const list = creditsOf(entry);
   if (!list.length) return '';
   const who = await names(env, list.map((c) => c.userId));
   const shown = list.filter((c) => who.has(c.userId));
   if (!shown.length) return '';
-  return `<p class="credits">${shown.map((c) => `<span>${c.role ? `${e(c.role)}: ` : ''}<span class="mention" dir="auto">${e(who.get(c.userId))}</span></span>`).join('')}</p>`;
+  return `<p class="credits">${shown.map((c) => `<span>${c.role ? `${e(c.role)}: ` : ''}${chip(who.get(c.userId), '', personHref(v, c.userId))}</span>`).join('')}</p>`;
 }
 
 // Where this member was tagged, newest first, kept to what they can still open.
