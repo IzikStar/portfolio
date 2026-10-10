@@ -13,54 +13,18 @@ import { HttpError, json, readJson, cleanText } from './http.js';
 import { fromRow, getEntry, createEntry, saveEntry } from './entries.js';
 import { checkFile, attachFile, fileInfo } from './files.js';
 import { fileKind, downloadKind, DOWNLOAD_TYPE } from './limits.js';
+import { DEFAULT_SPARKS } from './sparks.js';
 
 const MAX_TEXT = 200_000;
-const MAX_SPARKS = 300;
+const MAX_SPARKS = 600;
 const MAX_SPARK_TEXT = 300;
 const MAX_NOTE = 4000;
 const MAX_NOTES = 100;
 const WING_IDS = WINGS.map((w) => w.id);
 const SPARK_WINGS = ['any', ...WING_IDS];
 
-// The prompts shown until the owner writes his own. 'any' fits every wing.
-export const DEFAULT_SPARKS = [
-  { wing: 'music', text: 'שורה ראשונה של שיר: "כשהאור בחדר נגמר". תמשיך ממנה.' },
-  { wing: 'music', text: 'שיר שכולו שאלות, בלי תשובה אחת.' },
-  { wing: 'music', text: 'ריף של שלושה אקורדים שמסרב להיגמר. איזה מילים הוא מבקש?' },
-  { wing: 'music', text: 'שיר למישהו שעוד לא מכיר את עצמו. מה הפזמון?' },
-  { wing: 'music', text: 'לקחת ניגון ישן ולכתוב לו מילים חדשות לגמרי.' },
-  { wing: 'books', text: 'מה אם בספר הבא של גרגמיץ המפה משקרת?' },
-  { wing: 'books', text: 'מה אם בגרגמיץ מישהו מגלה שהוא בכלל לא הגיבור של הסיפור?' },
-  { wing: 'books', text: 'מה אם ההרפתקה הבאה של גרגמיץ מתחילה בטעות של שנייה אחת?' },
-  { wing: 'books', text: 'דמות משנית מהספר מקבלת פרק משלה. מי, ולמה דווקא עכשיו?' },
-  { wing: 'books', text: 'מה הדבר הכי מביך שיכול לקרות לגיבור באמצע הרפתקה?' },
-  { wing: 'books', text: 'סצנה שלמה בלי מילה אחת של דיאלוג. מה קורה בה?' },
-  { wing: 'books', text: 'מה אם הנבל צודק?' },
-  { wing: 'sketches', text: 'מערכון: שני אנשים שמנסים לסיים שיחה ולא מצליחים.' },
-  { wing: 'sketches', text: 'פקיד שמתייחס לעניין קטן כמו לשאלה של חיים ומוות.' },
-  { wing: 'sketches', text: 'ראיון עבודה למשרה שלא קיימת.' },
-  { wing: 'sketches', text: 'מישהו מגיע מוקדם מדי. בשעתיים.' },
-  { wing: 'sketches', text: 'מדריך טיולים שמכיר את המקום פחות מהקבוצה.' },
-  { wing: 'humor', text: 'לדבב קטע טבע כאילו הוא תוכנית ריאליטי.' },
-  { wing: 'humor', text: 'קול למשהו שאין לו קול: מקרר, רמזור, שלט בכניסה.' },
-  { wing: 'humor', text: 'מה אומרים בלב שני כלבים שנפגשים ברחוב?' },
-  { wing: 'humor', text: 'קריין חדשות שמדווח על בוקר רגיל אצלך בבית.' },
-  { wing: 'torah', text: 'איזה פסוק בפרשה הפריע לך השבוע? תתחיל משם.' },
-  { wing: 'torah', text: 'דבר תורה מהנקודה של הדמות שלא מדברת בסיפור.' },
-  { wing: 'torah', text: 'מה המדרש היה אומר על משהו שקרה לך היום?' },
-  { wing: 'torah', text: 'שאלה אחת פשוטה על הפרשה שאף פעם לא שאלת.' },
-  { wing: 'articles', text: 'דעה שהחזקת לפני עשר שנים ושינית. למה?' },
-  { wing: 'articles', text: 'משהו שכולם מסכימים עליו ואתה לא בטוח.' },
-  { wing: 'articles', text: 'להסביר דבר שאתה יודע טוב לילד בן עשר.' },
-  { wing: 'software', text: 'כלי קטן שהיית רוצה שיהיה לך הבוקר.' },
-  { wing: 'software', text: 'משהו שאתה עושה ידנית פעם בשבוע. איך זה נראה אוטומטי?' },
-  { wing: 'software', text: 'מה היית בונה אם היה לך סוף שבוע שלם בלי הפרעות?' },
-  { wing: 'videos', text: 'סרטון של דקה: הדבר שהכי קל להראות במצלמה ובלתי אפשרי להסביר בטקסט.' },
-  { wing: 'videos', text: 'מאחורי הקלעים של משהו שכבר סיימת.' },
-  { wing: 'any', text: 'מה הצחיק אותך היום? יש בזה משהו.' },
-  { wing: 'any', text: 'משפט ששמעת השבוע ולא יוצא לך מהראש.' },
-  { wing: 'any', text: 'רעיון שזרקת פעם כי היה "קטן מדי". אולי הוא בגודל הנכון.' },
-];
+// The prompts shown until the owner writes his own live in sparks.js.
+export { DEFAULT_SPARKS };
 
 // ---------- the list ----------
 
