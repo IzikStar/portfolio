@@ -2086,7 +2086,7 @@
       const pending = users.filter((u) => u.status === 'pending');
       const members = users.filter((u) => u.status !== 'pending');
       showPendingCount(pending.length);
-      $('pending').replaceChildren(...pending.map((u) => person(u, [['אישור', () => setStatus(u, 'active'), 'primary'], ['דחייה', () => remove(u, 'לדחות את הבקשה?'), 'danger']])));
+      $('pending').replaceChildren(...pending.map((u) => person(u, [['אישור בלי קהילות', () => setStatus(u, 'active')], ['דחייה', () => remove(u, 'לדחות את הבקשה?'), 'danger']])));
       $('pending-empty').hidden = pending.length > 0;
       $('members').replaceChildren(
         ...members.map((u) =>
@@ -2115,6 +2115,51 @@
       h('span', { className: 'meta', dir: 'auto' }, h('span', { textContent: `@${u.username}` }), h('span', { className: 'badge', textContent: STATUS[u.status] ?? u.status }), h('time', { textContent: fmt(u.createdAt) }), u.viaInvite ? h('span', { textContent: 'דרך הזמנה' }) : null),
       h('span', { className: 'actions' }, ...actions.map(([label, fn, cls = '']) => h('button', { className: `btn small ${cls}`, type: 'button', textContent: label, onclick: fn }))),
       u.note ? h('span', { className: 'note', dir: 'auto', textContent: u.note }) : null,
+      memberComms(u),
+    );
+  }
+
+  // One person, many communities: tick and save. A person's requests start
+  // ticked, so approving all of them is one click.
+  function memberComms(u) {
+    const where = u.communities ?? {};
+    const titles = state.comms.filter((c) => where[c.id] === 'active').map((c) => c.title);
+    const asked = state.comms.filter((c) => where[c.id] === 'pending').length;
+    const waiting = u.status === 'pending' || asked > 0;
+    const msg = h('span', { className: 'msg', role: 'status' });
+    const boxes = state.comms.map((c) =>
+      h(
+        'label',
+        { className: 'pick' },
+        h('input', { type: 'checkbox', value: c.id, checked: Boolean(where[c.id]) }),
+        h('span', { dir: 'auto', textContent: c.title }),
+        where[c.id] === 'pending' ? h('small', { className: 'badge vis-community', textContent: 'ביקש/ה' }) : null,
+      ),
+    );
+    const save = h('button', {
+      className: 'btn small primary',
+      type: 'button',
+      textContent: waiting ? 'אישור לקהילות המסומנות' : 'שמירה',
+      onclick: async () => {
+        save.disabled = true;
+        msg.textContent = 'שומר...';
+        try {
+          await send(`/api/studio/members/${u.id}/communities`, 'PUT', { communities: boxes.map((b) => b.querySelector('input')).filter((i) => i.checked).map((i) => i.value) });
+          await loadCommunity();
+        } catch (err) {
+          save.disabled = false;
+          msg.textContent = err.message;
+        }
+      },
+    });
+    const label = titles.length ? `קהילות: ${titles.join(', ')}` : 'עוד לא בשום קהילה';
+    return h(
+      'details',
+      { className: 'member-comms', open: waiting && state.comms.length > 0 },
+      h('summary', {}, label, asked ? h('span', { className: 'badge vis-community', textContent: asked === 1 ? ' בקשה אחת' : ` ${asked} בקשות` }) : null),
+      state.comms.length
+        ? h('div', { className: 'comm-pick' }, h('div', { className: 'picks' }, ...boxes), h('div', { className: 'pick-bar' }, save, msg))
+        : h('a', { href: '#communities', textContent: 'עוד אין קהילות. ליצירת קהילה' }),
     );
   }
 

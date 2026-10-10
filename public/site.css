@@ -293,6 +293,19 @@ button.link:hover { color: var(--ink); }
 .msg.ok { color: #8fd6b4; }
 .hint { font-size: 14px; color: var(--muted); }
 .hp { position: absolute; inset-inline-start: -9999px; }
+#account-fields { display: grid; gap: 16px; }
+.comm-choose { border: 0; padding: 0; margin: 0; min-width: 0; }
+.comm-choose legend { padding: 0; margin-bottom: 8px; }
+.choices { display: grid; gap: 8px; }
+.choice {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: start; cursor: pointer;
+  background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 14px;
+}
+.choice input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); grid-row: span 2; }
+.choice span { font-weight: 500; }
+.choice small { grid-column: 2; }
+.choice:has(input:checked) { border-color: var(--accent); }
+.choice:has(input:disabled) { cursor: default; opacity: 0.7; }
 
 @media (max-width: 720px) {
   .bar { position: static; }

@@ -457,7 +457,7 @@ export async function communityPage(env, v) {
   <div class="section-head"><h2>הקהילות</h2></div>
   <p class="lede">חלק ממה שאני יוצר פתוח רק לקהילות. מי שמצטרף רואה טיוטות, הקלטות ופרקים שעוד לא יצאו, ויכול להגיב.</p>
   ${others.length ? cards(others) : '<p class="empty">עוד אין קהילות פתוחות. בקרוב.</p>'}
-  <div class="actions" style="margin-top:24px"><a class="btn" href="/join">הרשמה</a><a class="btn" href="/login">כבר בפנים? כניסה</a></div>
+  <div class="actions" style="margin-top:24px"><a class="btn primary" href="/join">בקשה להצטרף, לכמה קהילות בבת אחת</a><a class="btn" href="/login?next=/join">כבר יש לכם חשבון? כניסה</a></div>
 </div>`;
     return render(env, v, { title: 'קהילות', description: 'הקהילות של יצחק שטרן.', path: '/community', body, script: true });
   }
@@ -473,7 +473,7 @@ export async function communityPage(env, v) {
   const body = `<div class="wrap block">
   <div class="section-head"><h2>${member ? `שלום ${e(member.displayName)}` : 'הקהילות'}</h2>${acc.owner ? '<a class="btn small" href="/studio#communities">ניהול</a>' : ''}</div>
   ${mine.length ? `<div class="section-head"><h2>הקהילות שלכם</h2></div>${cards(mine)}` : !acc.owner ? '<p class="lede">עוד לא הצטרפתם לאף קהילה.</p>' : ''}
-  ${others.length ? `<div class="section-head" style="margin-top:32px"><h2>${acc.owner ? 'כל הקהילות' : 'עוד קהילות'}</h2></div>${cards(others)}` : ''}
+  ${others.length ? `<div class="section-head" style="margin-top:32px"><h2>${acc.owner ? 'כל הקהילות' : 'עוד קהילות'}</h2>${!acc.owner && others.some((c) => c.joinMode === 'request' && !acc.pending.has(c.id)) ? '<a class="btn small accent" href="/join">לבקש כמה בבת אחת</a>' : ''}</div>${cards(others)}` : ''}
   ${await memberBlock(env, v)}
   <div class="section-head" style="margin-top:32px"><h2>רק לכם</h2></div>
   ${items}

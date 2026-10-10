@@ -206,6 +206,83 @@ describe('signing up from a community', () => {
   });
 });
 
+describe('one account, many communities', () => {
+  it('asks for several communities in one sign-up', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha' });
+    const b = await community(o, { title: 'Beta' });
+    const closed = await community(o, { title: 'Closed', joinMode: 'closed' });
+    const hidden = await community(o, { title: 'Hidden', hidden: true });
+    const res = await call(null, '/api/member/join', 'POST', { username: 'sis', password: 'longenough', communities: [a.id, b.id, closed.id, hidden.id] });
+    expect(await res.json()).toEqual({ status: 'pending' });
+    const { users } = await (await call(o, '/api/studio/community')).json();
+    expect(users[0].communities).toEqual({ [a.id]: 'pending', [b.id]: 'pending' });
+  });
+
+  it('adds a second request to the same account instead of a new one', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha' });
+    const b = await community(o, { title: 'Beta' });
+    await call(null, '/api/member/join', 'POST', { username: 'sis', password: 'longenough', communityId: a.id });
+    const again = await call(null, '/api/member/join', 'POST', { username: 'SIS', password: 'longenough', communityId: b.id });
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual({ status: 'pending', existing: true });
+    const { users } = await (await call(o, '/api/studio/community')).json();
+    expect(users).toHaveLength(1);
+    expect(users[0].communities).toEqual({ [a.id]: 'pending', [b.id]: 'pending' });
+    // Someone else's username with a wrong password is still refused.
+    expect((await call(null, '/api/member/join', 'POST', { username: 'sis', password: 'wrongpassword', communityId: b.id })).status).toBe(409);
+  });
+
+  it('signs an active member in and adds the request when they sign up again', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha' });
+    const m = await member(o, 'known');
+    const res = await call(null, '/api/member/join', 'POST', { username: 'known', password: 'longenough', communities: [a.id] });
+    expect(await res.json()).toEqual({ status: 'active', existing: true });
+    expect(cookieOf(res)).toMatch(/^member_session=/);
+    const { members } = await (await call(o, `/api/studio/communities/${a.id}/members`)).json();
+    expect(members).toMatchObject([{ userId: m.id, status: 'pending' }]);
+  });
+
+  it('lets a signed-in member ask for several at once', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha' });
+    const b = await community(o, { title: 'Beta' });
+    const m = await member(o, 'many');
+    await approve(o, a, m.id);
+    const res = await call(m.cookie, '/api/member/communities/join', 'POST', { communities: [a.id, b.id], note: 'hi' });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ status: 'pending', communities: [b.id] });
+    expect((await call(m.cookie, '/api/member/communities/join', 'POST', { communities: [a.id] })).status).toBe(400);
+    expect((await call(null, '/api/member/communities/join', 'POST', { communities: [b.id] })).status).toBe(401);
+  });
+
+  it('lets the owner put one person in several communities with one save', async () => {
+    const o = await owner();
+    const a = await community(o, { title: 'Alpha' });
+    const b = await community(o, { title: 'Beta' });
+    const c = await community(o, { title: 'Gamma' });
+    await call(null, '/api/member/join', 'POST', { username: 'sis', password: 'longenough', communities: [a.id, c.id] });
+    const { users } = await (await call(o, '/api/studio/community')).json();
+    const id = users[0].id;
+
+    // Approve Alpha, add Beta, leave Gamma unticked: the account opens too.
+    const res = await call(o, `/api/studio/members/${id}/communities`, 'PUT', { communities: [a.id, b.id] });
+    expect(res.status).toBe(200);
+    let after = (await (await call(o, '/api/studio/community')).json()).users[0];
+    expect(after).toMatchObject({ status: 'active', communities: { [a.id]: 'active', [b.id]: 'active' } });
+    expect((await call(null, '/api/member/login', 'POST', { username: 'sis', password: 'longenough' })).status).toBe(200);
+
+    await call(o, `/api/studio/members/${id}/communities`, 'PUT', { communities: [b.id] });
+    after = (await (await call(o, '/api/studio/community')).json()).users[0];
+    expect(after.communities).toEqual({ [b.id]: 'active' });
+
+    expect((await call(o, '/api/studio/members/nobody/communities', 'PUT', { communities: [] })).status).toBe(404);
+    expect((await call(null, `/api/studio/members/${id}/communities`, 'PUT', { communities: [] })).status).toBe(401);
+  });
+});
+
 describe('studio spaces and communities', () => {
   it('counts items, and keeps full spaces from being deleted', async () => {
     const o = await owner();

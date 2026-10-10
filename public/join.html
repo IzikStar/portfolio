@@ -19,6 +19,11 @@
   <form class="member-form" id="join-form" novalidate>
     <h1 id="join-title">בקשת הצטרפות</h1>
     <p class="lede" id="join-lede">כתבו כמה מילים על עצמכם ואיך אנחנו מכירים, ככה יהיה לי קל לאשר.</p>
+    <fieldset class="field comm-choose" id="comm-field" hidden>
+      <legend>לאילו קהילות? <small>אפשר לסמן כמה שרוצים</small></legend>
+      <div class="choices" id="comm-choices"></div>
+    </fieldset>
+    <div id="account-fields">
     <label class="field">שם לתצוגה
       <input type="text" name="displayName" maxlength="60" autocomplete="name" dir="auto">
     </label>
@@ -28,6 +33,8 @@
     <label class="field">סיסמה <small>לפחות 8 תווים</small>
       <input type="password" name="password" required minlength="8" autocomplete="new-password">
     </label>
+    <p class="hint" id="again-hint">כבר נרשמתם פעם? כתבו את אותו שם משתמש וסיסמה, והקהילות יתווספו לאותו חשבון.</p>
+    </div>
     <label class="field" id="note-field">כמה מילים עליכם
       <textarea name="note" rows="3" maxlength="600" dir="auto"></textarea>
     </label>
@@ -38,7 +45,7 @@
   </form>
   <div id="join-done" hidden>
     <h1>הבקשה נשלחה</h1>
-    <p class="lede">אעבור עליה בקרוב. אחרי שאאשר, נכנסים עם שם המשתמש והסיסמה שבחרתם.</p>
+    <p class="lede" id="join-done-text">אעבור עליה בקרוב. אחרי שאאשר, נכנסים עם שם המשתמש והסיסמה שבחרתם.</p>
   </div>
 </main>
 <script src="/member.js"></script>
