@@ -231,8 +231,12 @@ a { color: inherit; }
 .chords .seg .ch { font-family: var(--mono); font-size: 15px; color: #a85a06; min-height: 1.3em; padding-inline-end: 6px; }
 .chords[dir="rtl"] .seg .ch { text-align: right; padding-inline: 6px 0; }
 .chords .gap { height: 0.9em; }
-.chords .comment { font-weight: 700; font-size: 15px; color: #6b5a3a; margin-top: 10px; }
-.chords .chorus { border-inline-start: 3px solid var(--accent); padding-inline-start: 14px; margin-block: 8px; }
+/* Section names ({c: פזמון}) are a quiet label with a hairline; the chorus sits on a faint warm wash. */
+.chords .part { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: #8a6a3a; margin: 18px 0 6px; }
+.chords .part::after { content: ''; flex: 1; height: 1px; background: #e3d7bf; }
+.chords > .part:first-child { margin-top: 0; }
+.chords .chorus { background: #efe5d2; border-radius: 12px; padding: 10px 14px; margin-block: 6px 10px; }
+.chords .chorus .part { margin-top: 4px; }
 .chords.plain .ch, .chords.plain .chordline { display: none; }
 .media { border-radius: 18px; overflow: hidden; background: #000; }
 .media iframe, .media video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
