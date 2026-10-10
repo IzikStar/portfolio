@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { HttpError, json, readJson, cleanText } from './http.js';
 import { safeEqual } from './auth.js';
 import { access, knownCommunities } from './spaces.js';
-import { addRequest, addActive, knows, cleanCommunityIds } from './communities.js';
+import { addRequests, addActive, cleanCommunityIds } from './communities.js';
 
 export const MEMBER_COOKIE = 'member_session';
 const SESSION_DAYS = 30;
@@ -99,6 +99,26 @@ export async function join(request, env) {
   if (password.length > 200) throw new HttpError(400, 'Password is too long.');
 
   const d = await db(env);
+  // The communities asked for: the join page's checkboxes, or the one page
+  // the visitor came from.
+  const wanted = Array.isArray(body.communities) ? body.communities : body.communityId ? [body.communityId] : [];
+  const publicAcc = () => access(env, { role: 'public', member: null });
+
+  // Already has an account (same username and password): the new request
+  // joins that account instead of asking for a second one.
+  const existing = await d.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
+  if (existing) {
+    if (!(await verifyPassword(password, existing.password_hash))) {
+      await new Promise((r) => setTimeout(r, 1000)); // as slow as a wrong sign-in
+      throw new HttpError(409, 'That username is taken.');
+    }
+    if (existing.status !== 'active' && existing.status !== 'pending') throw new HttpError(403, 'This account is not active.');
+    const acc = existing.status === 'active' ? await access(env, { role: 'member', member: { id: existing.id } }) : await publicAcc();
+    await addRequests(env, acc, existing.id, wanted, body.note);
+    if (existing.status === 'pending') return json({ status: 'pending', existing: true }, 200);
+    return json({ status: 'active', existing: true }, 200, { 'Set-Cookie': await sessionCookie(existing.id, env) });
+  }
+
   const invite = body.code ? await findInvite(d, body.code) : null;
   if (body.code && !invite) throw new HttpError(400, 'This invite link is no longer valid.');
   if (!invite) {
@@ -122,12 +142,7 @@ export async function join(request, env) {
     if (/UNIQUE/i.test(String(err?.message))) throw new HttpError(409, 'That username is taken.');
     throw err;
   }
-  // Signed up from a community's page: ask to join it too.
-  if (body.communityId) {
-    const acc = await access(env, { role: 'public', member: null });
-    const c = acc.commById.get(String(body.communityId));
-    if (knows(acc, c) && c.joinMode === 'request') await addRequest(env, user.id, c.id, body.note);
-  }
+  if (wanted.length) await addRequests(env, await publicAcc(), user.id, wanted, body.note);
   if (!invite) return json({ status: 'pending' }, 201);
 
   // Count the use only if the invite still has room (two people racing for the last use).
@@ -171,10 +186,14 @@ export async function me(request, env) {
 
 export async function listCommunity(env) {
   const d = await db(env);
-  const [users, invites] = await Promise.all([
+  const [users, invites, joined] = await Promise.all([
     d.prepare(`SELECT id, username, display_name, status, request_note, invite_code, created_at, last_login_at FROM users ORDER BY created_at DESC`).all(),
     d.prepare('SELECT * FROM invites ORDER BY created_at DESC').all(),
+    d.prepare(`SELECT user_id, community_id, status FROM community_members WHERE status IN ('active', 'pending')`).all(),
   ]);
+  // Where each person stands: { communityId: 'active' | 'pending' }.
+  const where = new Map();
+  for (const r of joined.results) where.set(r.user_id, { ...(where.get(r.user_id) ?? {}), [r.community_id]: r.status });
   return json({
     users: users.results.map((u) => ({
       id: u.id,
@@ -185,6 +204,7 @@ export async function listCommunity(env) {
       viaInvite: Boolean(u.invite_code),
       createdAt: u.created_at,
       lastLoginAt: u.last_login_at,
+      communities: where.get(u.id) ?? {},
     })),
     invites: invites.results.map((i) => ({
       code: i.code,

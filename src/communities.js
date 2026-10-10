@@ -67,6 +67,24 @@ export async function requestJoin(request, env, v, id) {
   return json({ status: row.status, communityId: c.id }, 201);
 }
 
+// Ask for several communities at once (the join page's checkboxes). Only the
+// ones this viewer may know that take requests count; the ones they are
+// already in, or already asked for, are left as they are.
+export async function addRequests(env, acc, userId, ids, note) {
+  const wanted = (Array.isArray(ids) ? ids : []).map(String).slice(0, 50);
+  const asked = [...new Set(wanted)].map((id) => acc.commById.get(id)).filter((c) => knows(acc, c) && c.joinMode === 'request' && !acc.communities.has(c.id));
+  for (const c of asked) await addRequest(env, userId, c.id, note);
+  return asked.map((c) => c.id);
+}
+
+export async function requestJoinMany(request, env, v) {
+  if (!v.member) throw new HttpError(401, 'Sign in first.');
+  const { communities, note } = await readJson(request);
+  const asked = await addRequests(env, v.acc, v.member.id, communities, note);
+  if (!asked.length) throw new HttpError(400, 'Pick at least one community.');
+  return json({ status: 'pending', communities: asked }, 201);
+}
+
 // Sign-up from a community's page asks for that community too.
 export async function addRequest(env, userId, communityId, note) {
   const d = await db(env);
@@ -273,4 +291,40 @@ export async function decideMember(request, env, id) {
     .run();
   if (status === 'active' && user.status === 'pending') await d.prepare(`UPDATE users SET status = 'active' WHERE id = ?`).bind(user.id).run();
   return json({ ok: true });
+}
+
+// One person, many communities: the owner ticks the communities a member
+// should be in and saves. Ticked ones become active (approving any request),
+// unticked memberships end and unticked requests are refused. Saying yes to
+// someone whose account still waits activates the account too.
+export async function setMemberships(request, env, userId) {
+  const { communities } = await readJson(request);
+  const known = new Set((await loadCommunities(env)).map((c) => c.id));
+  const want = new Set(cleanCommunityIds(communities, known));
+  const d = await db(env);
+  const user = await d.prepare('SELECT id, status FROM users WHERE id = ?').bind(userId).first();
+  if (!user) throw new HttpError(404, 'That member no longer exists.');
+  const { results } = await d.prepare('SELECT community_id, status FROM community_members WHERE user_id = ?').bind(userId).all();
+  const had = new Map(results.map((r) => [r.community_id, r.status]));
+  const now = new Date().toISOString();
+  const out = [];
+  for (const id of want) {
+    if (had.get(id) === 'active') continue;
+    out.push(
+      d
+        .prepare(
+          `INSERT INTO community_members (community_id, user_id, status, note, created_at, decided_at) VALUES (?, ?, 'active', '', ?, ?)
+           ON CONFLICT(community_id, user_id) DO UPDATE SET status = 'active', decided_at = excluded.decided_at`,
+        )
+        .bind(id, userId, now, now),
+    );
+  }
+  for (const [id, status] of had) {
+    if (want.has(id)) continue;
+    if (status === 'active') out.push(d.prepare('DELETE FROM community_members WHERE community_id = ? AND user_id = ?').bind(id, userId));
+    else if (status === 'pending') out.push(d.prepare(`UPDATE community_members SET status = 'refused', decided_at = ? WHERE community_id = ? AND user_id = ?`).bind(now, id, userId));
+  }
+  if (want.size && user.status === 'pending') out.push(d.prepare(`UPDATE users SET status = 'active' WHERE id = ?`).bind(userId));
+  if (out.length) await d.batch(out);
+  return json({ ok: true, communities: [...want] });
 }

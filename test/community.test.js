@@ -90,7 +90,7 @@ describe('joining', () => {
     expect((await post('/api/member/join', { username: 'okname', password: 'short' })).status).toBe(400);
     expect((await post('/api/member/join', { username: 'שם_עברי', password: 'longenough' })).status).toBe(201);
     expect((await post('/api/member/join', { username: 'Taken', password: 'longenough' })).status).toBe(201);
-    expect((await post('/api/member/join', { username: 'taken', password: 'longenough' })).status).toBe(409);
+    expect((await post('/api/member/join', { username: 'taken', password: 'otherpassword' })).status).toBe(409);
   });
 
   it('drops bot sign-ups that fill the hidden field', async () => {

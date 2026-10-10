@@ -1,7 +1,8 @@
 // Join and sign-in pages for community members.
 (() => {
   const ERR = {
-    'That username is taken.': 'שם המשתמש הזה תפוס.',
+    'That username is taken.': 'שם המשתמש הזה תפוס. אם הוא שלכם, הסיסמה לא נכונה.',
+    'Pick at least one community.': 'סמנו לפחות קהילה אחת.',
     'This invite link is no longer valid.': 'קישור ההזמנה כבר לא בתוקף.',
     'Wrong username or password.': 'שם משתמש או סיסמה שגויים.',
     'Your request is waiting for approval.': 'הבקשה שלכם עוד מחכה לאישור.',
@@ -29,17 +30,40 @@
   const join = document.getElementById('join-form');
   if (join) {
     const code = params.get('code');
-    // Came from a community's page or a locked item: the request covers that community too.
+    // Came from a community's page or a locked item: that community starts ticked.
     const community = params.get('community');
-    if (community && !code) {
-      fetch('/api/communities')
-        .then((r) => r.json())
-        .then(({ communities }) => {
-          const c = communities.find((x) => x.id === community);
-          if (c) document.getElementById('join-title').textContent = `הצטרפות ל${c.title}`;
-        })
-        .catch(() => {});
-    }
+    let signedIn = false;
+    const picked = () => [...join.querySelectorAll('#comm-choices input:checked:not(:disabled)')].map((i) => i.value);
+
+    // Every community that takes requests, as one list of checkboxes.
+    const showChoices = (communities) => {
+      const open = communities.filter((c) => c.joinMode === 'request' || c.membership);
+      if (!open.length) return;
+      const STATE = { active: 'אתם כבר בפנים', pending: 'הבקשה כבר מחכה לאישור' };
+      document.getElementById('comm-choices').replaceChildren(
+        ...open.map((c) => {
+          const label = document.createElement('label');
+          label.className = 'choice';
+          const box = document.createElement('input');
+          box.type = 'checkbox';
+          box.value = c.id;
+          box.checked = Boolean(c.membership) || c.id === community;
+          box.disabled = Boolean(c.membership) || c.joinMode !== 'request';
+          const title = document.createElement('span');
+          title.dir = 'auto';
+          title.textContent = c.title;
+          const sub = document.createElement('small');
+          sub.dir = 'auto';
+          sub.textContent = STATE[c.membership] || c.summary || '';
+          label.append(box, title, sub);
+          return label;
+        }),
+      );
+      document.getElementById('comm-field').hidden = false;
+      const c = communities.find((x) => x.id === community);
+      if (c && !signedIn) document.getElementById('join-title').textContent = `הצטרפות ל${c.title}`;
+    };
+
     if (code) {
       fetch(`/api/member/invite?code=${encodeURIComponent(code)}`)
         .then((r) => r.json())
@@ -48,20 +72,48 @@
             document.getElementById('join-title').textContent = 'הוזמנתם לקהילה';
             document.getElementById('join-lede').textContent = 'בוחרים שם משתמש וסיסמה, ונכנסים.';
             document.getElementById('note-field').hidden = true;
+            document.getElementById('again-hint').hidden = true;
           } else {
             say('join-msg', 'קישור ההזמנה כבר לא בתוקף. אפשר עדיין לשלוח בקשת הצטרפות.', 'err');
           }
         })
         .catch(() => {});
+    } else {
+      // Signed in already: no new account, just tick communities and send.
+      fetch('/api/member/me')
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+        .then((me) => {
+          if (me) {
+            signedIn = true;
+            document.getElementById('account-fields').hidden = true;
+            for (const i of document.querySelectorAll('#account-fields input')) i.required = false;
+            document.getElementById('join-title').textContent = `שלום ${me.displayName}`;
+            document.getElementById('join-lede').textContent = 'מסמנים את הקהילות שרוצים להצטרף אליהן, ושולחים בקשה אחת.';
+            document.getElementById('join-done-text').textContent = 'אעבור על זה בקרוב. אחרי שאאשר, הכל ייפתח לכם באותו חשבון.';
+          }
+          return fetch('/api/communities').then((r) => r.json());
+        })
+        .then(({ communities }) => showChoices(communities))
+        .catch(() => {});
     }
     join.addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(join));
+      const communities = picked();
       say('join-msg', 'שולח...');
       try {
-        const { status } = await post('/api/member/join', { ...f, code: code || undefined, communityId: community || undefined });
+        if (signedIn) {
+          if (!communities.length) throw new Error('סמנו לפחות קהילה אחת.');
+          await post('/api/member/communities/join', { communities, note: f.note });
+          join.hidden = true;
+          document.getElementById('join-done').hidden = false;
+          return;
+        }
+        const { status, existing } = await post('/api/member/join', { ...f, code: code || undefined, communities });
         if (status === 'active') location.href = next();
         else {
+          if (existing) document.getElementById('join-done-text').textContent = 'הוספתי את הבקשה לחשבון שכבר פתחתם. אחרי שאאשר, נכנסים איתו.';
           join.hidden = true;
           document.getElementById('join-done').hidden = false;
         }

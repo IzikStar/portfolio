@@ -18,7 +18,7 @@ import { WINGS } from './db.js';
 import { syncOne, syncAll, cvProjects, importCv } from './projects.js';
 import { currentMember, checkInvite, join, memberLogin, memberLogout, me, listCommunity, setMemberStatus, removeMember, createInvite, revokeInvite } from './members.js';
 import { access, listSpaces, studioSpaces, createSpace, updateSpace, deleteSpace } from './spaces.js';
-import { requestJoin, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
+import { requestJoin, requestJoinMany, setMemberships, publicCommunities, studioCommunities, createCommunity, updateCommunity, deleteCommunity, communityMembers, decideMember } from './communities.js';
 import { postComment, deleteComment, studioComments, setCommentStatus } from './comments.js';
 import { getSettings as studioSettings, saveSocials, importLegacy } from './settings.js';
 import { uploadFile, putFile, listFiles, deleteFile, serveFile } from './files.js';
@@ -239,6 +239,8 @@ async function studio(request, env, url) {
   const lf = path.match(/^\/api\/studio\/entries\/([a-z0-9-]+)\/files$/);
   if (lf && method === 'GET') return listFiles(env, lf[1]);
   if (path === '/api/studio/invites' && method === 'POST') return createInvite(request, env);
+  const mc = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)\/communities$/);
+  if (mc && method === 'PUT') return setMemberships(request, env, mc[1]);
   let mm = path.match(/^\/api\/studio\/members\/([a-z0-9-]+)$/);
   if (mm && method === 'PATCH') return setMemberStatus(request, env, mm[1]);
   if (mm && method === 'DELETE') return removeMember(env, mm[1]);
@@ -277,6 +279,7 @@ async function memberApi(request, env, url) {
   if (path === '/api/member/login' && method === 'POST') return memberLogin(request, env);
   if (path === '/api/member/logout' && method === 'POST') return memberLogout();
   if (path === '/api/member/me' && method === 'GET') return me(request, env);
+  if (path === '/api/member/communities/join' && method === 'POST') return requestJoinMany(request, env, await viewer(request, env));
   const jm = path.match(/^\/api\/member\/communities\/([a-z0-9-]+)\/join$/);
   if (jm && method === 'POST') return requestJoin(request, env, await viewer(request, env), jm[1]);
   throw new HttpError(404, 'Not found.');
