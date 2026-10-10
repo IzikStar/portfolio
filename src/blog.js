@@ -15,6 +15,7 @@ import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comme
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip, personHref } from './mentions.js';
 import { chatPage, CHAT, chatLink } from './chat.js';
 import { POST_SELECT, postFromRow, getPost, postPath, canPost, canReadPost, canCommentPost, isWriter } from './posts.js';
+import { onPost } from './push.js';
 
 const MAX_TITLE = 160;
 const MAX_BODY = 40_000;
@@ -239,7 +240,9 @@ export async function createPost(request, env, v, spaceId) {
   if (!text.trim()) throw new HttpError(400, 'Write something first.');
   const post = await addPost(env, v, space, title, text);
   await recordMentions(env, 'post', post.id, ids, post.userId);
-  return json({ ...post, path: postPath(acc, post) }, 201);
+  const path = postPath(acc, post);
+  await onPost(env, space, post, path, ids);
+  return json({ ...post, path }, 201);
 }
 
 async function ownPost(env, v, id) {

@@ -34,6 +34,10 @@ import { communityRoute, createPost, editPost, deletePost, studioPosts, moderate
 import { people } from './mentions.js';
 import { personPage } from './people.js';
 import { chatApi } from './chat.js';
+import { pushApi } from './push.js';
+import { notificationsPage } from './notify-page.js';
+import { renewOwner } from './auth.js';
+import { renewMember } from './members.js';
 
 // The live room behind each community chat (bound as CHAT in wrangler.toml).
 export { ChatRoom } from './chat-room.js';
@@ -60,10 +64,12 @@ export default {
     if (REDIRECT_HOSTS.includes(url.hostname)) {
       return Response.redirect(`https://${CANONICAL_HOST}${url.pathname}${url.search}`, 301);
     }
+    // This request's own view of env: notifications (src/push.js) go out
+    // after the response through it.
+    if (ctx?.waitUntil) env = Object.assign(Object.create(env), { waitUntil: (p) => ctx.waitUntil(p) });
     try {
-      if (url.pathname.startsWith('/api/')) return await api(request, env, url, ctx);
-      const page = await pages(request, env, url, ctx);
-      if (page) return page;
+      const res = url.pathname.startsWith('/api/') ? await api(request, env, url, ctx) : await pages(request, env, url, ctx);
+      if (res) return await renew(request, env, res);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
       console.error(err);
@@ -72,6 +78,17 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+// Signed in stays signed in: a session used again a day or more after it was
+// given out is renewed for another 30 days, so only 30 days away signs out.
+async function renew(request, env, res) {
+  if (res.status === 101 || res.status >= 400 || res.headers.has('Set-Cookie') || !request.headers.get('Cookie')) return res;
+  const cookies = (await Promise.all([renewOwner(request, env), renewMember(request, env)])).filter(Boolean);
+  if (!cookies.length) return res;
+  const out = new Response(res.body, res);
+  for (const c of cookies) out.headers.append('Set-Cookie', c);
+  return out;
+}
 
 // Server-rendered platform pages. Returns null to fall through to static assets.
 async function pages(request, env, url, ctx) {
@@ -91,6 +108,7 @@ async function pages(request, env, url, ctx) {
   const old = path.match(/^\/(writing|work)(\/.*)?$/);
   if (old) return Response.redirect(`${url.origin}/${old[1] === 'writing' ? 'articles' : 'software'}${old[2] ?? ''}`, 301);
   if (path === '/community') return communityPage(env, await viewer(request, env));
+  if (path === '/notifications') return notificationsPage(env, await viewer(request, env));
   // A community's page and blog: /community/<slug>[/<post>].
   const cp = path.match(/^\/community\/([^/]+)(?:\/([^/]+))?\/?$/);
   if (cp) {
@@ -162,6 +180,10 @@ async function api(request, env, url, ctx) {
   if (path.startsWith('/api/member/')) return memberApi(request, env, url);
   if (path.startsWith('/api/blog/') || path === '/api/people') return blogApi(request, env, url);
   if (path.startsWith('/api/chat/')) return chatApi(request, env, url, await viewer(request, env));
+  if (path.startsWith('/api/push/')) {
+    if (method !== 'GET') checkOrigin(request, url);
+    return pushApi(request, env, url, await viewer(request, env));
+  }
 
   if (!path.startsWith('/api/admin/')) throw new HttpError(404, 'Not found.');
 
