@@ -1185,9 +1185,11 @@
     $('s-new-item').hidden = !kinds.length || kinds[0] === 'project';
     $('s-drop').hidden = $('s-new-item').hidden;
     $('s-drop').querySelector('.drop-list').replaceChildren();
+    resetWordImport(x);
     try {
       const { entries } = await call(`/api/studio/entries?space=${encodeURIComponent(id)}`);
       entries.sort((a, b) => (a.meta?.order ?? 1e9) - (b.meta?.order ?? 1e9) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      spaceView.entries = entries;
       $('s-items').replaceChildren(...entries.map(itemRow));
       $('s-items-empty').hidden = entries.length > 0;
     } catch (err) {
@@ -1226,6 +1228,155 @@
       report('s-status')(err);
     }
   });
+  // ---------- a book from Word ----------
+  // public/docx.js reads the file here in the browser; each chapter is saved
+  // as HTML with its pictures uploaded to it, so it reads on the site as it
+  // looks in Word. The text a chapter had is kept as a version first.
+  const wordImport = { doc: null, file: null, plan: [], spaceId: null };
+  const sameTitle = (a) => String(a ?? '').replace(/['׳"״.:\s]/g, '');
+  // Opening the same book again (a refresh of its list) keeps a file already read.
+  function resetWordImport(x, force = false) {
+    $('s-word').hidden = !(x.wing === 'books' && x.parentId);
+    if (!force && wordImport.spaceId === x.id) return;
+    wordImport.spaceId = x.id;
+    wordImport.doc = null;
+    $('s-word-plan').hidden = true;
+    say('s-word-msg', '');
+  }
+  $('s-word-pick').addEventListener('click', () => $('s-word-file').click());
+  $('s-word-cancel').addEventListener('click', () => resetWordImport(state.byId.get(spaceView.id), true));
+  $('s-word-file').addEventListener('change', async () => {
+    const file = $('s-word-file').files[0];
+    $('s-word-file').value = '';
+    if (!file) return;
+    say('s-word-msg', `קורא את ${file.name}...`);
+    $('s-word-plan').hidden = true;
+    try {
+      const { readDocx } = await import('/docx.js');
+      const doc = await readDocx(await file.arrayBuffer());
+      const entries = (spaceView.entries ?? []).filter((e) => e.kind === 'chapter');
+      const used = new Set();
+      wordImport.doc = doc;
+      wordImport.file = file;
+      wordImport.plan = doc.chapters.map((ch, i) => {
+        const entry = entries.find((e) => !used.has(e.id) && sameTitle(e.title) === sameTitle(ch.title)) ?? null;
+        if (entry) used.add(entry.id);
+        return { ch, entry, order: i + 1 };
+      });
+      $('s-word-list').replaceChildren(
+        ...wordImport.plan.map(({ ch, entry }) =>
+          h(
+            'li',
+            {},
+            h('strong', { dir: 'auto', textContent: ch.title }),
+            h('span', { className: 'what', textContent: [entry ? 'מעדכן את הפרק הקיים' : 'פרק חדש', ch.images.length ? (ch.images.length === 1 ? 'תמונה אחת' : `${ch.images.length} תמונות`) : '', ch.notes ? (ch.notes === 1 ? 'הערה אחת' : `${ch.notes} הערות`) : ''].filter(Boolean).join(' · ') }),
+          ),
+        ),
+      );
+      const left = entries.filter((e) => !used.has(e.id));
+      $('s-word-notes').textContent = [
+        doc.front ? 'עמוד השער (מה שלפני "פתיחה") לא נכנס: שם הספר כבר מופיע בעמוד שלו.' : '',
+        left.length ? `נשארים כמו שהם: ${left.map((e) => e.title).join(', ')}.` : '',
+        doc.skipped.length ? `${doc.skipped.length} תמונות בפורמט שדפדפן לא מציג (${doc.skipped.join(', ')}) לא ייכנסו. שומרים אותן בוורד כ־PNG או JPG ומייבאים שוב.` : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      $('s-word-plan').hidden = false;
+      say('s-word-msg', `נמצאו ${doc.chapters.length} פרקים.`, 'ok');
+    } catch (err) {
+      say('s-word-msg', err.message || 'לא הצלחתי לקרוא את הקובץ.', 'err');
+    }
+  });
+
+  // A picture ready for the site: big ones scaled down; transparency kept where the browser can.
+  async function bookImage(m) {
+    const file = new File([await m.bytes()], `word-${m.name}`, { type: m.type });
+    const fine = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(m.type);
+    if (m.type === 'image/gif' || (fine && file.size < 1_000_000)) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+      const c = h('canvas', { width: Math.round(bmp.width * scale), height: Math.round(bmp.height * scale) });
+      const g = c.getContext('2d');
+      let blob = null;
+      if (m.type !== 'image/jpeg') {
+        g.drawImage(bmp, 0, 0, c.width, c.height);
+        blob = await new Promise((r) => c.toBlob(r, 'image/webp', 0.85));
+        if (blob?.type !== 'image/webp') blob = null;
+      }
+      if (!blob) {
+        g.fillStyle = '#fff';
+        g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(bmp, 0, 0, c.width, c.height);
+        blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      }
+      if (!blob || (fine && blob.size >= file.size)) return fine ? file : null;
+      return new File([blob], `word-${m.name.replace(/\.[^.]+$/, '')}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
+    } catch {
+      return fine ? file : null;
+    }
+  }
+
+  $('s-word-go').addEventListener('click', async () => {
+    const space = state.byId.get(spaceView.id);
+    const { doc, plan, file } = wordImport;
+    if (!space || !doc) return;
+    const publish = $('s-word-publish').checked;
+    const { placeImages } = await import('/docx.js');
+    $('s-word-go').disabled = true;
+    const failed = [];
+    try {
+      // Readers reach a chapter only through its book (and the series above it).
+      if (publish) {
+        for (let s = space; s && s.parentId; s = state.byId.get(s.parentId)) {
+          if (s.visibility === 'private' && s.communities?.length) await send(`/api/studio/spaces/${s.id}`, 'PATCH', { visibility: 'community' });
+        }
+      }
+      for (const [i, step] of plan.entries()) {
+        const { ch, order } = step;
+        say('s-word-msg', `${i + 1}/${plan.length}: ${ch.title}...`);
+        try {
+          let entry = step.entry ?? (await send('/api/studio/entries', 'POST', { kind: 'chapter', spaceId: space.id, title: ch.title, meta: { order } }));
+          const urls = new Map();
+          const ids = [];
+          for (const [k, key] of ch.images.entries()) {
+            const m = doc.media.get(key);
+            const img = m && (await bookImage(m));
+            if (!img) continue;
+            say('s-word-msg', `${i + 1}/${plan.length}: ${ch.title}, תמונה ${k + 1}/${ch.images.length}...`);
+            const f = await upload(entry.id, img);
+            urls.set(key, f.url);
+            ids.push(f.id);
+          }
+          const body = placeImages(ch.html, urls);
+          if (body.length > 200_000) throw new Error('הפרק ארוך מדי לעמוד אחד. מחלקים אותו בוורד לשני פרקים.');
+          const old = entry.meta?.imported?.files ?? [];
+          const meta = { ...entry.meta, order, format: 'html', look: doc.look, imported: { file: file.name, at: new Date().toISOString(), files: ids } };
+          const patch = { body, meta, keep: 'import' };
+          if (publish) {
+            patch.status = 'published';
+            if (entry.visibility === 'private') patch.visibility = space.communities?.length ? 'community' : space.visibility === 'public' ? 'public' : 'members';
+          }
+          entry = await send(`/api/studio/entries/${entry.id}`, 'PATCH', patch);
+          // The pictures of the import before this one are no longer used.
+          for (const id of old) await call(`/api/studio/files/${id}`, { method: 'DELETE' }).catch(() => {});
+        } catch (err) {
+          if (err instanceof AuthError) throw err;
+          failed.push(`${ch.title}: ${err.message}`);
+        }
+      }
+      await loadSpaces().catch(() => {});
+      resetWordImport(space, true);
+      await openSpace(space.id);
+      if (failed.length) say('s-word-msg', `יובאו ${plan.length - failed.length} מתוך ${plan.length}. לא עבר: ${failed.join(' · ')}`, 'err');
+      else say('s-word-msg', `יובאו ${plan.length} פרקים${publish ? ' ופורסמו' : ''}.`, 'ok');
+    } catch (err) {
+      report('s-word-msg')(err);
+    } finally {
+      $('s-word-go').disabled = false;
+    }
+  });
+
   $('s-new-item').addEventListener('click', () => {
     const x = state.byId.get(spaceView.id);
     location.hash = `#new/${x.id}/${(WING_KINDS[x.wing] ?? ['article'])[0]}`;
@@ -1396,7 +1547,7 @@
   }
 
   // ---------- earlier versions ----------
-  const REASON = { edit: '', restore: 'לפני שחזור', conflict: 'מחלון אחר' };
+  const REASON = { edit: '', restore: 'לפני שחזור', conflict: 'מחלון אחר', import: 'לפני ייבוא מוורד' };
   const versionsView = { list: [], picked: null };
   async function openHistory() {
     if (!editor.entry) return;
@@ -1656,7 +1807,7 @@
   const renderPreview = debounce(async () => {
     if ($('view-edit').classList.contains('split') === false) return;
     try {
-      const { html } = await send('/api/studio/preview', 'POST', { body: $('ed-body').value, mode: $('ed-kind').value === 'song' ? 'chords' : 'markdown' });
+      const { html } = await send('/api/studio/preview', 'POST', { body: $('ed-body').value, mode: $('ed-kind').value === 'song' ? 'chords' : editor.entry?.meta?.format === 'html' ? 'html' : 'markdown' });
       $('ed-preview').innerHTML = html; // rendered and sanitized by the server
     } catch {
       // the next keystroke tries again

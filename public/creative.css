@@ -205,7 +205,7 @@ body::after {
 
 /* ---------- reading ---------- */
 .paper { position: relative; box-shadow: 0 1px 0 rgb(255 255 255 / 0.4) inset, 0 30px 60px -30px rgb(0 0 0 / 0.9); }
-.paper.prose > p:first-of-type::first-letter {
+.paper.prose:not(.rich) > p:first-of-type::first-letter {
   font-family: var(--display); float: right; font-size: 2.7em; line-height: 0.9; margin: 0.08em 0 0 0.12em; color: color-mix(in srgb, var(--accent) 70%, var(--paper-ink));
 }
 .article .kind { display: inline-flex; align-items: center; gap: 8px; }
@@ -340,7 +340,7 @@ body::after {
   .wing-tile::after { width: 90px; height: 90px; border-width: 12px; }
   .wing-tile .name::after { display: none; }
   .hero::before { inset: 0 -16px -20px; }
-  .paper.prose > p:first-of-type::first-letter { font-size: 2.4em; }
+  .paper.prose:not(.rich) > p:first-of-type::first-letter { font-size: 2.4em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

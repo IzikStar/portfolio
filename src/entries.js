@@ -9,6 +9,7 @@ import { entryFilter, canSee, knownCommunities } from './spaces.js';
 import { cleanCommunityIds } from './communities.js';
 import { settle } from './moves.js';
 import { keepRevision } from './safety.js';
+import { sanitizeHtml } from './rich.js';
 
 const MAX_BODY = 200_000;
 // Addresses taken by the site itself under every wing and space (/music/blog).
@@ -279,14 +280,16 @@ export async function studioUpdate(request, env, id) {
   await settle(env, entry, before);
   if (entry.status === 'draft' && 'status' in body) entry.publishedAt = null;
   entry.updatedAt = new Date().toISOString();
-  await write(env, entry, false, conflict ? { reason: 'conflict', force: true } : undefined);
+  // A Word import replaces the whole text: the text it had is always kept as a version first.
+  const keep = conflict ? { reason: 'conflict', force: true } : body.keep === 'import' ? { reason: 'import', force: true } : undefined;
+  await write(env, entry, false, keep);
   return json(entry);
 }
 
 export async function preview(request) {
   const { body, mode } = await readJson(request);
   const text = String(body ?? '').slice(0, MAX_BODY);
-  return json({ html: mode === 'chords' ? renderChords(text) : renderMarkdown(text) });
+  return json({ html: mode === 'chords' ? renderChords(text) : mode === 'html' ? sanitizeHtml(text) : renderMarkdown(text) });
 }
 
 // ---------- visitors ----------

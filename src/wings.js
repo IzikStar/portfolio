@@ -19,6 +19,7 @@ import { mediaEmbed } from './media.js';
 import { commentsBlock, commentsOf, canComment } from './comments.js';
 import { projectFilesBlock } from './project-files.js';
 import { movedTo } from './moves.js';
+import { isRich, sanitizeHtml, richLook } from './rich.js';
 import { render, socials, WING_INFO, KIND_LABEL, LOCK, icon, fmtDate, badge, entryPath, spacePath, wingOf } from './site.js';
 import { creditsLine, memberBlock } from './tagged.js';
 
@@ -252,7 +253,13 @@ export async function spacePage(env, v, space) {
     const status = space.meta?.status ? `${e(space.meta.status)}` : 'ספר';
     const toc = chapters.length
       ? `<ol class="toc">${chapters
-          .map((c, i) => `<li><a href="${entryPath(acc, c)}"><span dir="auto">${e(c.title)}</span><span class="n">${c.visibility === 'public' ? `פרק ${i + 1}` : `פרק ${i + 1} · לקוראי בטא`}</span></a></li>`)
+          .map((c, i) => {
+            // A chapter named "פרק א" or "פתיחה" needs no number beside it. A draft
+            // (only the owner sees one) may have no address yet: it opens in the studio.
+            const n = [/^\s*(פרק|פתיחה|אינטרלוד)/.test(c.title) ? '' : `פרק ${i + 1}`, c.status === 'draft' ? 'טיוטה' : c.visibility === 'public' ? '' : 'לקוראי בטא'].filter(Boolean).join(' · ');
+            const href = entryPath(acc, c) ?? (acc.owner ? `/studio#item/${c.id}` : null);
+            return href ? `<li><a href="${e(href)}"><span dir="auto">${e(c.title)}</span><span class="n">${n}</span></a></li>` : '';
+          })
           .join('')}${locked ? `<li><span class="locked"><span>${locked === 1 ? 'עוד פרק אחד' : `עוד ${locked} פרקים`}</span><span class="lock">${LOCK} לקוראי בטא</span></span></li>` : ''}</ol>`
       : locked
         ? `<p class="lock">${LOCK} ${locked === 1 ? 'פרק אחד פתוח' : `${locked} פרקים פתוחים`} לקוראי בטא</p>`
@@ -326,7 +333,8 @@ function versionsBlock(v, entry) {
 }
 
 async function siblings(env, v, entry) {
-  const items = (await listInSpace(env, v.acc, [entry.spaceId])).sort(byOrder);
+  // Only chapters with an address: a draft that has none yet is skipped.
+  const items = (await listInSpace(env, v.acc, [entry.spaceId])).filter((x) => entryPath(v.acc, x)).sort(byOrder);
   const i = items.findIndex((x) => x.id === entry.id);
   return { prev: i > 0 ? items[i - 1] : null, next: i >= 0 && i < items.length - 1 ? items[i + 1] : null };
 }
@@ -362,7 +370,12 @@ export async function entryPage(env, v, entry) {
     ${entry.tags.length ? `<ul class="chips">${entry.tags.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : ''}`;
     const reading = entry.kind === 'chapter' ? 'paper prose' : entry.kind === 'article' || entry.kind === 'torah' ? 'prose read' : 'prose';
     const anchors = canComment(v, entry) ? ' data-anchors' : '';
-    const text = entry.kind !== 'song' && entry.body.trim() && !isSheet(entry.body) ? `<div class="${reading}" dir="${textDir(entry.body)}"${anchors}>${renderMarkdown(entry.body)}</div>` : '';
+    // A chapter imported from Word keeps its own page (src/rich.js); everything else is Markdown.
+    const text = !entry.body.trim() || entry.kind === 'song' || (!isRich(entry) && isSheet(entry.body))
+      ? ''
+      : isRich(entry)
+        ? `<div class="${reading} rich" dir="${textDir(entry.body)}"${richLook(entry.meta.look)}${anchors}>${sanitizeHtml(entry.body)}</div>`
+        : `<div class="${reading}" dir="${textDir(entry.body)}"${anchors}>${renderMarkdown(entry.body)}</div>`;
     main = `${versionsBlock(v, entry)}${text}${projectFilesBlock(v, entry)}`;
     if (entry.kind === 'chapter' || space.kind === 'series') {
       const { prev, next } = await siblings(env, v, entry);
