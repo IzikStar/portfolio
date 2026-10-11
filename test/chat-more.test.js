@@ -93,6 +93,18 @@ describe('chat: stars, halls of fame, pages shared from the site', () => {
     const eli = await joinTo(o, 'Jokes', 'eli', 'Eli');
     const outsider = await member(o, 'outsider');
 
+    // Off until the owner turns it on, for each community on its own.
+    const before = await (await say(dana.cookie, jokes.id, 'early')).json();
+    expect((await call(o, `/api/chat/${jokes.id}/characters`, 'POST', { name: 'Early' })).status).toBe(404);
+    expect((await page('/community/jokes/hall', dana.cookie)).status).toBe(404);
+    expect((await page('/community/jokes', dana.cookie)).text).not.toContain('/community/jokes/hall');
+    expect((await page('/community/jokes/chat', dana.cookie)).text).toContain('"hall":null');
+    expect((await call(dana.cookie, `/api/studio/communities/${jokes.id}`, 'PATCH', { hall: true })).status).toBe(401);
+    const on = await (await call(o, `/api/studio/communities/${jokes.id}`, 'PATCH', { hall: true })).json();
+    expect(on.meta.hall).toBe(true);
+    expect((await page('/community/jokes/chat', dana.cookie)).text).toContain('"hall":"/community/jokes/hall"');
+    expect(before.id).toBeTruthy();
+
     // The owner keeps the list of characters.
     expect((await call(dana.cookie, `/api/chat/${jokes.id}/characters`, 'POST', { name: 'The weather lady' })).status).toBe(403);
     const made = await call(o, `/api/chat/${jokes.id}/characters`, 'POST', { name: 'The weather lady', about: 'Forecasts the opposite' });

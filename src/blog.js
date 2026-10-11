@@ -10,7 +10,7 @@ import { escapeHtml as e, renderMarkdown, excerpt } from './markdown.js';
 import { slugify, listFeed } from './entries.js';
 import { render, fmtDate, entryPath, wingOf } from './site.js';
 import { communityBox } from './wings.js';
-import { knows, pathOf, notOwnerMember } from './communities.js';
+import { knows, pathOf, hasHall, notOwnerMember } from './communities.js';
 import { commentsBlock, commentsOf, deleteCommentsOf, OWNER_NAME } from './comments.js';
 import { cleanMentions, recordMentions, dropMentions, mentionNames, withMentions, forEditing, chip, personHref } from './mentions.js';
 import { chatPage, CHAT, HALL, chatLink, chatSide, hallPage } from './chat.js';
@@ -28,7 +28,7 @@ export async function communityRoute(env, v, slug, postSlug) {
   const c = v.acc.comms.find((x) => x.slug === slug);
   if (!knows(v.acc, c)) return null;
   if (postSlug === CHAT) return chatPage(env, v, c);
-  if (postSlug === HALL) return hallPage(env, v, c);
+  if (postSlug === HALL) return hasHall(c) ? hallPage(env, v, c) : null;
   return postSlug === undefined ? blogPage(env, v, c) : postPage(env, v, c, postSlug);
 }
 

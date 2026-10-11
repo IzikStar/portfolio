@@ -42,6 +42,9 @@ export function cleanCommunityIds(value, known) {
   return [...new Set(value.map(String))].filter((id) => known.has(id)).slice(0, 50);
 }
 
+// Does this community have halls of fame for its characters? (Off by default.)
+export const hasHall = (c) => Boolean(c?.meta?.hall);
+
 export const pathOf = (c) => `/community/${encodeURIComponent(c.slug)}`;
 
 // ---------- what a viewer may know ----------
@@ -194,6 +197,8 @@ function apply(c, body) {
     c.joinMode = body.joinMode;
   }
   if ('hidden' in body) c.hidden = Boolean(body.hidden);
+  // The halls of fame (src/chat.js) are off unless the owner turns them on.
+  if ('hall' in body) c.meta = { ...c.meta, hall: Boolean(body.hall) };
   if ('sort' in body) c.sort = Math.round(Number(body.sort) || 0);
   if ('meta' in body) {
     if (typeof body.meta !== 'object' || body.meta === null || Array.isArray(body.meta)) throw new HttpError(400, 'meta must be an object.');

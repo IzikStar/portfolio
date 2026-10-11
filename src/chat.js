@@ -35,7 +35,7 @@ import { db, WINGS } from './db.js';
 import { HttpError, json, readJson, cleanText, checkOrigin } from './http.js';
 import { escapeHtml as e, excerpt } from './markdown.js';
 import { render, fmtDate } from './site.js';
-import { knows, pathOf, ownerMemberId, notOwnerMember } from './communities.js';
+import { knows, pathOf, hasHall, ownerMemberId, notOwnerMember } from './communities.js';
 import { communityBox } from './wings.js';
 import { OWNER_NAME } from './comments.js';
 import { cleanMentions } from './mentions.js';
@@ -409,7 +409,8 @@ async function rooms(env, v) {
 // A community's characters: the people of its running jokes (its building
 // blocks). Messages that capture one of them go in that character's hall of
 // fame. The owner keeps the list of characters; anyone who writes in the chat
-// may put a message in a hall, and take out what they put in.
+// may put a message in a hall, and take out what they put in. Each community's
+// halls are off until the owner turns them on (meta.hall, in the studio).
 
 const MAX_NAME = 60;
 const MAX_ABOUT = 400;
@@ -433,7 +434,12 @@ async function charactersChanged(env, c) {
 }
 
 // POST /api/chat/<id>/characters { name, about }
+function mustHaveHall(c) {
+  if (!hasHall(c)) throw new HttpError(404, 'This community has no hall of fame.');
+}
+
 async function addCharacter(request, env, v, c) {
+  mustHaveHall(c);
   if (!v.acc.owner) throw new HttpError(403, 'Only the owner adds characters.');
   const body = await readJson(request);
   const name = cleanText(body.name, MAX_NAME);
@@ -493,6 +499,7 @@ async function toHall(request, env, v, { c, m }) {
   const body = await readJson(request);
   if (m.deleted) throw new HttpError(404, 'That message was deleted.');
   if (m.audience.length) throw new HttpError(400, 'This message is for some members only; it stays in the chat.');
+  mustHaveHall(c);
   await mustWrite(env, v, c);
   const d = await db(env);
   const ch = await d.prepare('SELECT id FROM community_characters WHERE id = ? AND community_id = ?').bind(String(body.character ?? ''), c.id).first();
@@ -586,7 +593,7 @@ export async function chatSide(env, c) {
         .map((m) => `<li><a href="${chatPath(c)}#m-${e(m.id)}" dir="auto"><b>${e(m.user_id ? m.name : OWNER_NAME)}:</b> ${e(excerpt(textOf({ body: m.body, share: parse(m.share, null) }), 120))}</a></li>`)
         .join('')}</ol></section>`
     : '';
-  const hall = `<a class="hall-door" href="${hallPath(c)}">${TROPHY}<span><b>היכל התהילה</b><small>${n ? (n === 1 ? 'דמות אחת' : `${n} דמויות`) : 'הדמויות של הקהילה'}</small></span></a>`;
+  const hall = !hasHall(c) ? '' : `<a class="hall-door" href="${hallPath(c)}">${TROPHY}<span><b>היכל התהילה</b><small>${n ? (n === 1 ? 'דמות אחת' : `${n} דמויות`) : 'הדמויות של הקהילה'}</small></span></a>`;
   return `${hall}${starBox}`;
 }
 
@@ -693,7 +700,7 @@ export async function chatPage(env, viewer, c) {
   const [start, people, writes, cast] = await Promise.all([history(env, v, c), members(env, c), canWrite(env, v, c), characters(env, c)]);
   const data = {
     room: c.id, me: meOf(v), owner: v.acc.owner, canWrite: writes, members: people, characters: cast,
-    blog: pathOf(c), hall: hallPath(c), ...start, now: new Date().toISOString(),
+    blog: pathOf(c), hall: hasHall(c) ? hallPath(c) : null, ...start, now: new Date().toISOString(),
   };
   const body = `<div class="chat" data-chat>
   <header class="chat-head">
