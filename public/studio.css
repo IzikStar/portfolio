@@ -547,3 +547,9 @@ details.box.batch > summary { font-family: var(--display); font-size: 20px; }
   .studio-side.open > a.to-site-top { display: none; }
   .person-card h1.who { font-size: 28px; }
 }
+
+/* Word import on a book's page */
+.word-import .word-plan { margin: 12px 0; padding-inline-start: 1.4em; display: grid; gap: 6px; }
+.word-import .word-plan li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.word-import .word-plan .what { font-size: 13px; color: var(--muted); }
+.word-import .check { display: flex; gap: 8px; align-items: center; margin: 8px 0; }

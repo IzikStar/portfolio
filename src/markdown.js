@@ -71,6 +71,9 @@ export function renderMarkdown(source, options = {}) {
 // Plain-text excerpt for lists and link previews.
 export function excerpt(source, max = 200) {
   const text = String(source ?? '')
+    // A chapter imported from Word is HTML: its tags are not words.
+    .replace(/<\/?[a-z][^>]*>/gi, ' ')
+    .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (m, k) => ({ nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[k])
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')

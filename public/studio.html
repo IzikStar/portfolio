@@ -226,6 +226,21 @@
       </div>
       </div>
       <details class="box batch" data-batch="space"></details>
+      <section class="box word-import" id="s-word" hidden>
+        <div class="toolbar">
+          <h2 style="margin:0; flex:1">ייבוא מוורד, בעימוד המקורי</h2>
+          <button class="btn" type="button" id="s-word-pick">בחירת קובץ וורד</button>
+          <input type="file" id="s-word-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+        </div>
+        <p class="hint">הפרקים מתחלקים לפי השורות "פתיחה", "פרק א", "פרק ב"... ונשארים כמו במסמך: יישור, גדלים, הדגשות, צבעים, תמונות והערות שוליים. פרק שכבר קיים מתעדכן והטקסט הקודם שלו נשמר כגרסה, פרק חדש נוסף. התגובות על הפרקים נשארות.</p>
+        <div id="s-word-plan" hidden>
+          <ol class="word-plan" id="s-word-list"></ol>
+          <p class="hint" id="s-word-notes"></p>
+          <label class="check"><input type="checkbox" id="s-word-publish" checked> לפרסם את הפרקים, למי שהספר פתוח לו</label>
+          <div class="toolbar"><button class="btn primary" type="button" id="s-word-go">ייבוא</button><button class="btn" type="button" id="s-word-cancel">ביטול</button></div>
+        </div>
+        <p class="msg" id="s-word-msg" role="status"></p>
+      </section>
       <div class="box s-inside">
         <div class="toolbar">
           <h2 style="margin:0; flex:1">מה יש בפנים</h2>

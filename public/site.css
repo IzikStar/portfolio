@@ -194,6 +194,27 @@ a { color: inherit; }
 .prose { font-size: 1.1rem; line-height: 1.85; overflow-wrap: anywhere; }
 .paper.prose, .prose.read { font-family: var(--read); font-size: 1.25rem; }
 .prose > * + * { margin-top: 1em; }
+/* A chapter imported from Word (public/docx.js): its own spacing, sizes and pictures. */
+.prose.rich { line-height: var(--dx-line, 1.85); }
+.prose.rich > * + * { margin-top: var(--dx-gap, 1em); }
+.prose.rich > .dx-gap { min-height: 1lh; }
+.prose.rich img { max-width: 100%; height: auto; vertical-align: middle; }
+.prose.rich .dx-figure { text-align: center; }
+.prose.rich .dx-float-left { float: left; margin: 0.3em 0 0.6em 1em; max-width: 50%; }
+.prose.rich .dx-float-right { float: right; margin: 0.3em 1em 0.6em 0; max-width: 50%; }
+.prose.rich .dx-tab { display: inline-block; min-width: 2em; }
+.prose.rich .dx-num { display: inline-block; min-width: 1.6em; }
+.prose.rich .dx-box { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; padding: 0.6em 1em; }
+.prose.rich .dx-table { border-collapse: collapse; margin-inline: auto; }
+.prose.rich .dx-table td { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); padding: 0.3em 0.6em; vertical-align: top; }
+.prose.rich sup.dx-note a { text-decoration: none; padding-inline: 0.1em; }
+.prose.rich .dx-notes-rule { border: 0; border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent); margin-top: 2.5em; width: 30%; }
+.prose.rich .dx-notes-title { font-size: 1.1em; margin-top: 0.8em; }
+.prose.rich .dx-note-text, .prose.rich .dx-notes-title ~ p { font-size: 0.85em; }
+.prose.rich::after { content: ''; display: block; clear: both; }
+@media (max-width: 520px) {
+  .prose.rich .dx-float-left, .prose.rich .dx-float-right { float: none; display: block; margin: 0.4em auto; max-width: 70%; }
+}
 .prose h2, .prose h3, .prose h4 { font-family: var(--display); font-weight: 400; line-height: 1.25; margin-top: 1.6em; }
 .prose h2 { font-size: 30px; }
 .prose h3 { font-size: 24px; }
