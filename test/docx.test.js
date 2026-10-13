@@ -148,6 +148,19 @@ describe('readDocx', () => {
     expect(doc.chapters[0].images).toEqual(['img-word/media/image1.png']);
   });
 
+  it('keeps a picture that stands on the chapter line, and drops the empty lines Word left under a picture', async () => {
+    const anchored = (cy, wrap = '<wp:wrapNone/>') =>
+      `<w:r><w:drawing><wp:anchor><wp:extent cx="952500" cy="${cy}"/>${wrap}<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId5"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+    const empty = '<w:p/>'.repeat(10);
+    const doc = await readDocx(book(`<w:p>${anchored(952500, '<wp:wrapTopAndBottom/>')}<w:r><w:t>פרק א</w:t></w:r></w:p>` + p('ראשון') + `<w:p>${anchored(190500)}</w:p>` + empty + p('שני')));
+    const html = doc.chapters[0].html;
+    expect(doc.chapters[0].title).toBe('פרק א');
+    expect(html.startsWith('<p class="dx-figure"><img src="docx:img-word/media/image1.png" alt="" width="100" height="100" style="width:100px"></p>')).toBe(true);
+    // 20px of picture over 16px*1.15 lines: two empty lines go, the rest stay.
+    expect(html.split('<p class="dx-gap"></p>').length - 1).toBe(8);
+    expect(html).toContain('שני');
+  });
+
   it('numbers footnotes through the book and gathers each chapter\'s notes at its end', async () => {
     const ref = (id) => `<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteReference w:id="${id}"/></w:r>`;
     const notes = `<w:footnotes ${NS}><w:footnote w:type="separator" w:id="-1"><w:p/></w:footnote><w:footnote w:id="1"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:t>הערה אחת</w:t></w:r></w:p></w:footnote><w:footnote w:id="2"><w:p><w:r><w:t>הערה שתיים</w:t></w:r></w:p><w:p><w:r><w:t>המשך</w:t></w:r></w:p></w:footnote></w:footnotes>`;
