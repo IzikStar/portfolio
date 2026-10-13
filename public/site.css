@@ -200,6 +200,15 @@ a { color: inherit; }
 .prose.rich > .dx-gap { min-height: 1lh; }
 .prose.rich img { max-width: 100%; height: auto; vertical-align: middle; }
 .prose.rich .dx-figure { text-align: center; }
+/* A group drawn in Word: pieces placed by percent, text scaled with the box. */
+.prose.rich .dx-group { position: relative; display: block; max-width: 100%; margin-inline: auto; container-type: inline-size; text-align: start; line-height: 1.3; }
+.prose.rich .dx-group .dx-at { position: absolute; margin: 0; overflow: visible; font-size: calc(100cqw / var(--dx-w) * var(--dx-fs)); }
+.prose.rich .dx-group .dx-at > * { margin: 0; }
+.prose.rich .dx-group .dx-at > .dx-gap { min-height: 0; }
+.prose.rich img.dx-fill { display: block; width: 100%; height: 100%; max-width: none; border-radius: 0; }
+.prose.rich .dx-crop { position: relative; display: inline-block; max-width: 100%; overflow: hidden; vertical-align: middle; }
+.prose.rich .dx-group .dx-at:has(> .dx-cropped) { overflow: hidden; }
+.prose.rich img.dx-cropped { position: absolute; max-width: none; border-radius: 0; }
 .prose.rich .dx-float-left { float: left; margin: 0.3em 0 0.6em 1em; max-width: 50%; }
 .prose.rich .dx-float-right { float: right; margin: 0.3em 1em 0.6em 0; max-width: 50%; }
 .prose.rich .dx-tab { display: inline-block; min-width: 2em; }

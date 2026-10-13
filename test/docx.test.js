@@ -41,7 +41,7 @@ function zip(entries) {
   return new Uint8Array(Buffer.concat([...locals, ...centrals, end]));
 }
 
-const NS = 'xmlns:w="w" xmlns:r="r" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic"';
+const NS = 'xmlns:w="w" xmlns:r="r" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:wpg="wpg" xmlns:wps="wps" xmlns:mc="mc"';
 const p = (text, pPr = '', rPr = '') => `<w:p><w:pPr>${pPr}</w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${text}</w:t></w:r></w:p>`;
 const picture = (rid, cx, cy) =>
   `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline><wp:extent cx="${cx}" cy="${cy}"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="${rid}"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
@@ -124,6 +124,28 @@ describe('readDocx', () => {
     expect(m.type).toBe('image/png');
     expect([...(await m.bytes())]).toEqual([137, 80, 78, 71]);
     expect(placeImages(ch.html, new Map([['img-word/media/image1.png', '/files/abc']]))).toContain('src="/files/abc"');
+  });
+
+  it('lays out a group drawn in Word as one box, pieces in place, crops kept', async () => {
+    const xf = (x, y, cx, cy, more = '') => `<a:xfrm${more}><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`;
+    const pic = (rid, x, y, cx, cy, fill = '', more = '') => `<pic:pic><pic:blipFill><a:blip r:embed="${rid}"/>${fill}</pic:blipFill><pic:spPr>${xf(x, y, cx, cy, more)}</pic:spPr></pic:pic>`;
+    const grp = `<w:p><w:r><mc:AlternateContent><mc:Choice><w:drawing><wp:anchor><wp:extent cx="1905000" cy="952500"/><a:graphic><a:graphicData><wpg:wgp>
+      <wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1905000" cy="952500"/><a:chOff x="1000" y="2000"/><a:chExt cx="2000" cy="1000"/></a:xfrm></wpg:grpSpPr>
+      ${pic('rId5', 1000, 2000, 2000, 1000)}
+      ${pic('rId5', 2000, 2500, 500, 250, '<a:srcRect l="25000" r="25000"/>', ' flipH="1"')}
+      <wps:wsp><wps:spPr>${xf(1500, 2200, 1000, 400)}</wps:spPr><wps:txbx><w:txbxContent>${p('כותרת', '<w:jc w:val="center"/>')}</w:txbxContent></wps:txbx></wps:wsp>
+      <wpg:grpSp><wpg:grpSpPr><a:xfrm><a:off x="1000" y="2000"/><a:ext cx="1000" cy="500"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/></a:xfrm></wpg:grpSpPr>${pic('rId5', 50, 50, 50, 50)}</wpg:grpSp>
+      </wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing></mc:Choice></mc:AlternateContent></w:r></w:p>`;
+    const doc = await readDocx(book(p('פרק א') + grp));
+    const html = doc.chapters[0].html;
+    const src = 'src="docx:img-word/media/image1.png"';
+    expect(html).toContain('<div class="dx-figure"><div class="dx-group" style="width:200px;aspect-ratio:200 / 100;--dx-w:200;--dx-fs:16">');
+    expect(html).toContain(`<div class="dx-at" style="left:0%;top:0%;width:100%;height:100%"><img class="dx-fill" ${src} alt=""></div>`);
+    expect(html).toContain(`<div class="dx-at" style="left:50%;top:50%;width:25%;height:25%;transform:scaleX(-1)"><img class="dx-cropped" ${src} alt="" style="left:-50%;top:0%;width:200%;height:100%"></div>`);
+    expect(html).toContain('<div class="dx-at" style="left:25%;top:20%;width:50%;height:40%"><p style="text-align:center">כותרת</p></div>');
+    expect(html).toContain('<div class="dx-at" style="left:25%;top:25%;width:25%;height:25%">');
+    expect(html).not.toContain('dx-box');
+    expect(doc.chapters[0].images).toEqual(['img-word/media/image1.png']);
   });
 
   it('numbers footnotes through the book and gathers each chapter\'s notes at its end', async () => {
