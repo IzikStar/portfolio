@@ -101,3 +101,32 @@ describe('uploading a file as the request body', () => {
     expect((await put('admin_session=nope', e.id, pattern(10))).status).toBe(401);
   });
 });
+
+describe('a cover belongs to its space', () => {
+  it('shows to whoever may open the space, on the book page and on the shelf', async () => {
+    const o = await owner();
+    const space = (visibility) => json(o, '/api/studio/spaces', 'POST', { wing: 'books', parentId: 'books', kind: 'book', title: `ספר ${visibility}`, slug: `b-${visibility}`, visibility }).then((r) => r.json());
+    const open = await space('public');
+    const hidden = await space('private');
+    const pic = { type: 'image/png', name: 'cover.png' };
+    const a = await (await put(o, `space:${open.id}`, pattern(50), pic)).json();
+    const b = await (await put(o, `space:${hidden.id}`, pattern(50), pic)).json();
+    expect((await put(o, 'space:nope', pattern(50), pic)).status).toBe(400);
+    expect((await put(o, `space:${open.id}`, pattern(50), { type: 'application/zip', name: 'x.zip' })).status).toBe(400);
+    expect((await req(a.url)).status).toBe(200);
+    expect((await req(a.url)).headers.get('Cache-Control')).toContain('public');
+    expect((await req(b.url)).status).toBe(404);
+    expect((await req(b.url, { headers: { Cookie: o } })).status).toBe(200);
+
+    await json(o, `/api/studio/spaces/${open.id}`, 'PATCH', { meta: { cover: a.url, coverFile: a.id } });
+    expect(await (await req('/books/b-public')).text()).toContain(`<div class="cover"><img src="${a.url}" alt=""></div>`);
+    expect(await (await req('/books')).text()).toContain(`<img class="card-cover" src="${a.url}" alt="" loading="lazy">`);
+
+    // A series with a cover opens like a book.
+    const series = await (await json(o, '/api/studio/spaces', 'POST', { wing: 'books', parentId: 'books', kind: 'series', title: 'סדרה', slug: 's', visibility: 'public', meta: { cover: a.url } })).json();
+    await json(o, `/api/studio/spaces/${open.id}`, 'PATCH', { parentId: series.id });
+    const page = await (await req(`/books/s`)).text();
+    expect(page).toContain(`<div class="cover"><img src="${a.url}" alt=""></div>`);
+    expect(page).toContain('<div class="kicker">סדרה</div>');
+  });
+});

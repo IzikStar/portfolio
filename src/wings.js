@@ -187,6 +187,20 @@ export async function home(env, v) {
 
 // ---------- a wing or a space ----------
 
+// A space's picture (meta.cover): a stored file or an https address.
+const coverOf = (space) => (space?.meta?.cover && /^(https:\/\/|\/(?!\/))/.test(space.meta.cover) ? space.meta.cover : null);
+
+// A book or series on a shelf, its cover on top when it has one.
+function spaceCard(acc, k, n = 0) {
+  const cover = coverOf(k);
+  return `<a class="card${k.kind === 'book' ? ' book' : ''}${cover ? ' has-cover' : ''}" href="${spacePath(acc, k)}">
+  ${cover ? `<img class="card-cover" src="${e(cover)}" alt="" loading="lazy">` : ''}
+  <span class="title" dir="auto">${e(k.title)}</span>
+  ${k.summary ? `<p dir="auto">${e(k.summary)}</p>` : ''}
+  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n === 1 ? 'פריט אחד' : `${n} פריטים`}</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'רק אני' : k.visibility === 'members' ? 'לחברים' : 'לקהילות'}</span>` : ''}</span>
+</a>`;
+}
+
 function band({ wing, space, acc, path, lede, tabs = true }) {
   const kids = children(acc, wing.id);
   const nav = tabs && kids.length
@@ -215,11 +229,7 @@ export async function wingPage(env, v, wingId) {
     ? `<section class="block"><div class="cards">${kids
         .map((k) => {
           const n = items.filter((x) => descendants(acc, k.id).includes(x.spaceId)).length;
-          return `<a class="card${k.kind === 'book' ? ' book' : ''}" href="${spacePath(acc, k)}">
-  <span class="title" dir="auto">${e(k.title)}</span>
-  ${k.summary ? `<p dir="auto">${e(k.summary)}</p>` : ''}
-  <span class="meta"><span>${e(SPACE_LABEL[k.kind] ?? '')}</span>${n ? `<span>${n === 1 ? 'פריט אחד' : `${n} פריטים`}</span>` : ''}${acc.owner && k.visibility !== 'public' ? `<span class="badge vis-${e(k.visibility)}">${k.visibility === 'private' ? 'רק אני' : k.visibility === 'members' ? 'לחברים' : 'לקהילות'}</span>` : ''}</span>
-</a>`;
+          return spaceCard(acc, k, n);
         })
         .join('')}</div></section>`
     : '';
@@ -249,7 +259,7 @@ export async function spacePage(env, v, space) {
   let body;
   if (space.kind === 'book') {
     const chapters = items.filter((x) => x.spaceId === space.id).sort(byOrder);
-    const cover = space.meta?.cover && /^(https:\/\/|\/(?!\/))/.test(space.meta.cover) ? `<img src="${e(space.meta.cover)}" alt="">` : `<span class="t" dir="auto">${e(space.title)}</span><span>יצחק שטרן</span>`;
+    const cover = coverOf(space) ? `<img src="${e(coverOf(space))}" alt="">` : `<span class="t" dir="auto">${e(space.title)}</span><span>יצחק שטרן</span>`;
     const status = space.meta?.status ? `${e(space.meta.status)}` : 'ספר';
     const toc = chapters.length
       ? `<ol class="toc">${chapters
@@ -283,12 +293,24 @@ export async function spacePage(env, v, space) {
 </div>`;
   } else {
     const kids = children(acc, space.id);
-    const sub = kids.length
-      ? `<section class="block"><div class="cards">${kids.map((k) => `<a class="card" href="${spacePath(acc, k)}"><span class="title" dir="auto">${e(k.title)}</span>${k.summary ? `<p dir="auto">${e(k.summary)}</p>` : ''}<span class="meta">${e(SPACE_LABEL[k.kind] ?? '')}</span></a>`).join('')}</div></section>`
-      : '';
+    const sub = kids.length ? `<section class="block"><div class="cards">${kids.map((k) => spaceCard(acc, k)).join('')}</div></section>` : '';
     const own = items.filter((x) => x.spaceId === space.id).sort(space.kind === 'series' ? byOrder : () => 0);
     const grid = own.length ? `<div class="cards">${own.map((x) => itemCard(v, x)).join('')}</div>` : kids.length ? '' : '<p class="empty">עוד אין כאן כלום. בקרוב.</p>';
-    body = `${band({ wing, space, acc, path, lede: space.summary })}
+    // A series with a cover opens like a book: the cover beside its name.
+    const head = coverOf(space)
+      ? `<div class="wrap" data-wing="${e(wing.id)}">
+  <div class="crumbs back"><a href="/${wing.id}">${e(wing.title)}</a></div>
+  <section class="book-head">
+    <div class="cover"><img src="${e(coverOf(space))}" alt=""></div>
+    <div class="copy">
+      <div class="kicker">${e(SPACE_LABEL[space.kind] ?? '')}</div>
+      <h1 dir="auto">${e(space.title)}</h1>
+      ${space.summary ? `<p class="lede" dir="auto">${e(space.summary)}</p>` : ''}
+    </div>
+  </section>
+</div>`
+      : band({ wing, space, acc, path, lede: space.summary });
+    body = `${head}
 <div class="wrap">
   ${sub}
   <section class="block">${grid}${lockedNote(locked)}</section>

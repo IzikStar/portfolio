@@ -1,7 +1,8 @@
 // Files attached to entries: images in articles, a project's picture, audio,
 // video or PDFs. Bytes live in KV (src/blobs.js, in pieces past 20 MB); the
 // files table says which entry owns each one, and a file is visible to
-// exactly the people who may see its entry.
+// exactly the people who may see its entry. A cover belongs to a space
+// instead (entry_id "space:<id>") and shows to whoever may open that space.
 import { db } from './db.js';
 import { HttpError, json } from './http.js';
 import { getEntry } from './entries.js';
@@ -31,7 +32,8 @@ export async function putFile(request, env, url) {
   const name = String(url.searchParams.get('name') || 'file').slice(0, 200);
   const size = Number(request.headers.get('Content-Length') ?? NaN);
   const { type, download } = checkFile({ name, type: request.headers.get('Content-Type') ?? '', size: Number.isFinite(size) ? size : 1 });
-  if (!(await getEntry(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  if (!(await ownerExists(env, entryId))) throw new HttpError(400, 'Save the item before adding files to it.');
+  if (download && entryId.startsWith(SPACE)) throw new HttpError(400, 'A space takes pictures only.');
   if (!request.body) throw new HttpError(400, 'Choose a file.');
   const id = crypto.randomUUID();
   let stored;
@@ -43,6 +45,13 @@ export async function putFile(request, env, url) {
   }
   if (!stored) throw new HttpError(400, 'Choose a file.');
   return json(await addRow(env, { id, entryId, name, type, size: stored, download }), 201);
+}
+
+const SPACE = 'space:';
+async function ownerExists(env, entryId) {
+  if (!entryId.startsWith(SPACE)) return Boolean(await getEntry(env, entryId));
+  const d = await db(env);
+  return Boolean(await d.prepare('SELECT 1 FROM spaces WHERE id = ?').bind(entryId.slice(SPACE.length)).first());
 }
 
 const TOO_BIG = `The file is over ${MAX_FILE_BYTES / 1024 / 1024} MB. Upload it to Drive or YouTube and paste the link instead.`;
@@ -100,6 +109,15 @@ export async function serveFile(request, env, acc, id) {
   const d = await db(env);
   const row = await d.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
   if (!row) return null;
+  if (row.entry_id?.startsWith(SPACE)) {
+    const spaceId = row.entry_id.slice(SPACE.length);
+    if (!acc.visible.has(spaceId) || row.type === DOWNLOAD_TYPE) return null;
+    let open = true;
+    for (let s = acc.byId.get(spaceId), hops = 0; s && hops < 20; s = acc.byId.get(s.parentId), hops++) if (s.visibility !== 'public') open = false;
+    const res = await serveBlob(request, env, id, row.type, open ? 'public, max-age=86400' : 'private, max-age=300');
+    if (res) res.headers.set('Vary', 'Cookie');
+    return res;
+  }
   const entry = await getEntry(env, row.entry_id);
   if (!entry) return null;
   if (!canSee(acc, entry)) return null;

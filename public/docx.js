@@ -449,6 +449,7 @@ export async function readDocx(buffer) {
       const h = Math.round(Number(extent.attrs.cy) / EMU_PX);
       const html = w > 0 && h > 0 ? group(wgp, relMap, ctx, w, h) : '';
       if (html) {
+        if (anchored && find(holder, 'wp:wrapNone').length) ctx.overlay = Math.max(ctx.overlay ?? 0, h);
         ctx.after.push(`<div class="dx-figure">${html}</div>`);
         return '';
       }
@@ -466,6 +467,8 @@ export async function readDocx(buffer) {
       // A picture the text wraps around keeps its side; one standing alone gets its own line.
       const align = find(holder, 'wp:align')[0]?.kids.join('').trim();
       const wraps = find(holder, 'wp:wrapSquare').length || find(holder, 'wp:wrapTight').length || find(holder, 'wp:wrapThrough').length;
+      // Word lays a picture with no wrap over the text, and the book leaves empty lines beneath it.
+      if (find(holder, 'wp:wrapNone').length) ctx.overlay = Math.max(ctx.overlay ?? 0, Math.round(Number(extent?.attrs.cy ?? 0) / EMU_PX));
       if (wraps && (align === 'left' || align === 'right')) return html.replace(/^<(img|span) /, `<$1 class="dx-float-${align}" `).replace(/^<span class="dx-float-(\w+)" class="dx-crop"/, '<span class="dx-crop dx-float-$1"');
       ctx.after.push(`<p class="dx-figure">${html}</p>`);
       return '';
@@ -645,7 +648,7 @@ export async function readDocx(buffer) {
   // One paragraph: [html blocks...]
   function paragraph(p, relMap, ctx) {
     const look = paragraphLook(p);
-    const local = { ...ctx, pr: look.pr, after: [], pageBreak: false, field: null };
+    const local = { ...ctx, pr: look.pr, after: [], pageBreak: false, field: null, overlay: 0 };
     let text = inline(els(p), local, relMap);
     const num = look.pp.num;
     if (num && num.id && num.id !== '0') {
@@ -660,13 +663,17 @@ export async function readDocx(buffer) {
     if (look.pp.pageBreakBefore && !ctx.inBox) out.push({ pageBreak: true });
     const body = text.replace(/(<br>)+$/, '');
     const empty = !plain && !/<img /.test(body);
-    out.push({
-      html: empty ? '<p class="dx-gap"></p>' : `<${tag}${css.length ? ` style="${css.join(';')}"` : ''}${dir}>${body}</${tag}>`,
-      plain,
-      heading: look.heading,
-      empty,
-    });
+    // A paragraph that only holds a picture is the picture.
+    if (!(empty && local.after.length)) {
+      out.push({
+        html: empty ? '<p class="dx-gap"></p>' : `<${tag}${css.length ? ` style="${css.join(';')}"` : ''}${dir}>${body}</${tag}>`,
+        plain,
+        heading: look.heading,
+        empty,
+      });
+    }
     for (const a of local.after) out.push({ html: a, plain: '' });
+    if (local.overlay && local.after.length) out[out.length - 1].overlay = local.overlay;
     if (local.pageBreak && !ctx.inBox) out.push({ pageBreak: true });
     return out;
   }
@@ -748,10 +755,21 @@ export async function readDocx(buffer) {
     else chapters.push(chapter);
   };
 
+  // One empty line of plain text, in px: the overlay a picture leaves is paid off in these.
+  const linePx = (baseSize * 4) / 3 * ((base.p.line && (base.p.lineRule ?? 'auto') === 'auto' ? base.p.line / 240 : 1) * 1.15) + ((base.p.before ?? 0) + (base.p.after ?? 0)) / 15;
+  let overlay = 0;
+  const add = (b) => {
+    if (b.empty && overlay > 0) {
+      overlay -= linePx;
+      return;
+    }
+    overlay = b.overlay ?? (b.empty ? overlay : 0);
+    current.parts.push(b);
+  };
   const top = els(body).flatMap((n) => (n.name === 'w:sdt' ? els(kid(n, 'w:sdtContent')) : [n]));
   for (const n of top) {
     if (n.name === 'w:tbl') {
-      current.parts.push({ html: table(n, rels, ctxFor()), plain: 'table' });
+      add({ html: table(n, rels, ctxFor()), plain: 'table' });
       continue;
     }
     if (n.name !== 'w:p') continue;
@@ -759,13 +777,16 @@ export async function readDocx(buffer) {
     if (CHAPTER_RE.test(plain)) {
       flush();
       current = { title: plain.replace(/\s*:$/, '').replace(/['׳"״.]$/, ''), parts: [], notes: [] };
+      // The chapter line itself becomes the title, but a picture standing on it opens the chapter.
+      const [line, ...rest] = paragraph(n, rels, ctxFor()).filter((b) => !b.pageBreak);
+      const pics = line?.html.match(/<span class="dx-crop"[^>]*>.*?<\/span>|<img [^>]*>/g);
+      overlay = 0;
+      if (pics) add({ html: `<p class="dx-figure">${pics.join('')}</p>`, plain: '' });
+      rest.forEach(add);
       continue;
     }
     const ctx = ctxFor();
-    for (const b of paragraph(n, rels, ctx)) {
-      if (b.pageBreak) continue;
-      current.parts.push(b);
-    }
+    for (const b of paragraph(n, rels, ctx)) if (!b.pageBreak) add(b);
   }
   flush();
   if (!chapters.length && front) {

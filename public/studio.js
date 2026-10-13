@@ -1275,7 +1275,7 @@
       );
       const left = entries.filter((e) => !used.has(e.id));
       $('s-word-notes').textContent = [
-        doc.front ? 'עמוד השער (מה שלפני "פתיחה") לא נכנס: שם הספר כבר מופיע בעמוד שלו.' : '',
+        doc.front ? `עמוד השער (מה שלפני "פתיחה") לא נכנס כטקסט.${coverPlan(doc) ? ` ${coverPlan(doc)}` : ''}` : '',
         left.length ? `נשארים כמו שהם: ${left.map((e) => e.title).join(', ')}.` : '',
         doc.skipped.length ? `${doc.skipped.length} תמונות בפורמט שדפדפן לא מציג (${doc.skipped.join(', ')}) לא ייכנסו. שומרים אותן בוורד כ־PNG או JPG ומייבאים שוב.` : '',
       ]
@@ -1287,6 +1287,30 @@
       say('s-word-msg', err.message || 'לא הצלחתי לקרוא את הקובץ.', 'err');
     }
   });
+
+  // The pictures on the title page become covers: the last one is this book's,
+  // and when there are more, the first is the series' (only if it has none yet).
+  function coversOf(doc) {
+    const keys = doc.front?.images ?? [];
+    const space = state.byId.get(spaceView.id);
+    const series = space && state.byId.get(space.parentId);
+    return {
+      book: keys.length ? keys[keys.length - 1] : null,
+      series: keys.length > 1 && series?.kind === 'series' && !series.meta?.cover ? { key: keys[0], space: series } : null,
+    };
+  }
+  function coverPlan(doc) {
+    const c = coversOf(doc);
+    return [c.book ? 'התמונה בעמוד השער תהיה הכריכה של הספר.' : '', c.series ? `התמונה הראשונה בו תהיה הכריכה של "${c.series.space.title}".` : ''].filter(Boolean).join(' ');
+  }
+  async function setCover(space, m) {
+    const img = m && (await bookImage(m));
+    if (!img) return;
+    const f = await upload(`space:${space.id}`, img);
+    const old = space.meta?.coverFile;
+    await send(`/api/studio/spaces/${space.id}`, 'PATCH', { meta: { ...space.meta, cover: f.url, coverFile: f.id } });
+    if (old) await call(`/api/studio/files/${old}`, { method: 'DELETE' }).catch(() => {});
+  }
 
   // A picture ready for the site: big ones scaled down; transparency kept where the browser can.
   async function bookImage(m) {
@@ -1364,6 +1388,17 @@
           if (err instanceof AuthError) throw err;
           failed.push(`${ch.title}: ${err.message}`);
         }
+      }
+      const covers = coversOf(doc);
+      try {
+        if (covers.book) {
+          say('s-word-msg', 'כריכה...');
+          await setCover(space, doc.media.get(covers.book));
+        }
+        if (covers.series) await setCover(covers.series.space, doc.media.get(covers.series.key));
+      } catch (err) {
+        if (err instanceof AuthError) throw err;
+        failed.push(`כריכה: ${err.message}`);
       }
       await loadSpaces().catch(() => {});
       resetWordImport(space, true);

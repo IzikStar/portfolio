@@ -155,6 +155,7 @@ a { color: inherit; }
 .card .title { font-family: var(--display); font-size: 24px; line-height: 1.15; }
 .card p { color: var(--soft); font-size: 15px; }
 .card .meta { margin-top: auto; }
+.card .card-cover { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; margin-bottom: 6px; }
 .card img { border-radius: 12px; aspect-ratio: 16 / 9; object-fit: cover; }
 .card.book { background: var(--accent); color: var(--on-accent); min-height: 260px; border-radius: 10px 22px 22px 10px; }
 .card.book p, .card.book .meta { color: inherit; opacity: 0.85; }
