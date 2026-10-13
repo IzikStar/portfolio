@@ -340,25 +340,102 @@ export async function readDocx(buffer) {
   const ALIGN = { left: 'start', start: 'start', right: 'end', end: 'end', center: 'center', both: 'justify', distribute: 'justify', lowKashida: 'justify', mediumKashida: 'justify', highKashida: 'justify' };
   const baseAlign = ALIGN[base.p.jc] ?? 'start';
 
-  function addImage(relId, relMap, extent) {
+  // The stored picture behind a relationship, as <img src="docx:..."> (attrs added as given).
+  function imageRef(relId, relMap) {
     const rel = relMap.get(relId);
-    if (!rel || rel.external) return '';
+    if (!rel || rel.external) return null;
     const path = rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`.replace(/\/[^/]+\/\.\.\//g, '/');
     const get = files.get(path);
-    if (!get) return '';
+    if (!get) return null;
     const name = path.split('/').pop();
     const ext = name.split('.').pop().toLowerCase();
     const type = IMAGE_TYPES[ext];
     if (!type || ['image/emf', 'image/wmf', 'image/tiff', 'image/svg+xml'].includes(type)) {
       skipped.push(name);
-      return '';
+      return null;
     }
     const key = `img-${path}`;
     if (!media.has(key)) media.set(key, { name, type, bytes: get });
+    return `docx:${esc(key)}`;
+  }
+
+  // Word's crop (a:srcRect, in thousandths of a percent from each side) as the
+  // picture's place inside a box that hides the rest: [left, top, width, height] in %.
+  function cropOf(blipFill) {
+    const r = kid(blipFill, 'a:srcRect');
+    if (!r) return null;
+    const [l, t, rr, b] = ['l', 't', 'r', 'b'].map((k) => Number(r.attrs[k] ?? 0) / 100000);
+    if (!(l || t || rr || b) || l + rr >= 1 || t + b >= 1) return null;
+    const w = 1 - l - rr;
+    const h = 1 - t - b;
+    return [(-l / w) * 100, (-t / h) * 100, 100 / w, 100 / h];
+  }
+  const pct = (n) => `${Math.round(n * 100) / 100}%`;
+  const cropped = (src, crop) =>
+    `<img class="dx-cropped" src="${src}" alt="" style="left:${pct(crop[0])};top:${pct(crop[1])};width:${pct(crop[2])};height:${pct(crop[3])}">`;
+
+  function addImage(relId, relMap, extent, blipFill) {
+    const src = imageRef(relId, relMap);
+    if (!src) return '';
     const w = extent ? Math.round(Number(extent.attrs.cx) / EMU_PX) : 0;
     const h = extent ? Math.round(Number(extent.attrs.cy) / EMU_PX) : 0;
+    const crop = blipFill && w > 0 && h > 0 ? cropOf(blipFill) : null;
+    if (crop) return `<span class="dx-crop" style="width:${w}px;aspect-ratio:${w} / ${h}">${cropped(src, crop)}</span>`;
     const size = w > 0 && h > 0 ? ` width="${w}" height="${h}" style="width:${w}px"` : '';
-    return `<img src="docx:${esc(key)}" alt=""${size}>`;
+    return `<img src="${src}" alt=""${size}>`;
+  }
+
+  // A group drawn in Word (pictures and text boxes laid over each other): one
+  // box the size Word gave it, each piece placed in it by percent, so it keeps
+  // its composition at any width. Text inside scales with the box.
+  function group(wgp, relMap, ctx, w, h) {
+    const xfrm = (n) => {
+      const x = kid(n, 'a:xfrm');
+      if (!x) return null;
+      const num = (k, a) => Number(kid(x, k)?.attrs[a] ?? 0);
+      return {
+        x: num('a:off', 'x'), y: num('a:off', 'y'), cx: num('a:ext', 'cx'), cy: num('a:ext', 'cy'),
+        chx: num('a:chOff', 'x'), chy: num('a:chOff', 'y'), chcx: num('a:chExt', 'cx'), chcy: num('a:chExt', 'cy'),
+        rot: Number(x.attrs.rot ?? 0) / 60000, flipH: x.attrs.flipH === '1', flipV: x.attrs.flipV === '1',
+      };
+    };
+    const top = xfrm(kid(wgp, 'wpg:grpSpPr'));
+    if (!top || !top.chcx || !top.chcy) return '';
+    const pieces = [];
+    // map: outer fraction = o + s * child coordinate.
+    const walk = (node, m) => {
+      for (const k of els(node)) {
+        if (k.name === 'wpg:grpSp') {
+          const t = xfrm(kid(k, 'wpg:grpSpPr'));
+          if (!t || !t.chcx || !t.chcy) continue;
+          const sx = (m.sx * t.cx) / t.chcx;
+          const sy = (m.sy * t.cy) / t.chcy;
+          walk(k, { sx, sy, ox: m.ox + m.sx * t.x - sx * t.chx, oy: m.oy + m.sy * t.y - sy * t.chy });
+          continue;
+        }
+        if (k.name !== 'pic:pic' && k.name !== 'wps:wsp') continue;
+        const spPr = kid(k, k.name === 'pic:pic' ? 'pic:spPr' : 'wps:spPr');
+        const t = xfrm(spPr);
+        if (!t || !t.cx || !t.cy) continue;
+        const box = [m.ox + m.sx * t.x, m.oy + m.sy * t.y, m.sx * t.cx, m.sy * t.cy].map((v) => v * 100);
+        const turn = [t.rot ? `rotate(${Math.round(t.rot * 10) / 10}deg)` : '', t.flipH ? 'scaleX(-1)' : '', t.flipV ? 'scaleY(-1)' : ''].filter(Boolean).join(' ');
+        const place = `left:${pct(box[0])};top:${pct(box[1])};width:${pct(box[2])};height:${pct(box[3])}${turn ? `;transform:${turn}` : ''}`;
+        let inner = '';
+        const blipFill = k.name === 'pic:pic' ? kid(k, 'pic:blipFill') : kid(spPr, 'a:blipFill');
+        const blip = kid(blipFill, 'a:blip');
+        if (blip) {
+          const src = imageRef(blip.attrs['r:embed'] ?? blip.attrs['r:link'], relMap);
+          const crop = cropOf(blipFill);
+          if (src) inner = crop ? cropped(src, crop) : `<img class="dx-fill" src="${src}" alt="">`;
+        }
+        for (const tb of find(k, 'w:txbxContent')) inner += blocks(els(tb), relMap, { ...ctx, inBox: true }).join('');
+        if (inner) pieces.push(`<div class="dx-at" style="${place}">${inner}</div>`);
+      }
+    };
+    walk(wgp, { sx: 1 / top.chcx, sy: 1 / top.chcy, ox: -top.chx / top.chcx, oy: -top.chy / top.chcy });
+    if (!pieces.length) return '';
+    const fs = Math.round(baseSize * (4 / 3) * 100) / 100;
+    return `<div class="dx-group" style="width:${w}px;aspect-ratio:${w} / ${h};--dx-w:${w};--dx-fs:${fs}">${pieces.join('')}</div>`;
   }
 
   // A picture (or a group of them, or a text box) inside a run.
@@ -366,10 +443,22 @@ export async function readDocx(buffer) {
     const holder = kid(node, 'wp:inline') ?? kid(node, 'wp:anchor') ?? node;
     const extent = kid(holder, 'wp:extent');
     const anchored = holder.name === 'wp:anchor';
+    const wgp = find(holder, 'wpg:wgp')[0];
+    if (wgp && extent) {
+      const w = Math.round(Number(extent.attrs.cx) / EMU_PX);
+      const h = Math.round(Number(extent.attrs.cy) / EMU_PX);
+      const html = w > 0 && h > 0 ? group(wgp, relMap, ctx, w, h) : '';
+      if (html) {
+        ctx.after.push(`<div class="dx-figure">${html}</div>`);
+        return '';
+      }
+    }
     let html = '';
     const blips = find(holder, 'a:blip');
-    if (blips.length === 1) html = addImage(blips[0].attrs['r:embed'] ?? blips[0].attrs['r:link'], relMap, extent);
-    else for (const b of blips) html += addImage(b.attrs['r:embed'], relMap, find(b, 'a:ext')[0] ? { attrs: find(b, 'a:ext')[0].attrs } : null);
+    if (blips.length === 1) {
+      const fill = find(holder, 'pic:blipFill')[0] ?? find(holder, 'a:blipFill')[0];
+      html = addImage(blips[0].attrs['r:embed'] ?? blips[0].attrs['r:link'], relMap, extent, fill);
+    } else for (const b of blips) html += addImage(b.attrs['r:embed'], relMap, null);
     const boxes = find(holder, 'w:txbxContent');
     for (const t of boxes) ctx.after.push(`<div class="dx-box">${blocks(els(t), relMap, { ...ctx, inBox: true }).join('')}</div>`);
     if (!html) return '';
@@ -377,7 +466,7 @@ export async function readDocx(buffer) {
       // A picture the text wraps around keeps its side; one standing alone gets its own line.
       const align = find(holder, 'wp:align')[0]?.kids.join('').trim();
       const wraps = find(holder, 'wp:wrapSquare').length || find(holder, 'wp:wrapTight').length || find(holder, 'wp:wrapThrough').length;
-      if (wraps && (align === 'left' || align === 'right')) return html.replace('<img ', `<img class="dx-float-${align}" `);
+      if (wraps && (align === 'left' || align === 'right')) return html.replace(/^<(img|span) /, `<$1 class="dx-float-${align}" `).replace(/^<span class="dx-float-(\w+)" class="dx-crop"/, '<span class="dx-crop dx-float-$1"');
       ctx.after.push(`<p class="dx-figure">${html}</p>`);
       return '';
     }

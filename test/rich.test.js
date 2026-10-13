@@ -13,6 +13,12 @@ describe('sanitizeHtml', () => {
     );
   });
 
+  it('keeps a Word group in place and nothing that would move it out of its box', () => {
+    const group = '<div class="dx-figure"><div class="dx-group" style="width:200px;aspect-ratio:200 / 100;--dx-w:200;--dx-fs:16"><div class="dx-at" style="left:50%;top:-2.5%;width:25%;height:25%;transform:rotate(-12.5deg) scaleX(-1)"><img class="dx-cropped" src="/files/a" alt="" style="left:-50%;top:0%;width:200%;height:100%" loading="lazy"></div></div></div>';
+    expect(sanitizeHtml(group)).toBe(group);
+    expect(sanitizeHtml('<div style="position:fixed;left:0px;top:calc(1px);height:100vh;transform:translate(9px);--dx-w:a;aspect-ratio:1/1">x</div>')).toBe('<div>x</div>');
+  });
+
   it('drops anything that could run, and styles it does not know', () => {
     expect(sanitizeHtml('<p onclick="x()" style="position:fixed;color:red;background:url(x)">a</p><script>alert(1)</script>b')).toBe('<p>a</p>b');
     expect(sanitizeHtml('<img src="javascript:alert(1)"><img src=x onerror=alert(1)>')).toBe('');

@@ -21,7 +21,15 @@ const STYLE = {
   'text-indent': /^-?\d{1,3}(\.\d)?pt$/,
   'margin-inline-start': /^\d{1,3}(\.\d)?pt$/,
   'margin-inline-end': /^\d{1,3}(\.\d)?pt$/,
-  width: /^\d{1,4}px$/,
+  width: /^(\d{1,4}px|-?\d{1,4}(\.\d{1,2})?%)$/,
+  // A Word group's pieces are placed by percent inside the group's own box.
+  left: /^-?\d{1,4}(\.\d{1,2})?%$/,
+  top: /^-?\d{1,4}(\.\d{1,2})?%$/,
+  height: /^-?\d{1,4}(\.\d{1,2})?%$/,
+  'aspect-ratio': /^\d{1,4} \/ \d{1,4}$/,
+  transform: /^(rotate\(-?\d{1,3}(\.\d)?deg\))?( ?scale[XY]\(-1\)){0,2}$/,
+  '--dx-w': /^\d{1,4}$/,
+  '--dx-fs': /^\d{1,2}(\.\d{1,2})?$/,
 };
 const CLASS = /^dx-[a-z-]+$/;
 const ID = /^[nr]-\d{1,4}$/;
